@@ -1,7 +1,8 @@
 import { Button, ButtonText } from '@gluestack-ui/themed';
 import type { ComponentProps, ReactNode } from 'react';
 
-import { useColorScheme } from '@/components/hooks/useColorScheme';
+import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
+import { useThemeAwareTypography } from '@/components/ui/useThemeAwareTypography';
 
 type ThemeAwareButtonProps = ComponentProps<typeof Button> & {
   children: ReactNode;
@@ -17,22 +18,19 @@ export function ThemeAwareButton({
   bg,
   ...props
 }: ThemeAwareButtonProps) {
-  const colorScheme = useColorScheme();
+  const { colorScheme, getTextColor } = useThemeAwareColors();
+  const { fontFamily } = useThemeAwareTypography();
   const shouldApplyDefaultBackground =
     variant !== 'outline' && variant !== 'link';
   const background = colorScheme === 'dark' ? darkBackground : lightBackground;
   const resolvedBackground =
     bg ?? (shouldApplyDefaultBackground ? background : '$transparent');
-  const textColor = shouldApplyDefaultBackground
-    ? colorScheme === 'dark'
-      ? '$textDark0'
-      : '$textLight0'
-    : colorScheme === 'dark'
-      ? '$textDark50'
-      : '$textLight900';
+  const textColor = getTextColor(shouldApplyDefaultBackground);
   const buttonChildren =
     typeof children === 'string' || typeof children === 'number' ? (
-      <ButtonText color={textColor}>{children}</ButtonText>
+      <ButtonText color={textColor} fontFamily={fontFamily}>
+        {children}
+      </ButtonText>
     ) : (
       children
     );

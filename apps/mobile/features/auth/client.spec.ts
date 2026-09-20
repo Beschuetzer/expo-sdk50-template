@@ -3,6 +3,7 @@ import {
   exchangeAuthorizationCode,
   exchangeAuthorizationCodeForCurrentPlatform,
   getAuthenticatedUser,
+  revokeRefreshToken,
   refreshAccessToken,
   verifyAuthenticatedEndpointRejectsAnonymousRequest,
 } from './client';
@@ -26,13 +27,58 @@ function makeResponse(body: unknown, status: number): Response {
 describe('auth client', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'android' },
+    });
   });
 
   it('builds identity-provider discovery endpoints', () => {
     expect(createIdentityProviderDiscovery()).toEqual({
       authorizationEndpoint: 'http://localhost:4300/authorize',
+      revocationEndpoint: 'http://localhost:4300/revoke',
       tokenEndpoint: 'http://localhost:4300/token',
     });
+  });
+
+  it('revokes a native refresh token', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'android' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 200));
+
+    await expect(
+      revokeRefreshToken('refresh-token', {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+        revocationEndpoint: 'http://localhost:4300/revoke',
+        tokenEndpoint: 'http://localhost:4300/token',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetch).toHaveBeenCalledWith('http://localhost:4300/revoke', {
+      body: expect.stringContaining('token=refresh-token'),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+    });
+  });
+
+  it('does not call the identity provider to revoke a web session', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    const fetchSpy = jest.spyOn(global, 'fetch');
+
+    await expect(
+      revokeRefreshToken('refresh-token', {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+        revocationEndpoint: 'http://localhost:4300/revoke',
+        tokenEndpoint: 'http://localhost:4300/token',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('sends the bearer token to the authenticated endpoint', async () => {

@@ -22,14 +22,23 @@ const messages = {
   en: {
     actions: {
       clearBackendCache: 'Clear Backend Cache',
+      decreaseErrorCount: 'Decrease error count',
+      increaseErrorCount: 'Increase error count',
+      clearImage: 'Clear image',
+      selectImageFromCamera: 'Take photo',
+      selectImageFromLibrary: 'Choose from photos',
+      testImageSelector: 'Test image selector',
       readBackendCache: 'Read Cached Health',
       saveSettings: 'Save Settings',
       testAnonymousEndpoint: 'Verify Anonymous Access Is Rejected',
       testAuthenticatedEndpoint: 'Call Authenticated Endpoint',
+      testBarcodeScanner: 'Test Barcode Scanner',
       testBackendConnection: 'Test Backend Connection',
+      testErrorCount: 'Error count',
       testErrorModal: 'Test ErrorModal',
       testTokenRefresh: 'Test Token Refresh',
       signOut: 'Sign Out',
+      hideBarcodeScanner: 'Hide Barcode Scanner',
     },
     app: {
       description:
@@ -58,6 +67,9 @@ const messages = {
       errorBoundaryMessage: 'Message:',
       errorBoundaryStack: 'Stack:',
       errorBoundaryTitle: 'Error encountered',
+      imagePermissionDenied:
+        'Image access is disabled. Enable camera or photo permissions in your device settings.',
+      imageSelectionFailed: 'The image could not be selected.',
       goHome: 'Go to home screen',
       notFoundMessage: "This screen doesn't exist.",
       notFoundTitle: 'Oops!',
@@ -66,8 +78,35 @@ const messages = {
       testErrorModalStack: 'Triggered from the starter home screen.',
       unexpectedBackendStatus: 'Backend responded with an unexpected status.',
     },
+    font: {
+      label: 'Font',
+      codex: 'Codex',
+      codexItalic: 'Codex Italic',
+      fallingSkySemibold: 'Falling Sky Semibold',
+      fallingSkyMediumOblique: 'Falling Sky Medium Oblique',
+      fallingSkyLight: 'Falling Sky Light',
+      fallingSkyBlack: 'Falling Sky Black',
+      fashionvictim: 'Fashionvictim',
+      kindred: 'Kindred',
+      kindredItalic: 'Kindred Italic',
+      nesathoberyl: 'Nesathoberyl',
+      timeburnerBold: 'Timeburner Bold',
+      spaceMono: 'Space Mono',
+      typeLightSans: 'Type Light Sans',
+      zomboid: 'Zomboid',
+    },
     language: {
       label: 'Language',
+    },
+    scanner: {
+      allowCamera: 'Allow camera',
+      permissionDenied:
+        'Camera access is disabled. Enable it in your device settings.',
+      permissionRequired: 'Camera access is required to scan a barcode.',
+      scanAgain: 'Scan again',
+      scanComplete: 'Barcode captured',
+      resultData: 'Data',
+      resultType: 'Type',
     },
     settings: {
       darkMode: 'Dark mode',
@@ -111,14 +150,23 @@ const messages = {
   es: {
     actions: {
       clearBackendCache: 'Limpiar caché del backend',
+      decreaseErrorCount: 'Disminuir cantidad de errores',
+      increaseErrorCount: 'Aumentar cantidad de errores',
+      clearImage: 'Borrar imagen',
+      selectImageFromCamera: 'Tomar foto',
+      selectImageFromLibrary: 'Elegir de las fotos',
+      testImageSelector: 'Probar selector de imágenes',
       readBackendCache: 'Leer salud en caché',
       saveSettings: 'Guardar configuración',
       testAnonymousEndpoint: 'Verificar rechazo del acceso anónimo',
       testAuthenticatedEndpoint: 'Llamar al endpoint autenticado',
+      testBarcodeScanner: 'Probar escáner de códigos de barras',
       testBackendConnection: 'Probar conexión con el backend',
+      testErrorCount: 'Cantidad de errores',
       testErrorModal: 'Probar ErrorModal',
       testTokenRefresh: 'Probar renovación del token',
       signOut: 'Cerrar sesión',
+      hideBarcodeScanner: 'Ocultar escáner de códigos de barras',
     },
     app: {
       description:
@@ -152,6 +200,9 @@ const messages = {
       errorBoundaryMessage: 'Mensaje:',
       errorBoundaryStack: 'Pila:',
       errorBoundaryTitle: 'Ocurrió un error',
+      imagePermissionDenied:
+        'El acceso a las imágenes está desactivado. Activa los permisos de cámara o fotos en los ajustes del dispositivo.',
+      imageSelectionFailed: 'No se pudo seleccionar la imagen.',
       goHome: 'Ir a la pantalla de inicio',
       notFoundMessage: 'Esta pantalla no existe.',
       notFoundTitle: '¡Vaya!',
@@ -161,8 +212,43 @@ const messages = {
         'Activado desde la pantalla de inicio de la plantilla.',
       unexpectedBackendStatus: 'El backend respondió con un estado inesperado.',
     },
+    font: {
+      label: 'Fuente',
+      codex: 'Codex',
+      codexItalic: 'Codex cursiva',
+      fallingSkySemibold: 'Falling Sky seminegrita',
+      fallingSkyOutline: 'Falling Sky contorno',
+      fallingSkyMediumOblique: 'Falling Sky oblicua mediana',
+      fallingSkyLight: 'Falling Sky ligera',
+      fallingSkyExtendedOutline: 'Falling Sky contorno extendido',
+      fallingSkyBlack: 'Falling Sky negra',
+      freedom2: 'Freedom 2',
+      freedom: 'Freedom',
+      forque: 'Forque',
+      fashionvictim: 'Fashionvictim',
+      kindred: 'Kindred',
+      kindredItalic: 'Kindred cursiva',
+      nesathoberyl: 'Nesathoberyl',
+      roBlueShellBold: 'Ro Blue Shell negrita',
+      timeburner: 'Timeburner',
+      timeburnerBold: 'Timeburner negrita',
+      spaceMono: 'Space Mono',
+      typeLightSans: 'Type Light Sans',
+      zomboid: 'Zomboid',
+    },
     language: {
       label: 'Idioma',
+    },
+    scanner: {
+      allowCamera: 'Permitir cámara',
+      permissionDenied:
+        'El acceso a la cámara está desactivado. Actívalo en los ajustes del dispositivo.',
+      permissionRequired:
+        'Se necesita acceso a la cámara para escanear un código de barras.',
+      scanAgain: 'Escanear de nuevo',
+      scanComplete: 'Código de barras capturado',
+      resultData: 'Datos',
+      resultType: 'Tipo',
     },
     settings: {
       darkMode: 'Modo oscuro',
@@ -212,7 +298,9 @@ export type TranslationKey =
   | `checklist.${keyof typeof messages.en.checklist}`
   | `common.${keyof typeof messages.en.common}`
   | `errors.${keyof typeof messages.en.errors}`
+  | `font.${keyof typeof messages.en.font}`
   | `language.${keyof typeof messages.en.language}`
+  | `scanner.${keyof typeof messages.en.scanner}`
   | `settings.${keyof typeof messages.en.settings}`
   | `status.${keyof typeof messages.en.status}`
   | `theme.${keyof typeof messages.en.theme}`

@@ -1,7 +1,8 @@
 import React, { ErrorInfo, PropsWithChildren } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
-import { Text } from '@/components/Themed';
+import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
+import { ThemeAwareView } from '@/components/ui/ThemeAwareView';
 import { reportDiagnostic } from '@/utils/diagnostics';
 import { useI18n } from '@/utils/i18n';
 
@@ -38,22 +39,22 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
-          <Text style={[styles.alignCenter, styles.largeHeading]}>
+          <ThemeAwareText style={[styles.alignCenter, styles.largeHeading]}>
             {this.props.t('errors.errorBoundaryTitle')}
-          </Text>
-          <Text style={[styles.alignCenter, styles.smallHeading]}>
+          </ThemeAwareText>
+          <ThemeAwareText style={[styles.alignCenter, styles.smallHeading]}>
             {this.props.t('errors.errorBoundaryMessage')}{' '}
-          </Text>
-          <Text>{this.state.error?.message}</Text>
-          <Text style={[styles.alignCenter, styles.smallHeading]}>
+          </ThemeAwareText>
+          <ThemeAwareText>{this.state.error?.message}</ThemeAwareText>
+          <ThemeAwareText style={[styles.alignCenter, styles.smallHeading]}>
             {this.props.t('errors.errorBoundaryStack')}{' '}
-          </Text>
-          <View style={styles.paddingBottom}>
-            <Text>
+          </ThemeAwareText>
+          <ThemeAwareView style={styles.paddingBottom}>
+            <ThemeAwareText>
               {this.props.t('errors.errorBoundaryStack')}{' '}
               {this.state.error?.stack}
-            </Text>
-          </View>
+            </ThemeAwareText>
+          </ThemeAwareView>
         </ScrollView>
       );
     }

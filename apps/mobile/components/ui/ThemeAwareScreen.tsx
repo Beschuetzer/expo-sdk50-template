@@ -25,7 +25,9 @@ export function ThemeAwareScreen<ItemT = unknown>(
 
   function renderList() {
     const contentJSX = (
-      <ThemeAwareSurface pb="$1">{children}</ThemeAwareSurface>
+      <ThemeAwareSurface py="$0" px="$2">
+        {children}
+      </ThemeAwareSurface>
     );
 
     if (flashListProps) {
@@ -47,8 +49,6 @@ export function ThemeAwareScreen<ItemT = unknown>(
     return (
       <ScrollView
         keyboardShouldPersistTaps="always"
-        m="$1"
-        mt={0}
         contentContainerStyle={{ paddingBottom: containerHeight }}
       >
         {contentJSX}
