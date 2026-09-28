@@ -1,9 +1,9 @@
-import { HStack, VStack } from '@gluestack-ui/themed';
+import { FlatList, HStack } from '@gluestack-ui/themed';
 import { useCallback, useMemo } from 'react';
-
-import { ModalWithBlur } from './ModalWithBlur';
+import { Dimensions } from 'react-native';
 
 import { ThemeAwareButton } from '@/components/ui/ThemeAwareButton';
+import { ThemedModal } from '@/components/ui/ThemedModal';
 import {
   ERRORS_INITIAL,
   errorSelector,
@@ -49,21 +49,28 @@ export const ErrorModal = (props: ErrorModalProps) => {
   }, [dispatch]);
 
   return (
-    <ModalWithBlur
-      onConfirm={onConfirmPress}
-      confirmButton={{ text: 'Ok' }}
-      cancelButton={{ isVisible: false }}
-      title="Errors Encountered (Press to View)"
+    <ThemedModal
+      confirmButton={{ text: 'Ok', onPress: onConfirmPress }}
+      title="Errors Encountered"
       isVisible={uniqueErrors.some((error) => Boolean(error.message))}
+      onClose={onConfirmPress}
+      scrollable={false}
     >
-      <VStack>
-        {uniqueErrors.map((error, index) => {
+      <FlatList
+        data={uniqueErrors}
+        keyExtractor={(item, index) => {
+          const error = item as Error;
+          return error.message ?? String(index);
+        }}
+        renderItem={({ item, index }) => {
+          const error = item as Error;
           if (!error.message) return null;
           return (
             <HStack
-              key={index}
               justifyContent="space-between"
               alignItems="center"
+              px="$4"
+              py="$2"
             >
               <ThemeAwareButton
                 variant="link"
@@ -73,8 +80,8 @@ export const ErrorModal = (props: ErrorModalProps) => {
               </ThemeAwareButton>
             </HStack>
           );
-        })}
-      </VStack>
-    </ModalWithBlur>
+        }}
+      />
+    </ThemedModal>
   );
 };

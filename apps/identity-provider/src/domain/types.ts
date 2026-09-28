@@ -56,4 +56,5 @@ export interface AuthorizationCodeStore {
 export interface RefreshTokenStore {
   save(token: RefreshToken): void;
   consume(token: string): RefreshToken | undefined;
+  revoke(token: string): void;
 }

@@ -8,6 +8,11 @@ export function displayAlert(object: object | null) {
 }
 
 export function getBackendUrl() {
+  const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, '');
+  }
+
   const config = getEnvironmentOrDefault();
 
   return config.env.match(/dev|development/i)

@@ -44,8 +44,37 @@ export function createIdentityProviderDiscovery(): DiscoveryDocument {
   const baseUrl = getDiscoveryBaseUrl();
   return {
     authorizationEndpoint: `${baseUrl}/authorize`,
+    revocationEndpoint: `${baseUrl}/revoke`,
     tokenEndpoint: `${baseUrl}/token`,
   };
+}
+
+export async function revokeRefreshToken(
+  refreshToken: string,
+  discovery: DiscoveryDocument,
+) {
+  if (Platform.OS === 'web' || !discovery.revocationEndpoint) {
+    return;
+  }
+
+  const response = await fetch(discovery.revocationEndpoint, {
+    body: new URLSearchParams({
+      client_id: MOBILE_OAUTH_CLIENT_ID,
+      token: refreshToken,
+      token_type_hint: 'refresh_token',
+    }).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const result = (await response.json()) as TokenResponse;
+    throw new Error(
+      typeof result.error_description === 'string'
+        ? result.error_description
+        : `Token revocation failed with HTTP ${response.status}`,
+    );
+  }
 }
 
 export async function exchangeAuthorizationCode({

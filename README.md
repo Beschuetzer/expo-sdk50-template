@@ -120,6 +120,18 @@ Install dependencies once:
 npm install
 ```
 
+When starting from a clone, initialize the deployment identity before building:
+
+```bash
+npm run init
+```
+
+The initializer assigns the Expo name, slug, deep-link scheme, iOS bundle ID,
+Android package, EAS project ID, and production API/OIDC URLs. It creates local
+API and identity-provider environment files only when they do not already
+exist. Database credentials, OAuth provider credentials, EAS authentication,
+and other production secrets must still be supplied separately.
+
 Start Expo and the backend together:
 
 ```bash

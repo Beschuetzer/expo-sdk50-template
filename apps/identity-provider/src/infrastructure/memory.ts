@@ -57,10 +57,16 @@ export class InMemoryRefreshTokenStore implements RefreshTokenStore {
     this.tokens.delete(token);
     return refreshToken;
   }
+
+  revoke(token: string) {
+    this.tokens.delete(token);
+  }
 }
 
 export function createDevelopmentStores() {
   const expoGoRedirectUri = process.env.IDP_MOBILE_REDIRECT_URI?.trim();
+  const mobileScheme =
+    process.env.IDP_MOBILE_SCHEME?.trim() || 'expo50sdktemplate';
 
   return {
     clientStore: new InMemoryClientStore([
@@ -69,7 +75,7 @@ export function createDevelopmentStores() {
         clientType: 'public',
         redirectUris: [
           'http://localhost:8081/oauth/callback',
-          'expo50sdktemplate://oauth/callback',
+          `${mobileScheme}://oauth/callback`,
           ...(expoGoRedirectUri ? [expoGoRedirectUri] : []),
         ],
         allowedScopes: ['openid', 'profile', 'api:read'],

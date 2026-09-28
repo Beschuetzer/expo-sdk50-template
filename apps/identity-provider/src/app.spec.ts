@@ -95,6 +95,15 @@ test('publishes OAuth2 discovery and JWKS metadata', async (t) => {
     'client_credentials',
     'refresh_token',
   ]);
+  assert.equal(
+    discovery.body.revocation_endpoint,
+    'http://127.0.0.1:4300/revoke',
+  );
+  assert.deepEqual(discovery.body.token_endpoint_auth_methods_supported, [
+    'none',
+    'client_secret_basic',
+    'client_secret_post',
+  ]);
   assert.equal(jwks.statusCode, 200);
   assert.equal(jwks.body.keys[0].alg, 'RS256');
 });
@@ -157,6 +166,31 @@ test('supports authorization code with PKCE S256', async (t) => {
   assert.equal(refreshed.statusCode, 200);
   assert.equal(refreshed.body.token_type, 'Bearer');
   assert.notEqual(refreshed.body.refresh_token, token.body.refresh_token);
+
+  const revoked = await call(server, {
+    method: 'POST',
+    path: '/revoke',
+    body: form({
+      client_id: 'mobile-development-client',
+      token: refreshed.body.refresh_token,
+      token_type_hint: 'refresh_token',
+    }),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  assert.equal(revoked.statusCode, 200);
+
+  const revokedRefresh = await call(server, {
+    method: 'POST',
+    path: '/token',
+    body: form({
+      grant_type: 'refresh_token',
+      client_id: 'mobile-development-client',
+      refresh_token: refreshed.body.refresh_token,
+    }),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  assert.equal(revokedRefresh.statusCode, 400);
+  assert.equal(revokedRefresh.body.error, 'invalid_grant');
 
   const replay = await call(server, {
     method: 'POST',

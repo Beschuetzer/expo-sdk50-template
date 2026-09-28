@@ -18,12 +18,13 @@ import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 
 import { DiagnosticErrorBoundary } from '@/app/ErrorBoundary';
-import { Text } from '@/components/Themed';
 import { useAppState } from '@/components/hooks/tanstack/useAppState';
 import { useOnlineManager } from '@/components/hooks/tanstack/useOnlineManager';
 import { ErrorModal } from '@/components/modals/ErrorModal';
+import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
 import { queryClient, queryPersistOptions } from '@/state/queryClient';
 import { persistor, store } from '@/state/store';
+import { FontProvider } from '@/utils/font';
 import { I18nProvider, useI18n } from '@/utils/i18n';
 import { ThemeModeProvider, useThemeMode } from '@/utils/theme';
 
@@ -37,7 +38,20 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
+    Codex: require('../assets/fonts/Codex.ttf'),
+    CodexItalic: require('../assets/fonts/CodexItalic.ttf'),
+    FallingSkySemibold: require('../assets/fonts/FallingSkySemibold.otf'),
+    FallingSkyMediumOblique: require('../assets/fonts/FallingSkyMediumOblique.otf'),
+    FallingSkyLight: require('../assets/fonts/FallingSkyLight.otf'),
+    FallingSkyBlack: require('../assets/fonts/FallingSkyBlack.otf'),
+    Fashionvictim: require('../assets/fonts/Fashionvictim.ttf'),
+    Kindred: require('../assets/fonts/Kindred.ttf'),
+    KindredItalic: require('../assets/fonts/KindredItalic.ttf'),
+    Nesathoberyl: require('../assets/fonts/Nesathoberyl.ttf'),
+    TimeburnerBold: require('../assets/fonts/TimeburnerBold.ttf'),
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    TypeLightSans: require('../assets/fonts/TypeLightSans.otf'),
+    Zomboid: require('../assets/fonts/Zomboid.ttf'),
     ...FontAwesome.font,
   });
 
@@ -57,9 +71,11 @@ export default function RootLayout() {
 
   return (
     <I18nProvider>
-      <ThemeModeProvider>
-        <RootLayoutNav />
-      </ThemeModeProvider>
+      <FontProvider>
+        <ThemeModeProvider>
+          <RootLayoutNav />
+        </ThemeModeProvider>
+      </FontProvider>
     </I18nProvider>
   );
 }
@@ -72,22 +88,19 @@ function RootLayoutNav() {
   useAppState();
 
   return (
-    <DiagnosticErrorBoundary>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={queryPersistOptions}
-      >
-        <ThemeProvider
-          value={resolvedColorScheme === 'dark' ? DarkTheme : DefaultTheme}
+    <GluestackUIProvider config={config} colorMode={resolvedColorScheme}>
+      <DiagnosticErrorBoundary>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={queryPersistOptions}
         >
-          <Provider store={store}>
-            <PersistGate
-              loading={<Text>{t('common.loading')}</Text>}
-              persistor={persistor}
-            >
-              <GluestackUIProvider
-                config={config}
-                colorMode={resolvedColorScheme}
+          <ThemeProvider
+            value={resolvedColorScheme === 'dark' ? DarkTheme : DefaultTheme}
+          >
+            <Provider store={store}>
+              <PersistGate
+                loading={<ThemeAwareText>{t('common.loading')}</ThemeAwareText>}
+                persistor={persistor}
               >
                 <GestureHandlerRootView style={{ flex: 1 }}>
                   <MenuProvider>
@@ -105,11 +118,11 @@ function RootLayoutNav() {
                     </BottomSheetModalProvider>
                   </MenuProvider>
                 </GestureHandlerRootView>
-              </GluestackUIProvider>
-            </PersistGate>
-          </Provider>
-        </ThemeProvider>
-      </PersistQueryClientProvider>
-    </DiagnosticErrorBoundary>
+              </PersistGate>
+            </Provider>
+          </ThemeProvider>
+        </PersistQueryClientProvider>
+      </DiagnosticErrorBoundary>
+    </GluestackUIProvider>
   );
 }

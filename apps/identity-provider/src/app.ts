@@ -96,9 +96,11 @@ export function createApp(
       ],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: [
+        'none',
         'client_secret_basic',
         'client_secret_post',
       ],
+      revocation_endpoint: `${config.issuer}/revoke`,
     });
   });
 
@@ -379,6 +381,41 @@ export function createApp(
     } catch (error) {
       next(error);
     }
+  });
+
+  app.post('/revoke', (request, response) => {
+    const credentials = getClientCredentials(request);
+    const client = credentials.clientId
+      ? stores.clientStore.findById(credentials.clientId)
+      : undefined;
+    if (!client) {
+      return oauthError(
+        response,
+        'invalid_client',
+        'Client authentication failed.',
+        401,
+      );
+    }
+    if (
+      client.clientSecret &&
+      client.clientSecret !== credentials.clientSecret
+    ) {
+      return oauthError(
+        response,
+        'invalid_client',
+        'Client authentication failed.',
+        401,
+      );
+    }
+
+    const token =
+      typeof request.body.token === 'string' ? request.body.token : undefined;
+    if (!token) {
+      return oauthError(response, 'invalid_request', 'A token is required.');
+    }
+
+    stores.refreshTokenStore.revoke(token);
+    return response.status(200).end();
   });
 
   app.use((_request, response) =>

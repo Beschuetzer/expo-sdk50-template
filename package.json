@@ -13,6 +13,7 @@
     "idp": "nx run identity-provider:dev",
     "idp:build": "nx run identity-provider:build",
     "idp:start": "nx run identity-provider:serve",
+    "init": "node scripts/init.js",
     "build:preview": "nx run mobile:build-preview",
     "build": "nx run-many --target=build --projects=api,identity-provider --parallel",
     "dev": "node scripts/start-dev.mjs",

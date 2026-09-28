@@ -8,6 +8,7 @@ import {
   getAuthenticatedUser,
   MOBILE_OAUTH_CLIENT_ID,
   MOBILE_OAUTH_SCOPES,
+  revokeRefreshToken,
   refreshAccessToken,
   type AuthenticatedUser,
 } from '../client';
@@ -60,7 +61,12 @@ export function useOAuth2Auth() {
     }
 
     const code = response.params.code;
-    if (!code || !request?.codeVerifier) {
+    if (
+      !code ||
+      !request?.codeVerifier ||
+      !response.params.state ||
+      response.params.state !== request.state
+    ) {
       setState('error');
       return;
     }
@@ -155,9 +161,16 @@ export function useOAuth2Auth() {
 
   async function signOut() {
     setState('loading');
-    await clearAuthenticatedSession();
-    setUser(null);
-    setState('idle');
+    try {
+      const storedToken = await loadAccessToken();
+      if (storedToken?.refreshToken) {
+        await revokeRefreshToken(storedToken.refreshToken, discovery);
+      }
+    } finally {
+      await clearAuthenticatedSession();
+      setUser(null);
+      setState('idle');
+    }
   }
 
   return {

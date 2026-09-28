@@ -1,29 +1,14 @@
-import { Heading, Text } from '@gluestack-ui/themed';
+import { Text } from '@gluestack-ui/themed';
 import type { ComponentProps } from 'react';
 
-import { useColorScheme } from '@/components/hooks/useColorScheme';
+import { useThemeAwareTypography } from '@/components/ui/useThemeAwareTypography';
 
 type ThemeAwareTextProps = ComponentProps<typeof Text>;
-type ThemeAwareHeadingProps = ComponentProps<typeof Heading>;
 
 export function ThemeAwareText(props: ThemeAwareTextProps) {
-  const colorScheme = useColorScheme();
+  const typographyProps = useThemeAwareTypography();
 
-  return (
-    <Text
-      {...props}
-      color={colorScheme === 'dark' ? '$textDark50' : '$textLight900'}
-    />
-  );
+  return <Text {...typographyProps} {...props} />;
 }
 
-export function ThemeAwareHeading(props: ThemeAwareHeadingProps) {
-  const colorScheme = useColorScheme();
-
-  return (
-    <Heading
-      {...props}
-      color={colorScheme === 'dark' ? '$textDark50' : '$textLight900'}
-    />
-  );
-}
+export { ThemeAwareHeading } from './ThemeAwareHeading';
