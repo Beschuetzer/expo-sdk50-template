@@ -10,6 +10,9 @@ const easConfigPath = path.join(root, 'apps', 'mobile', 'eas.json');
 const apiEnvPath = path.join(root, 'apps', 'api', '.env');
 const apiEnvExamplePath = path.join(root, 'apps', 'api', '.env.example');
 const idpEnvPath = path.join(root, 'apps', 'identity-provider', '.env');
+const startDevScriptPath = path.join(root, 'scripts', 'start-dev.mjs');
+const startMongoScriptPath = path.join(root, 'scripts', 'start-mongodb.mjs');
+const stopMongoScriptPath = path.join(root, 'scripts', 'stop-mongodb.mjs');
 
 function slugify(value) {
   return value
@@ -42,6 +45,44 @@ function updateJson(filePath, update) {
   fs.writeFileSync(filePath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
 }
 
+function updateMongoScripts(containerName, databaseName) {
+  const startMongoScript = fs
+    .readFileSync(startMongoScriptPath, 'utf8')
+    .replace(
+      /const containerName = '[^']+';/,
+      `const containerName = '${containerName}';`,
+    )
+    .replace(
+      /const volumeName = '[^']+';/,
+      `const volumeName = '${containerName}-data';`,
+    )
+    .replace(
+      /MONGO_INITDB_DATABASE=[^']+/,
+      `MONGO_INITDB_DATABASE=${databaseName}`,
+    )
+    .replace(
+      /(MongoDB is ready at mongodb:\/\/127\.0\.0\.1:\$\{hostPort\}\/)[^`]+/,
+      `$1${databaseName}`,
+    );
+  fs.writeFileSync(startMongoScriptPath, startMongoScript, 'utf8');
+
+  const startDevScript = fs
+    .readFileSync(startDevScriptPath, 'utf8')
+    .replace(
+      /(DATABASE_URL: `mongodb:\/\/127\.0\.0\.1:\$\{mongoPort\}\/)[^`]+/,
+      `$1${databaseName}`,
+    );
+  fs.writeFileSync(startDevScriptPath, startDevScript, 'utf8');
+
+  const stopMongoScript = fs
+    .readFileSync(stopMongoScriptPath, 'utf8')
+    .replace(
+      /const containerName = '[^']+';/,
+      `const containerName = '${containerName}';`,
+    );
+  fs.writeFileSync(stopMongoScriptPath, stopMongoScript, 'utf8');
+}
+
 async function ask(rl, label, defaultValue) {
   const answer = (await rl.question(`${label} [${defaultValue}]: `)).trim();
   return answer || defaultValue;
@@ -57,6 +98,8 @@ async function main() {
     const displayName = await ask(rl, 'Display name', defaultName);
     const slug = await ask(rl, 'Expo slug', slugify(displayName));
     const identifier = compactIdentifier(slug);
+    const mongoName = slugify(slug) || 'app';
+    const databaseName = mongoName.replace(/-/g, '_');
     const bundleIdentifier = await ask(
       rl,
       'iOS bundle identifier',
@@ -99,6 +142,8 @@ async function main() {
         };
       }
     });
+
+    updateMongoScripts(mongoName, databaseName);
 
     const createdApiEnv = writeIfMissing(
       apiEnvPath,

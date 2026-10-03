@@ -4,8 +4,8 @@ import net from 'net';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const containerName = 'relationship-mongodb';
-const volumeName = 'relationship-mongodb-data';
+const containerName = 'expo-50sdk-template';
+const volumeName = 'expo-50sdk-template-data';
 const imageName = 'mongo:latest';
 const defaultHostPort = 27017;
 const portFilePath = path.resolve(
@@ -111,7 +111,7 @@ async function ensureContainer() {
         '--publish',
         `${hostPort}:27017`,
         '--env',
-        'MONGO_INITDB_DATABASE=relationship_app',
+        'MONGO_INITDB_DATABASE=expo_50sdk_template',
         '--volume',
         `${volumeName}:/data/db`,
         imageName,
@@ -122,7 +122,7 @@ async function ensureContainer() {
       ],
       { stdio: 'inherit' },
     );
-    return;
+    return hostPort;
   }
 
   if (existingContainer.State?.Status !== 'running') {
@@ -203,7 +203,7 @@ try {
   await waitForPrimary();
   fs.writeFileSync(portFilePath, `${hostPort}\n`, 'utf8');
   console.log(
-    `MongoDB is ready at mongodb://127.0.0.1:${hostPort}/relationship_app`,
+    `MongoDB is ready at mongodb://127.0.0.1:${hostPort}/expo_50sdk_template`,
   );
 } catch (error) {
   console.error(

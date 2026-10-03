@@ -91,7 +91,7 @@ if (!Number.isInteger(mongoPort) || mongoPort < 1 || mongoPort > 65535) {
 const sharedEnvironment = {
   AUTH_AUDIENCE: 'api',
   AUTH_ISSUER_BASE_URL: authIssuer,
-  DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/relationship_app`,
+  DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/expo_50sdk_template`,
   IDP_ISSUER: authIssuer,
   IDP_MOBILE_REDIRECT_URI: expoGoRedirectUri,
 };
