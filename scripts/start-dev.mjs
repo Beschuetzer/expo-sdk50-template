@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,12 +11,6 @@ const localNetworkAddress = Object.values(os.networkInterfaces())
   .find((address) => address.family === 'IPv4' && !address.internal)?.address;
 const authIssuer = `http://${localNetworkAddress ?? '127.0.0.1'}:4300`;
 const expoGoRedirectUri = `exp://${localNetworkAddress ?? '127.0.0.1'}:8081/--/oauth/callback`;
-const sharedEnvironment = {
-  AUTH_AUDIENCE: 'api',
-  AUTH_ISSUER_BASE_URL: authIssuer,
-  IDP_ISSUER: authIssuer,
-  IDP_MOBILE_REDIRECT_URI: expoGoRedirectUri,
-};
 const commands = [
   { title: 'Expo mobile', script: 'mobile' },
   { title: 'Node API', script: 'api' },
@@ -68,6 +63,38 @@ function startSharedTerminal({ script }) {
 
   return child;
 }
+
+const databaseProcess = spawn('node', ['scripts/start-mongodb.mjs'], {
+  cwd: rootDir,
+  stdio: 'inherit',
+  shell: true,
+});
+
+await new Promise((resolve, reject) => {
+  databaseProcess.once('error', reject);
+  databaseProcess.once('exit', (code) => {
+    if (code && code !== 0) {
+      reject(new Error(`MongoDB startup exited with code ${code}`));
+      return;
+    }
+    resolve();
+  });
+});
+
+const mongoPortText = fs
+  .readFileSync(path.join(rootDir, '.mongodb-port'), 'utf8')
+  .trim();
+const mongoPort = Number(mongoPortText.replace(/^\uFEFF/, ''));
+if (!Number.isInteger(mongoPort) || mongoPort < 1 || mongoPort > 65535) {
+  throw new Error('MongoDB startup did not provide a valid host port');
+}
+const sharedEnvironment = {
+  AUTH_AUDIENCE: 'api',
+  AUTH_ISSUER_BASE_URL: authIssuer,
+  DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/expo_50sdk_template`,
+  IDP_ISSUER: authIssuer,
+  IDP_MOBILE_REDIRECT_URI: expoGoRedirectUri,
+};
 
 if (process.platform === 'win32') {
   commands.forEach(startWindowsTerminal);
