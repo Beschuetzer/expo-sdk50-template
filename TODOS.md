@@ -1,5 +1,6 @@
 # TODOS
 
+- the package.json name doens't change with the init script
 - move in components that have been updated like ThemeAwareButton
 - remove the local identity-server 
 - add support for OIDC connect via Google, Microsoft, and any other providers?
