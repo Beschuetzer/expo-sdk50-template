@@ -5,6 +5,14 @@ const { stdin: input, stdout: output } = require('node:process');
 const readline = require('node:readline/promises');
 
 const root = path.resolve(__dirname, '..');
+const rootPackagePath = path.join(root, 'package.json');
+const lockfilePath = path.join(root, 'package-lock.json');
+const sharedTypesPackagePath = path.join(
+  root,
+  'libs',
+  'shared-types',
+  'package.json',
+);
 const mobileAppConfigPath = path.join(root, 'apps', 'mobile', 'app.json');
 const easConfigPath = path.join(root, 'apps', 'mobile', 'eas.json');
 const apiEnvPath = path.join(root, 'apps', 'api', '.env');
@@ -13,6 +21,13 @@ const idpEnvPath = path.join(root, 'apps', 'identity-provider', '.env');
 const startDevScriptPath = path.join(root, 'scripts', 'start-dev.mjs');
 const startMongoScriptPath = path.join(root, 'scripts', 'start-mongodb.mjs');
 const stopMongoScriptPath = path.join(root, 'scripts', 'stop-mongodb.mjs');
+const sharedTypesReferenceFiles = [
+  path.join(root, 'apps', 'api', 'tsconfig.json'),
+  path.join(root, 'apps', 'api', 'tsconfig.build.json'),
+  path.join(root, 'apps', 'mobile', 'tsconfig.json'),
+  path.join(root, 'README.md'),
+];
+const templateSharedTypesName = '@expo-50sdk-template/shared-types';
 
 function slugify(value) {
   return value
@@ -43,6 +58,46 @@ function updateJson(filePath, update) {
   const document = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   update(document);
   fs.writeFileSync(filePath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+}
+
+function updatePackageNames(packageName, sharedTypesName) {
+  updateJson(rootPackagePath, (packageJson) => {
+    packageJson.name = packageName;
+  });
+
+  updateJson(sharedTypesPackagePath, (packageJson) => {
+    packageJson.name = sharedTypesName;
+  });
+
+  updateJson(lockfilePath, (lockfile) => {
+    lockfile.name = packageName;
+    lockfile.packages[''].name = packageName;
+
+    const oldSharedTypesEntry =
+      lockfile.packages['node_modules/@expo-50sdk-template/shared-types'];
+    if (oldSharedTypesEntry) {
+      delete lockfile.packages[
+        'node_modules/@expo-50sdk-template/shared-types'
+      ];
+      lockfile.packages[`node_modules/${sharedTypesName}`] =
+        oldSharedTypesEntry;
+    }
+
+    if (lockfile.dependencies?.['@expo-50sdk-template/shared-types']) {
+      lockfile.dependencies[sharedTypesName] =
+        lockfile.dependencies['@expo-50sdk-template/shared-types'];
+      delete lockfile.dependencies['@expo-50sdk-template/shared-types'];
+    }
+  });
+
+  for (const filePath of sharedTypesReferenceFiles) {
+    const contents = fs.readFileSync(filePath, 'utf8');
+    fs.writeFileSync(
+      filePath,
+      contents.replaceAll(templateSharedTypesName, sharedTypesName),
+      'utf8',
+    );
+  }
 }
 
 function updateMongoScripts(containerName, databaseName) {
@@ -99,6 +154,7 @@ async function main() {
     const slug = await ask(rl, 'Expo slug', slugify(displayName));
     const identifier = compactIdentifier(slug);
     const mongoName = slugify(slug) || 'app';
+    const sharedTypesName = `@${mongoName}/shared-types`;
     const databaseName = mongoName.replace(/-/g, '_');
     const bundleIdentifier = await ask(
       rl,
@@ -131,6 +187,8 @@ async function main() {
       config.expo.android.package = androidPackage;
       config.expo.extra.eas.projectId = easProjectId;
     });
+
+    updatePackageNames(mongoName, sharedTypesName);
 
     updateJson(easConfigPath, (config) => {
       for (const profileName of ['preview', 'production']) {
