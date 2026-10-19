@@ -44,7 +44,7 @@ describe('access-token storage', () => {
     await saveAccessToken(token);
     await expect(loadAccessToken()).resolves.toEqual(token);
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-      'relationship-app.oauth.access-token',
+      'expo50sdktemplate.oauth.access-token',
       JSON.stringify({ ...token, storageVersion: 2 }),
       { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
     );
@@ -66,7 +66,7 @@ describe('access-token storage', () => {
 
     await expect(loadAccessToken()).resolves.toBeNull();
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-      'relationship-app.oauth.access-token',
+      'expo50sdktemplate.oauth.access-token',
     );
   });
 
@@ -102,7 +102,7 @@ describe('access-token storage', () => {
     jest
       .mocked(SecureStore.getItemAsync)
       .mockImplementation(async (key) =>
-        key === 'relationship-app.oauth.id-token'
+        key === 'expo50sdktemplate.oauth.id-token'
           ? 'id-token'
           : JSON.stringify({ ...token, storageVersion: 2 }),
       );
@@ -110,7 +110,7 @@ describe('access-token storage', () => {
     await saveAccessToken(tokenWithIdToken);
     await expect(loadAccessToken()).resolves.toEqual(tokenWithIdToken);
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-      'relationship-app.oauth.id-token',
+      'expo50sdktemplate.oauth.id-token',
       'id-token',
       { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
     );
