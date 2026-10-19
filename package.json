@@ -102,7 +102,7 @@
     "expo-system-ui": "~2.9.4",
     "expo-web-browser": "~12.8.2",
     "express": "^4.21.2",
-    "express-oauth2-jwt-bearer": "^1.7.1",
+    "express-oauth2-jwt-bearer": "^1.11.0",
     "jose": "^4.15.9",
     "prisma": "^5.22.0",
     "react": "18.2.0",
@@ -125,7 +125,7 @@
     "@babel/plugin-transform-class-static-block": "^7.29.7",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.11.0",
+    "@types/node": "^26.0.0",
     "@types/react": "~18.2.45",
     "@types/react-test-renderer": "^18.0.7",
     "eslint": "^8.56.0",
@@ -142,7 +142,7 @@
   },
   "private": true,
   "engines": {
-    "node": ">=20.11.0 <23",
+    "node": ">=26.0.0 <27",
     "npm": ">=10"
   },
   "template": {
