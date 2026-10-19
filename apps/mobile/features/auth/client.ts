@@ -25,7 +25,7 @@ export const MOBILE_OAUTH_SCOPES = Array.from(
   new Set([...configuredOAuthScopes, 'offline_access']),
 );
 export const MOBILE_OAUTH_SCHEME =
-  process.env.EXPO_PUBLIC_OAUTH_SCHEME?.trim() || 'relationshipapp';
+  process.env.EXPO_PUBLIC_OAUTH_SCHEME?.trim() || 'expo50sdktemplate';
 export const MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI =
   process.env.EXPO_PUBLIC_OAUTH_POST_LOGOUT_REDIRECT_URI?.trim();
 

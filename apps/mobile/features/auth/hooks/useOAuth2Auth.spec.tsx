@@ -1,3 +1,4 @@
+import * as AuthSession from 'expo-auth-session';
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
@@ -18,7 +19,7 @@ jest.mock('expo-auth-session', () => {
   return {
     CodeChallengeMethod: { S256: 'S256' },
     ResponseType: { Code: 'code' },
-    makeRedirectUri: jest.fn(() => 'relationshipapp://oauth/callback'),
+    makeRedirectUri: jest.fn(() => 'oauth-test-scheme://oauth/callback'),
     useAutoDiscovery: () => mockDiscovery,
     useAuthRequest: (config: { extraParams: { nonce: string } }) => {
       const [response, setResponse] = React.useState<unknown>(null);
@@ -54,7 +55,7 @@ jest.mock('../client', () => ({
   MOBILE_OAUTH_AUDIENCE: 'test-audience',
   MOBILE_OAUTH_CLIENT_ID: 'test-client',
   MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI: '',
-  MOBILE_OAUTH_SCHEME: 'relationshipapp',
+  MOBILE_OAUTH_SCHEME: 'oauth-test-scheme',
   MOBILE_OAUTH_SCOPES: ['openid'],
   normalizeIdentityProviderDiscovery: (discovery: unknown) => discovery,
   refreshAccessToken: jest.fn(),
@@ -89,6 +90,11 @@ describe('useOAuth2AuthState', () => {
     await act(async () => {
       renderer.create(<TestConsumer />);
       await Promise.resolve();
+    });
+
+    expect(AuthSession.makeRedirectUri).toHaveBeenCalledWith({
+      path: 'oauth/callback',
+      scheme: 'oauth-test-scheme',
     });
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
