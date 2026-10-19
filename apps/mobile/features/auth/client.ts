@@ -8,9 +8,13 @@ import { getBackendUrl } from '@/utils/helpers';
 export const MOBILE_OAUTH_CLIENT_ID =
   process.env.EXPO_PUBLIC_OAUTH_CLIENT_ID?.trim() ||
   'client_ASCACaC-QT2cM8DmF2IroxFe';
+const configuredIdentityProviderUrl =
+  process.env.EXPO_PUBLIC_IDP_URL?.trim().replace(/\/$/, '');
 export const MOBILE_OAUTH_AUDIENCE =
   process.env.EXPO_PUBLIC_OAUTH_AUDIENCE?.trim() ||
-  'https://identity-beta.adammajor.com/resources/api';
+  (configuredIdentityProviderUrl
+    ? `${configuredIdentityProviderUrl}/resources/api`
+    : '');
 const configuredOAuthScopes = (
   process.env.EXPO_PUBLIC_OAUTH_SCOPES?.trim() ||
   'openid profile email offline_access relationships:read relationships:create relationships:invite relationships:accept-invite payment-requests:read payment-requests:write'

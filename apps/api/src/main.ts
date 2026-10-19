@@ -6,9 +6,6 @@ const developmentDefaults =
     ? {}
     : {
         AUTH_AUDIENCE: process.env.AUTH_AUDIENCE || 'api',
-        AUTH_ISSUER_BASE_URL:
-          process.env.AUTH_ISSUER_BASE_URL ||
-          'https://identity-beta.adammajor.com',
       };
 const config = loadConfig({
   ...process.env,

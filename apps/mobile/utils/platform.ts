@@ -26,7 +26,9 @@ export function getIdentityProviderUrl() {
     return configuredUrl.replace(/\/$/, '');
   }
 
-  return 'https://identity-beta.adammajor.com';
+  throw new Error(
+    'EXPO_PUBLIC_IDP_URL is not configured. Set AUTH_ISSUER_BASE_URL in apps/api/.env and restart Expo.',
+  );
 }
 
 export async function measureExecutionTime(

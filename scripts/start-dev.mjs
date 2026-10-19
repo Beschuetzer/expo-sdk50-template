@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const IDP_URL = 'https://identity-beta.adammajor.com';
 const currentFilePath = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFilePath), '..');
 const apiEnvironmentFile = path.join(rootDir, 'apps/api/.env');
@@ -12,6 +11,10 @@ if (fs.existsSync(apiEnvironmentFile)) {
     throw new Error('Node.js 20.12 or newer is required to load apps/api/.env');
   }
   process.loadEnvFile(apiEnvironmentFile);
+}
+const IDP_URL = process.env.AUTH_ISSUER_BASE_URL?.trim().replace(/\/$/, '');
+if (!IDP_URL) {
+  throw new Error('AUTH_ISSUER_BASE_URL must be set in apps/api/.env');
 }
 
 const commands = [

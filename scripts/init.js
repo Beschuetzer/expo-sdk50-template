@@ -45,6 +45,25 @@ function quoteEnv(value) {
   return JSON.stringify(value);
 }
 
+function readEnvValue(filePath, key) {
+  if (!fs.existsSync(filePath)) return undefined;
+
+  const line = fs
+    .readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .find((entry) => entry.trimStart().startsWith(`${key}=`));
+  if (!line) return undefined;
+
+  const value = line.slice(line.indexOf('=') + 1).trim();
+  if (value.startsWith('"') && value.endsWith('"')) {
+    return JSON.parse(value);
+  }
+  if (value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1);
+  }
+  return value || undefined;
+}
+
 function writeIfMissing(filePath, contents) {
   if (fs.existsSync(filePath)) {
     return false;
@@ -182,11 +201,13 @@ async function main() {
       'Deployed API URL',
       'https://your-production-api.example.com',
     );
-    const issuerUrl = await ask(
-      rl,
-      'OAuth/OIDC issuer URL',
-      'https://identity-beta.adammajor.com',
-    );
+    const issuerUrlDefault =
+      readEnvValue(apiEnvPath, 'AUTH_ISSUER_BASE_URL') ||
+      readEnvValue(apiEnvExamplePath, 'AUTH_ISSUER_BASE_URL');
+    if (!issuerUrlDefault) {
+      throw new Error('AUTH_ISSUER_BASE_URL must be set in the API env file.');
+    }
+    const issuerUrl = await ask(rl, 'OAuth/OIDC issuer URL', issuerUrlDefault);
 
     updateJson(mobileAppConfigPath, (config) => {
       config.expo.name = displayName;

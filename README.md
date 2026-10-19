@@ -22,9 +22,9 @@ For detailed repo instructions, see [AGENTS.md](AGENTS.md).
 The API currently exposes public `GET /health` and protected `GET /api/v1/me`
 on port `4200`.
 
-The API validates tokens issued by the beta identity provider at
-`https://identity-beta.adammajor.com` using its OIDC discovery and JWKS
-metadata.
+The API validates tokens from the configured beta identity provider using its
+OIDC discovery and JWKS metadata. Set the issuer once in `apps/api/.env`; mobile
+startup and the initializer reuse that value.
 
 ### Security posture
 
@@ -152,7 +152,7 @@ rebuild when troubleshooting, run:
 npm --prefix apps/mobile run dev:clear
 ```
 
-The mobile app's `Test Backend Connection` button calls the API health endpoint. `apps/mobile/setup.mjs` refreshes the Expo public IP and backend port in `apps/mobile/.env` before Metro starts. For a physical device, the generated IP must be reachable from the device.
+The mobile app's `Test Backend Connection` button calls the API health endpoint. `apps/mobile/setup.mjs` refreshes the Expo public IP and backend port and syncs the identity provider issuer from `apps/api/.env` into `apps/mobile/.env` before Metro starts. For a physical device, the generated IP must be reachable from the device.
 
 The mobile template includes a typed i18n provider with English and Spanish
 starter translations. The device locale selects the initial language, and the

@@ -34,14 +34,16 @@ This API is preconfigured for Prisma with a MongoDB datasource so you can attach
 
 For MongoDB, Prisma uses the native `mongodb` provider and document IDs are represented as `ObjectId` strings.
 
-The API uses the deployed beta identity provider by default in development:
+The API reads its issuer from `apps/api/.env`; mobile startup syncs that same
+value into Expo's public environment. `npm run init` uses it as the issuer
+default and copies it into EAS build profiles.
 
 ```powershell
-$env:AUTH_ISSUER_BASE_URL='https://identity-beta.adammajor.com'; $env:AUTH_AUDIENCE='api'; npm run api
+$env:AUTH_AUDIENCE='api'; npm run api
 ```
 
-The API process uses this issuer and the `api` audience when development values
-are not provided explicitly. Access to protected routes depends on the beta
+The API process uses the configured issuer and `api` audience when development
+values are not provided explicitly. Access to protected routes depends on the
 provider issuing tokens with that audience.
 
 ## Commands
