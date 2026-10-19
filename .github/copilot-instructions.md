@@ -1,6 +1,6 @@
 # Copilot instructions
 
-This repo is a monorepo template for an Expo mobile app, a TypeScript API, and a local identity provider.
+This repo is a monorepo template for an Expo mobile app and a TypeScript API, using a deployed external OIDC identity provider.
 
 ## Mandatory conventions
 
@@ -14,7 +14,6 @@ This repo is a monorepo template for an Expo mobile app, a TypeScript API, and a
 
 - `apps/mobile`: Expo app
 - `apps/api`: Express API
-- `apps/identity-provider`: local OIDC/OAuth2 provider
 - `libs/shared-types`: shared TypeScript contracts
 
 ## Commands
@@ -33,7 +32,7 @@ npm run test:coverage
 
 - Expo SDK 50 has older APIs; do not assume current upstream APIs apply without checking the installed version.
 - The repo uses Nx and project-specific configs; prefer the existing project commands over ad hoc shell scripts.
-- The identity-provider app is not production-grade and should not be treated as a hardened auth system.
+- The beta identity provider is external to this workspace.
 
 ## Quality bar
 

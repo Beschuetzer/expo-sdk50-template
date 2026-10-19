@@ -1,6 +1,6 @@
 ## Expo 50 Nx Starter Monorepo
 
-A neutral Expo SDK 50 starter shell managed by Nx, with a minimal Node.js backend for local development.
+A neutral Expo SDK 50 starter shell managed by Nx, with a minimal Node.js backend and an external beta OIDC provider.
 
 ## AI / LLM onboarding
 
@@ -9,7 +9,7 @@ This repository is intentionally structured for AI-assisted development and exte
 - The mobile app must remain internationalized. All visible user text goes through the translation map in `apps/mobile/utils/i18n.tsx`.
 - The mobile app supports system, light, and dark themes. New UI should be theme-aware and should not assume a single fixed color scheme.
 - Shared contracts live in `libs/shared-types/src` and should be reused across apps instead of duplicated.
-- The API, identity provider, and mobile app each have separate responsibilities and should stay decoupled.
+- The API and mobile app remain separate from the externally managed identity provider.
 
 For detailed repo instructions, see [AGENTS.md](AGENTS.md).
 
@@ -17,30 +17,24 @@ For detailed repo instructions, see [AGENTS.md](AGENTS.md).
 
 - `mobile`: Expo Router app in `apps/mobile`, preserving the existing Expo SDK 50 and gluestack UI v1 setup.
 - `api`: Express-based OAuth2 resource server in `apps/api`.
-- `identity-provider`: development OAuth2/OIDC provider in `apps/identity-provider`, supporting Authorization Code + PKCE and Client Credentials.
 - `shared-types`: source-only TypeScript contracts in `libs/shared-types`, consumed by both apps.
 
 The API currently exposes public `GET /health` and protected `GET /api/v1/me`
 on port `4200`.
 
-The local identity provider runs on port `4300`. It publishes discovery and
-JWKS metadata, issues RSA-signed access tokens, and keeps development clients,
-users, and authorization codes in memory. Replace those stores before using it
-for production; it is a provider scaffold, not a production account system.
+The API validates tokens issued by the beta identity provider at
+`https://identity-beta.adammajor.com` using its OIDC discovery and JWKS
+metadata.
 
 ### Security posture
 
-The local identity provider is development-only. It uses in-memory users,
-clients, and authorization codes, demo credentials, and an ephemeral signing
-key. It rejects `NODE_ENV=production` at startup. Production deployments must
-use a managed OAuth2/OIDC provider or replace the stores and signing-key
-lifecycle with durable, rotated, audited infrastructure before exposing an
-account or token endpoint.
+Identity management is provided externally; this workspace does not contain
+an identity server or store user credentials.
 
-Run `npm run dev` to start the mobile app, API, and identity provider with one
-LAN issuer. The home screen's authenticated-endpoint button opens the provider's
-PKCE sign-in form on first use, stores the resulting access token in native
-SecureStore, and calls `GET /api/v1/me` with the Bearer token.
+Run `npm run dev` to start the mobile app and API. The home screen's
+authenticated-endpoint button uses PKCE with the beta identity provider, stores
+the resulting access token in native SecureStore, and calls `GET /api/v1/me`
+with the Bearer token.
 
 Native access tokens are refreshed with rotating refresh tokens stored in
 SecureStore. Web builds keep both tokens behind HttpOnly cookies managed by the
@@ -127,10 +121,10 @@ npm run init
 ```
 
 The initializer assigns the Expo name, slug, deep-link scheme, iOS bundle ID,
-Android package, EAS project ID, and production API/OIDC URLs. It creates local
-API and identity-provider environment files only when they do not already
-exist. Database credentials, OAuth provider credentials, EAS authentication,
-and other production secrets must still be supplied separately.
+Android package, EAS project ID, and API/OIDC URLs. It creates the API
+environment file if missing and updates its OIDC issuer. Database credentials,
+OAuth client configuration, EAS authentication, and other production secrets
+must still be supplied separately.
 
 Start Expo and the backend together:
 
@@ -184,21 +178,17 @@ offers Android, iOS, and combined production builds.
 ## VS Code Debugging
 
 The repository includes checked-in launch profiles under `.vscode`. They run
-the Node services from TypeScript with source maps, so breakpoints can be set
-directly in `apps/api/src` and `apps/identity-provider/src`.
+the API from TypeScript with source maps, so breakpoints can be set directly in
+`apps/api/src`.
 
 1. Open the Run and Debug view.
-2. Choose `Debug API and identity provider` to start both backend processes.
-3. Set breakpoints in a route, authentication middleware, provider endpoint,
-   or token service and exercise that code from the mobile app or an HTTP
-   client.
+2. Choose `Debug API` to start the API.
+3. Set breakpoints in a route or authentication middleware and exercise the
+    API from the mobile app or an HTTP client.
 4. Run mobile app via `npm run mobile`
 
-The compound profile uses `http://localhost:4300` as the identity-provider
-issuer and `api` as the API audience. It is intended for an emulator, web
-browser, or HTTP client running on the same machine. Physical-device flows
-should continue to use `npm run dev`, which computes a LAN issuer and opens
-the services in separate terminals.
+The API profile uses the beta identity issuer and `api` audience. It is intended
+for an emulator, web browser, or HTTP client running on the same machine.
 
 `Debug Expo web` starts the Expo web target and launches it in the VS Code
 JavaScript debugger. Use it when you want to place breakpoints in mobile
@@ -206,9 +196,9 @@ screens, hooks, and API clients. For native Expo Go debugging, use Expo's
 development menu and browser debugger for the running device; the native
 runtime and the web runtime do not share identical platform behavior.
 
-The profiles intentionally launch services directly rather than through
-`npm run dev`: the latter opens detached Windows terminals, which prevents VS
-Code from owning the Node debugger session.
+The profile launches the API directly rather than through `npm run dev`, which
+opens detached Windows terminals and prevents VS Code from owning the Node
+debugger session.
 
 ## Nx Commands
 
@@ -220,7 +210,6 @@ npx nx run api:typecheck
 npx nx build api
 npm run typecheck
 npm run validate:startup
-npm run idp
 ```
 
 ## Mobile Testing
@@ -238,13 +227,12 @@ writes reports to `apps/mobile/coverage`. The HTML report is available at
 at `apps/mobile/coverage/coverage-summary.json`. The command fails when global
 statements, branches, functions, or lines coverage falls below 90%.
 
-### API and identity-provider testing
+### API testing
 
-The API and identity-provider suites exercise real local HTTP servers and
-request/response flows. Test doubles are limited to explicit external
-boundaries, such as an unavailable database or an injected authentication
-adapter, so tests remain deterministic without mocking internal route or OAuth
-logic.
+The API suite exercises real local HTTP servers and request/response flows.
+Test doubles are limited to explicit external boundaries, such as an
+unavailable database or an injected authentication adapter, so tests remain
+deterministic without contacting the beta identity provider.
 
 ## Production API Configuration
 

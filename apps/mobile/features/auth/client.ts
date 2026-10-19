@@ -7,7 +7,12 @@ import { getBackendUrl } from '@/utils/helpers';
 import { getIdentityProviderUrl } from '@/utils/platform';
 
 export const MOBILE_OAUTH_CLIENT_ID = 'mobile-development-client';
-export const MOBILE_OAUTH_SCOPES = ['openid', 'profile', 'api:read'];
+export const MOBILE_OAUTH_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+];
 
 export type AuthenticatedUser = {
   claims: Record<string, unknown>;
@@ -43,8 +48,8 @@ function getDiscoveryBaseUrl() {
 export function createIdentityProviderDiscovery(): DiscoveryDocument {
   const baseUrl = getDiscoveryBaseUrl();
   return {
-    authorizationEndpoint: `${baseUrl}/authorize`,
-    revocationEndpoint: `${baseUrl}/revoke`,
+    authorizationEndpoint: `${baseUrl}/auth`,
+    revocationEndpoint: `${baseUrl}/token/revocation`,
     tokenEndpoint: `${baseUrl}/token`,
   };
 }

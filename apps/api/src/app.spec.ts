@@ -163,7 +163,7 @@ test('protected routes reject an anonymous request with HTTP 401', async (t) => 
     createApp(
       loadConfig({
         AUTH_AUDIENCE: 'api',
-        AUTH_ISSUER_BASE_URL: 'http://127.0.0.1:4300',
+        AUTH_ISSUER_BASE_URL: 'https://identity-beta.adammajor.com',
       }),
     ),
   );

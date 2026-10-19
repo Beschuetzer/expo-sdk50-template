@@ -1,17 +1,18 @@
 import { loadConfig } from './config/env';
 import { createApiServer, startApiServer, stopApiServer } from './server';
 
-const localDevelopmentDefaults =
+const developmentDefaults =
   process.env.NODE_ENV === 'production'
     ? {}
     : {
         AUTH_AUDIENCE: process.env.AUTH_AUDIENCE || 'api',
         AUTH_ISSUER_BASE_URL:
-          process.env.AUTH_ISSUER_BASE_URL || 'http://localhost:4300',
+          process.env.AUTH_ISSUER_BASE_URL ||
+          'https://identity-beta.adammajor.com',
       };
 const config = loadConfig({
   ...process.env,
-  ...localDevelopmentDefaults,
+  ...developmentDefaults,
 });
 const server = startApiServer(createApiServer(config), config);
 

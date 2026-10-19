@@ -1,12 +1,11 @@
 # AGENTS.md
 
-This repository is a monorepo template for a mobile app, an API, and an identity-provider app.
+This repository is a monorepo template for a mobile app and API, using a deployed external OIDC identity provider.
 
 ## Purpose of the repo
 
 - `apps/mobile`: Expo SDK 50 React Native application using Expo Router, Redux Toolkit, Redux Persist, TanStack Query, and Gluestack UI v1.
 - `apps/api`: Express OAuth2 resource server with TypeScript, Prisma-ready MongoDB configuration, and lightweight health/auth endpoints.
-- `apps/identity-provider`: local OIDC/OAuth2 development provider used for PKCE and client-credential flows in local development.
 - `libs/shared-types`: platform-neutral TypeScript contracts that are shared across apps.
 
 ## Core rules for AI-assisted changes
@@ -83,7 +82,7 @@ npx nx run shared-types:typecheck
 
 ## Security and production posture
 
-- The identity-provider app is a development scaffold, not a production-grade auth system.
+- The configured beta OIDC identity provider is external to this workspace.
 - Do not store production credentials or signing keys in the repository.
 - API configuration should be environment-driven and validated using `process.env` or explicit config objects.
 - Keep OAuth2 and database configuration behind clear env variables and do not hard-code issuer URLs or secrets.

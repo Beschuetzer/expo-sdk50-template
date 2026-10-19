@@ -18,7 +18,7 @@ Node.js HTTP API for local development and production-oriented extension.
 - `PORT`: TCP port from `1` to `65535`, default `4200`.
 - `NODE_ENV`: runtime environment label, default `development`.
 - `DATABASE_URL`: MongoDB connection string for Prisma. Required for database access.
-- `AUTH_ISSUER_BASE_URL`: OAuth2/OIDC issuer base URL. Required for protected routes.
+- `AUTH_ISSUER_BASE_URL`: OAuth2/OIDC issuer base URL. Development defaults to the beta issuer; production must configure it explicitly.
 - `AUTH_AUDIENCE`: expected OAuth2 access-token audience. Required for protected routes.
 - `AUTH_REQUIRED_SCOPES`: optional space- or comma-separated scopes required by all protected routes.
 
@@ -34,18 +34,15 @@ This API is preconfigured for Prisma with a MongoDB datasource so you can attach
 
 For MongoDB, Prisma uses the native `mongodb` provider and document IDs are represented as `ObjectId` strings.
 
-For the local identity-provider app, use:
+The API uses the deployed beta identity provider by default in development:
 
 ```powershell
-$env:AUTH_ISSUER_BASE_URL='http://localhost:4300'; $env:AUTH_AUDIENCE='api'; npm run api
+$env:AUTH_ISSUER_BASE_URL='https://identity-beta.adammajor.com'; $env:AUTH_AUDIENCE='api'; npm run api
 ```
 
-The API process also defaults to these local development values when they are
-not provided explicitly.
-
-Start the provider separately with `npm run idp`. Its development client
-credentials and demo user are documented in
-`apps/identity-provider/README.md`.
+The API process uses this issuer and the `api` audience when development values
+are not provided explicitly. Access to protected routes depends on the beta
+provider issuing tokens with that audience.
 
 ## Commands
 
@@ -71,10 +68,10 @@ independent of Auth0, Entra, Okta, or another provider. Tests can inject an
 `AuthMiddleware` through `createApp` without contacting a real identity
 provider.
 
-For local development, leave the OAuth2 variables unset while working on
-public routes. Protected routes fail closed with `503 auth_not_configured`
-until the provider settings are supplied. Never replace that behavior with a
-development token bypass in shared or production code.
+For local development, the beta issuer and `api` audience are configured by
+default. In production, provide both values explicitly. Never replace missing
+configuration behavior with a development token bypass in shared or production
+code.
 
 ## Deploy to Heroku
 

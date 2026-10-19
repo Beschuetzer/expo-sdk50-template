@@ -23,7 +23,7 @@ describe('access-token storage', () => {
   const token: StoredAccessToken = {
     accessToken: 'access-token',
     expiresAt: Date.now() + 60_000,
-    scope: 'api:read',
+    scope: 'profile',
     tokenType: 'Bearer',
   };
 

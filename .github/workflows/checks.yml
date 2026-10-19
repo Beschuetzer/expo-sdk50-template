@@ -43,9 +43,6 @@ jobs:
       - name: Run API tests
         run: npx nx run api:test --outputStyle=static
 
-      - name: Run identity-provider tests
-        run: npx nx run identity-provider:test --outputStyle=static
-
       - name: Run mobile tests with coverage
         run: npm run test:coverage
 

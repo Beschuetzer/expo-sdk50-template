@@ -11,22 +11,7 @@
       "env": {
         "NODE_ENV": "development",
         "AUTH_AUDIENCE": "api",
-        "AUTH_ISSUER_BASE_URL": "http://localhost:4300"
-      },
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
-    },
-    {
-      "name": "Debug identity provider",
-      "type": "node",
-      "request": "launch",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["--enable-source-maps", "--require", "tsx/cjs", "src/main.ts"],
-      "cwd": "${workspaceFolder}/apps/identity-provider",
-      "env": {
-        "NODE_ENV": "development",
-        "IDP_ISSUER": "http://localhost:4300",
-        "IDP_PORT": "4300"
+        "AUTH_ISSUER_BASE_URL": "https://identity-beta.adammajor.com"
       },
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
@@ -40,13 +25,6 @@
       "preLaunchTask": "Start Expo web",
       "sourceMaps": true,
       "skipFiles": ["**/node_modules/**"]
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Debug API and identity provider",
-      "configurations": ["Debug identity provider", "Debug API"],
-      "stopAll": true
     }
   ]
 }

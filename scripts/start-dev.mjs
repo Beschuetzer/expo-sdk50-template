@@ -1,20 +1,14 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFilePath), '..');
-const localNetworkAddress = Object.values(os.networkInterfaces())
-  .flatMap((networkInterface) => networkInterface ?? [])
-  .find((address) => address.family === 'IPv4' && !address.internal)?.address;
-const authIssuer = `http://${localNetworkAddress ?? '127.0.0.1'}:4300`;
-const expoGoRedirectUri = `exp://${localNetworkAddress ?? '127.0.0.1'}:8081/--/oauth/callback`;
+const authIssuer = 'https://identity-beta.adammajor.com';
 const commands = [
   { title: 'Expo mobile', script: 'mobile' },
   { title: 'Node API', script: 'api' },
-  { title: 'OAuth2 identity provider', script: 'idp' },
 ];
 
 function startWindowsTerminal({ title, script }) {
@@ -92,15 +86,11 @@ const sharedEnvironment = {
   AUTH_AUDIENCE: 'api',
   AUTH_ISSUER_BASE_URL: authIssuer,
   DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/expo_50sdk_template`,
-  IDP_ISSUER: authIssuer,
-  IDP_MOBILE_REDIRECT_URI: expoGoRedirectUri,
 };
 
 if (process.platform === 'win32') {
   commands.forEach(startWindowsTerminal);
-  console.log(
-    `Started Expo mobile, Node API, and OAuth2 identity provider. OAuth2 issuer: ${authIssuer}`,
-  );
+  console.log(`Started Expo mobile and Node API. OAuth2 issuer: ${authIssuer}`);
 } else {
   const children = commands.map(startSharedTerminal);
   await Promise.all(

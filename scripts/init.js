@@ -17,7 +17,6 @@ const mobileAppConfigPath = path.join(root, 'apps', 'mobile', 'app.json');
 const easConfigPath = path.join(root, 'apps', 'mobile', 'eas.json');
 const apiEnvPath = path.join(root, 'apps', 'api', '.env');
 const apiEnvExamplePath = path.join(root, 'apps', 'api', '.env.example');
-const idpEnvPath = path.join(root, 'apps', 'identity-provider', '.env');
 const startDevScriptPath = path.join(root, 'scripts', 'start-dev.mjs');
 const startMongoScriptPath = path.join(root, 'scripts', 'start-mongodb.mjs');
 const stopMongoScriptPath = path.join(root, 'scripts', 'stop-mongodb.mjs');
@@ -52,6 +51,16 @@ function writeIfMissing(filePath, contents) {
   }
   fs.writeFileSync(filePath, contents, 'utf8');
   return true;
+}
+
+function setEnvValue(filePath, key, value) {
+  const contents = fs.readFileSync(filePath, 'utf8');
+  const entry = `${key}=${quoteEnv(value)}`;
+  const pattern = new RegExp(`^${key}=.*$`, 'm');
+  const updatedContents = pattern.test(contents)
+    ? contents.replace(pattern, entry)
+    : `${contents}${contents.endsWith('\n') ? '' : '\n'}${entry}\n`;
+  fs.writeFileSync(filePath, updatedContents, 'utf8');
 }
 
 function updateJson(filePath, update) {
@@ -176,7 +185,7 @@ async function main() {
     const issuerUrl = await ask(
       rl,
       'OAuth/OIDC issuer URL',
-      'https://your-production-issuer.example.com',
+      'https://identity-beta.adammajor.com',
     );
 
     updateJson(mobileAppConfigPath, (config) => {
@@ -207,26 +216,13 @@ async function main() {
       apiEnvPath,
       fs.readFileSync(apiEnvExamplePath, 'utf8'),
     );
-    const createdIdpEnv = writeIfMissing(
-      idpEnvPath,
-      [
-        'NODE_ENV="development"',
-        'IDP_ISSUER="http://localhost:4300"',
-        `IDP_MOBILE_SCHEME=${quoteEnv(scheme)}`,
-        '',
-      ].join('\n'),
-    );
+    setEnvValue(apiEnvPath, 'AUTH_ISSUER_BASE_URL', issuerUrl);
 
     console.log('\nInitialized mobile deployment configuration.');
     console.log(`- Expo slug: ${slug}`);
     console.log(`- Bundle/package identity: ${bundleIdentifier}`);
     console.log(`- EAS project: ${easProjectId}`);
     if (createdApiEnv) console.log('- Created apps/api/.env from its example.');
-    if (createdIdpEnv) {
-      console.log(
-        '- Created apps/identity-provider/.env for local development.',
-      );
-    }
     if (easProjectId === 'REPLACE_WITH_YOUR_EAS_PROJECT_ID') {
       console.log(
         'Next: create an EAS project and replace the placeholder ID.',

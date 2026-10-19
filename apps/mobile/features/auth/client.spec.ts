@@ -13,7 +13,7 @@ jest.mock('@/utils/helpers', () => ({
 }));
 
 jest.mock('@/utils/platform', () => ({
-  getIdentityProviderUrl: jest.fn(() => 'http://localhost:4300'),
+  getIdentityProviderUrl: jest.fn(() => 'https://identity-beta.adammajor.com'),
 }));
 
 function makeResponse(body: unknown, status: number): Response {
@@ -35,9 +35,10 @@ describe('auth client', () => {
 
   it('builds identity-provider discovery endpoints', () => {
     expect(createIdentityProviderDiscovery()).toEqual({
-      authorizationEndpoint: 'http://localhost:4300/authorize',
-      revocationEndpoint: 'http://localhost:4300/revoke',
-      tokenEndpoint: 'http://localhost:4300/token',
+      authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+      revocationEndpoint:
+        'https://identity-beta.adammajor.com/token/revocation',
+      tokenEndpoint: 'https://identity-beta.adammajor.com/token',
     });
   });
 
@@ -50,17 +51,21 @@ describe('auth client', () => {
 
     await expect(
       revokeRefreshToken('refresh-token', {
-        authorizationEndpoint: 'http://localhost:4300/authorize',
-        revocationEndpoint: 'http://localhost:4300/revoke',
-        tokenEndpoint: 'http://localhost:4300/token',
+        authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+        revocationEndpoint:
+          'https://identity-beta.adammajor.com/token/revocation',
+        tokenEndpoint: 'https://identity-beta.adammajor.com/token',
       }),
     ).resolves.toBeUndefined();
 
-    expect(fetch).toHaveBeenCalledWith('http://localhost:4300/revoke', {
-      body: expect.stringContaining('token=refresh-token'),
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      method: 'POST',
-    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://identity-beta.adammajor.com/token/revocation',
+      {
+        body: expect.stringContaining('token=refresh-token'),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      },
+    );
   });
 
   it('does not call the identity provider to revoke a web session', async () => {
@@ -72,9 +77,10 @@ describe('auth client', () => {
 
     await expect(
       revokeRefreshToken('refresh-token', {
-        authorizationEndpoint: 'http://localhost:4300/authorize',
-        revocationEndpoint: 'http://localhost:4300/revoke',
-        tokenEndpoint: 'http://localhost:4300/token',
+        authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+        revocationEndpoint:
+          'https://identity-beta.adammajor.com/token/revocation',
+        tokenEndpoint: 'https://identity-beta.adammajor.com/token',
       }),
     ).resolves.toBeUndefined();
 
@@ -156,8 +162,8 @@ describe('auth client', () => {
         code: 'auth-code',
         codeVerifier: 'challenge',
         discovery: {
-          authorizationEndpoint: 'http://localhost:4300/authorize',
-          tokenEndpoint: 'http://localhost:4300/token',
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+          tokenEndpoint: 'https://identity-beta.adammajor.com/token',
         },
         redirectUri: 'exp://localhost:19000',
       }),
@@ -168,11 +174,14 @@ describe('auth client', () => {
       tokenType: 'Bearer',
     });
 
-    expect(fetch).toHaveBeenCalledWith('http://localhost:4300/token', {
-      body: expect.stringContaining('code=auth-code'),
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      method: 'POST',
-    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://identity-beta.adammajor.com/token',
+      {
+        body: expect.stringContaining('code=auth-code'),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      },
+    );
   });
 
   it('uses the identity provider for native authorization-code exchange', async () => {
@@ -197,8 +206,8 @@ describe('auth client', () => {
         code: 'auth-code',
         codeVerifier: 'challenge',
         discovery: {
-          authorizationEndpoint: 'http://localhost:4300/authorize',
-          tokenEndpoint: 'http://localhost:4300/token',
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+          tokenEndpoint: 'https://identity-beta.adammajor.com/token',
         },
         redirectUri: 'exp://localhost:19000',
       }),
@@ -225,8 +234,8 @@ describe('auth client', () => {
         code: 'expired-code',
         codeVerifier: 'challenge',
         discovery: {
-          authorizationEndpoint: 'http://localhost:4300/authorize',
-          tokenEndpoint: 'http://localhost:4300/token',
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+          tokenEndpoint: 'https://identity-beta.adammajor.com/token',
         },
         redirectUri: 'exp://localhost:19000',
       }),
@@ -242,7 +251,7 @@ describe('auth client', () => {
       .spyOn(global, 'fetch')
       .mockResolvedValue(
         makeResponse(
-          { expires_in: 3600, scope: 'openid api:read', token_type: 'Bearer' },
+          { expires_in: 3600, scope: 'openid profile', token_type: 'Bearer' },
           200,
         ),
       );
@@ -251,13 +260,15 @@ describe('auth client', () => {
       exchangeAuthorizationCodeForCurrentPlatform({
         code: 'auth-code',
         codeVerifier: 'challenge',
-        discovery: { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        discovery: {
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+        },
         redirectUri: 'http://localhost:8081/oauth/callback',
       }),
     ).resolves.toEqual({
       accessToken: '',
       expiresAt: expect.any(Number),
-      scope: 'openid api:read',
+      scope: 'openid profile',
       tokenType: 'Bearer',
     });
     expect(fetch).toHaveBeenCalledWith('http://localhost:4200/auth/token', {
@@ -279,7 +290,9 @@ describe('auth client', () => {
       exchangeAuthorizationCodeForCurrentPlatform({
         code: 'auth-code',
         codeVerifier: 'challenge',
-        discovery: { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        discovery: {
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+        },
         redirectUri: 'http://localhost:8081/oauth/callback',
       }),
     ).rejects.toThrow('Token exchange failed with HTTP 502');
@@ -296,7 +309,7 @@ describe('auth client', () => {
           access_token: 'refreshed-access-token',
           expires_in: 900,
           refresh_token: 'rotated-refresh-token',
-          scope: 'openid api:read',
+          scope: 'openid profile',
           token_type: 'Bearer',
         },
         200,
@@ -309,26 +322,29 @@ describe('auth client', () => {
           accessToken: 'expired-access-token',
           expiresAt: Date.now() - 1,
           refreshToken: 'refresh-token',
-          scope: 'openid api:read',
+          scope: 'openid profile',
           tokenType: 'Bearer',
         },
         {
-          authorizationEndpoint: 'http://localhost:4300/authorize',
-          tokenEndpoint: 'http://localhost:4300/token',
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+          tokenEndpoint: 'https://identity-beta.adammajor.com/token',
         },
       ),
     ).resolves.toEqual({
       accessToken: 'refreshed-access-token',
       expiresAt: expect.any(Number),
       refreshToken: 'rotated-refresh-token',
-      scope: 'openid api:read',
+      scope: 'openid profile',
       tokenType: 'Bearer',
     });
-    expect(fetch).toHaveBeenCalledWith('http://localhost:4300/token', {
-      body: expect.stringContaining('grant_type=refresh_token'),
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      method: 'POST',
-    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://identity-beta.adammajor.com/token',
+      {
+        body: expect.stringContaining('grant_type=refresh_token'),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      },
+    );
   });
 
   it('refreshes a web session through the BFF', async () => {
@@ -347,15 +363,15 @@ describe('auth client', () => {
         {
           accessToken: '',
           expiresAt: Number.MAX_SAFE_INTEGER,
-          scope: 'openid api:read',
+          scope: 'openid profile',
           tokenType: 'Bearer',
         },
-        { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        { authorizationEndpoint: 'https://identity-beta.adammajor.com/auth' },
       ),
     ).resolves.toEqual({
       accessToken: '',
       expiresAt: expect.any(Number),
-      scope: 'openid api:read',
+      scope: 'openid profile',
       tokenType: 'Bearer',
     });
     expect(fetch).toHaveBeenCalledWith('http://localhost:4200/auth/refresh', {
@@ -380,12 +396,12 @@ describe('auth client', () => {
         {
           accessToken: '',
           expiresAt: Number.MAX_SAFE_INTEGER,
-          scope: 'api:read',
+          scope: 'profile',
           tokenType: 'Bearer',
         },
-        { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        { authorizationEndpoint: 'https://identity-beta.adammajor.com/auth' },
       ),
-    ).resolves.toMatchObject({ scope: 'api:read' });
+    ).resolves.toMatchObject({ scope: 'profile' });
   });
 
   it('reports a BFF refresh error description', async () => {
@@ -404,10 +420,10 @@ describe('auth client', () => {
         {
           accessToken: '',
           expiresAt: Number.MAX_SAFE_INTEGER,
-          scope: 'api:read',
+          scope: 'profile',
           tokenType: 'Bearer',
         },
-        { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        { authorizationEndpoint: 'https://identity-beta.adammajor.com/auth' },
       ),
     ).rejects.toThrow('Refresh session expired.');
   });
@@ -423,10 +439,10 @@ describe('auth client', () => {
         {
           accessToken: 'expired-access-token',
           expiresAt: Date.now() - 1,
-          scope: 'api:read',
+          scope: 'profile',
           tokenType: 'Bearer',
         },
-        { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        { authorizationEndpoint: 'https://identity-beta.adammajor.com/auth' },
       ),
     ).rejects.toThrow('No refresh token is available.');
   });
@@ -440,10 +456,10 @@ describe('auth client', () => {
           accessToken: 'expired-access-token',
           expiresAt: Date.now() - 1,
           refreshToken: 'refresh-token',
-          scope: 'api:read',
+          scope: 'profile',
           tokenType: 'Bearer',
         },
-        { tokenEndpoint: 'http://localhost:4300/token' },
+        { tokenEndpoint: 'https://identity-beta.adammajor.com/token' },
       ),
     ).rejects.toThrow('Token refresh failed with HTTP 200');
   });
@@ -468,7 +484,9 @@ describe('auth client', () => {
       exchangeAuthorizationCode({
         code: 'auth-code',
         codeVerifier: 'challenge',
-        discovery: { tokenEndpoint: 'http://localhost:4300/token' },
+        discovery: {
+          tokenEndpoint: 'https://identity-beta.adammajor.com/token',
+        },
         redirectUri: 'exp://localhost:19000',
       }),
     ).rejects.toThrow('Token exchange failed with HTTP 200');
@@ -488,7 +506,9 @@ describe('auth client', () => {
       exchangeAuthorizationCode({
         code: 'auth-code',
         codeVerifier: 'challenge',
-        discovery: { tokenEndpoint: 'http://localhost:4300/token' },
+        discovery: {
+          tokenEndpoint: 'https://identity-beta.adammajor.com/token',
+        },
         redirectUri: 'exp://localhost:19000',
       }),
     ).rejects.toThrow('Token exchange failed with HTTP 200');
@@ -499,7 +519,9 @@ describe('auth client', () => {
       exchangeAuthorizationCode({
         code: 'auth-code',
         codeVerifier: 'challenge',
-        discovery: { authorizationEndpoint: 'http://localhost:4300/authorize' },
+        discovery: {
+          authorizationEndpoint: 'https://identity-beta.adammajor.com/auth',
+        },
         redirectUri: 'exp://localhost:19000',
       }),
     ).rejects.toThrow(

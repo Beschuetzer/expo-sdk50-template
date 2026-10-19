@@ -26,9 +26,7 @@ export function getIdentityProviderUrl() {
     return configuredUrl.replace(/\/$/, '');
   }
 
-  const config = getEnvironmentOrDefault();
-  const port = process.env.EXPO_PUBLIC_IDP_PORT_NUMBER?.trim() || '4300';
-  return `http://${config.ipAddress}:${port}`;
+  return 'https://identity-beta.adammajor.com';
 }
 
 export async function measureExecutionTime(
