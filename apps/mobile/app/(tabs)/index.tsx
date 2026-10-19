@@ -17,7 +17,7 @@ import {
   ThemeAwareText,
 } from '@/components/ui/ThemeAwareText';
 import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
-import { useOAuth2Auth } from '@/features/auth/hooks/useOAuth2Auth';
+import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import {
   backendHealthQueryKey,
   useBackendHealthQuery,
