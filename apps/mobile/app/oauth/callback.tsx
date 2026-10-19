@@ -31,24 +31,28 @@ export default function OAuthCallbackScreen() {
         flex={1}
         alignItems="center"
         justifyContent="center"
-        p="$6"
-        space="xl"
+        px="$6"
+        py="$12"
+        space="2xl"
       >
         <ThemeAwareSurface
           alignItems="center"
           borderRadius="$full"
-          darkBackground="$primary900"
+          borderColor="$primary200"
+          borderWidth={1}
+          darkBackground="$backgroundDark900"
+          h="$20"
           justifyContent="center"
-          lightBackground="$primary100"
-          p="$5"
+          lightBackground="$primary50"
+          w="$20"
         >
           <FontAwesome
-            name="arrow-right"
+            name="shield"
             color={COLORS[colorScheme].tint}
-            size={28}
+            size={32}
           />
         </ThemeAwareSurface>
-        <VStack alignItems="center" space="sm">
+        <VStack alignItems="center" maxWidth={360} space="md" width="100%">
           <ThemeAwareHeading size="2xl" textAlign="center">
             {t('auth.redirectingHome')}
           </ThemeAwareHeading>
@@ -56,6 +60,7 @@ export default function OAuthCallbackScreen() {
             maxWidth={300}
             textAlign="center"
             color="$textLight500"
+            size="md"
           >
             {t('auth.redirectingHomeMessage')}
           </ThemeAwareText>
