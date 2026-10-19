@@ -267,3 +267,11 @@ test('configuration uses defaults and validates the port', () => {
     /PORT must be an integer/,
   );
 });
+
+test('configuration normalizes the OAuth issuer URL', () => {
+  const config = loadConfig({
+    AUTH_ISSUER_BASE_URL: 'https://identity.example.com///',
+  });
+
+  assert.equal(config.oauth2.issuerBaseUrl, 'https://identity.example.com');
+});

@@ -2,18 +2,49 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, URL } from 'url';
 
 const containerName = 'expo-50sdk-template';
 const volumeName = 'expo-50sdk-template-data';
 const imageName = 'mongo:latest';
 const defaultHostPort = 27017;
+const rootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+const apiEnvironmentFile = path.join(rootDir, 'apps/api/.env');
 const portFilePath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
   '.mongodb-port',
 );
 const maxAttempts = 30;
+
+if (fs.existsSync(apiEnvironmentFile)) {
+  if (typeof process.loadEnvFile !== 'function') {
+    throw new Error('Node.js 20.12 or newer is required to load apps/api/.env');
+  }
+  process.loadEnvFile(apiEnvironmentFile);
+}
+
+function getDatabaseName() {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL must be set in apps/api/.env');
+  }
+
+  const parsedUrl = new URL(databaseUrl);
+  if (!['mongodb:', 'mongodb+srv:'].includes(parsedUrl.protocol)) {
+    throw new Error('DATABASE_URL must use the mongodb or mongodb+srv scheme');
+  }
+
+  const databaseName = decodeURIComponent(parsedUrl.pathname.slice(1));
+  if (!databaseName) {
+    throw new Error('DATABASE_URL must include a database name');
+  }
+
+  return databaseName;
+}
 
 function runPodman(args, options = {}) {
   const output = execFileSync('podman', args, {
@@ -66,7 +97,7 @@ async function findAvailableHostPort() {
   );
 }
 
-async function ensureContainer() {
+async function ensureContainer(databaseName) {
   let existingContainer = getContainer();
 
   const command = existingContainer?.Config?.Cmd ?? [];
@@ -111,7 +142,7 @@ async function ensureContainer() {
         '--publish',
         `${hostPort}:27017`,
         '--env',
-        'MONGO_INITDB_DATABASE=expo_50sdk_template',
+        `MONGO_INITDB_DATABASE=${databaseName}`,
         '--volume',
         `${volumeName}:/data/db`,
         imageName,
@@ -196,14 +227,15 @@ async function waitForPrimary() {
 
 try {
   runPodman(['--version']);
+  const databaseName = getDatabaseName();
   fs.rmSync(portFilePath, { force: true });
-  const hostPort = await ensureContainer();
+  const hostPort = await ensureContainer(databaseName);
   await waitForMongo();
   initializeReplicaSet();
   await waitForPrimary();
   fs.writeFileSync(portFilePath, `${hostPort}\n`, 'utf8');
   console.log(
-    `MongoDB is ready at mongodb://127.0.0.1:${hostPort}/expo_50sdk_template`,
+    `MongoDB is ready at mongodb://127.0.0.1:${hostPort}/${encodeURIComponent(databaseName)}`,
   );
 } catch (error) {
   console.error(

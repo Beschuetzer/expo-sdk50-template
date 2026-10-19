@@ -47,7 +47,9 @@ export function loadConfig(
       environment.AUTH_CLIENT_ID?.trim() || DEFAULT_OAUTH_CLIENT_ID,
     corsOrigin: environment.CORS_ORIGIN?.trim() || DEFAULT_CORS_ORIGIN,
     oauth2: {
-      issuerBaseUrl: environment.AUTH_ISSUER_BASE_URL?.trim() || undefined,
+      issuerBaseUrl:
+        environment.AUTH_ISSUER_BASE_URL?.trim().replace(/\/+$/, '') ||
+        undefined,
       audience: environment.AUTH_AUDIENCE?.trim() || undefined,
       requiredScopes,
     },

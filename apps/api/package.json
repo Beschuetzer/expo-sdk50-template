@@ -5,6 +5,7 @@
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema=./prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=./prisma/schema.prisma",
-    "prisma:validate": "prisma validate --schema=./prisma/schema.prisma"
+    "prisma:validate": "prisma validate --schema=./prisma/schema.prisma",
+    "prisma:seed:dev": "tsx prisma/seed-dev.ts"
   }
 }

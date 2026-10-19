@@ -18,9 +18,20 @@ Node.js HTTP API for local development and production-oriented extension.
 - `PORT`: TCP port from `1` to `65535`, default `4200`.
 - `NODE_ENV`: runtime environment label, default `development`.
 - `DATABASE_URL`: MongoDB connection string for Prisma. Required for database access.
-- `AUTH_ISSUER_BASE_URL`: OAuth2/OIDC issuer base URL. Development defaults to the beta issuer; production must configure it explicitly.
+- `AUTH_ISSUER_BASE_URL`: OAuth2/OIDC issuer base URL. Required for protected routes.
 - `AUTH_AUDIENCE`: expected OAuth2 access-token audience. Required for protected routes.
-- `AUTH_REQUIRED_SCOPES`: optional space- or comma-separated scopes required by all protected routes.
+- `AUTH_REQUIRED_SCOPES`: optional space- or comma-separated baseline scopes required by all protected routes. Feature-specific scopes are enforced at route level.
+
+Relationship and payment-request routes use these resource-server permissions:
+
+```text
+relationships:read
+relationships:create
+relationships:invite
+relationships:accept-invite
+payment-requests:read
+payment-requests:write
+```
 
 ## Prisma + MongoDB
 
@@ -34,27 +45,30 @@ This API is preconfigured for Prisma with a MongoDB datasource so you can attach
 
 For MongoDB, Prisma uses the native `mongodb` provider and document IDs are represented as `ObjectId` strings.
 
-The API reads its issuer from `apps/api/.env`; mobile startup syncs that same
-value into Expo's public environment. `npm run init` uses it as the issuer
-default and copies it into EAS build profiles.
+For the hosted identity provider, use:
 
 ```powershell
-$env:AUTH_AUDIENCE='api'; npm run api
+$env:AUTH_ISSUER_BASE_URL='https://identity-server-00186add9672.herokuapp.com/'; $env:AUTH_AUDIENCE='https://identity-server-00186add9672.herokuapp.com/resources/api'; npm run api
 ```
 
-The API process uses the configured issuer and `api` audience when development
-values are not provided explicitly. Access to protected routes depends on the
-provider issuing tokens with that audience.
+The API process defaults to the hosted issuer and
+`https://identity-server-00186add9672.herokuapp.com/resources/api` audience
+when they are not provided explicitly. Clients must send the OAuth access token
+as the bearer token. The ID token is for the OAuth client and has the client ID
+as its audience, so it is correctly rejected by this resource server.
 
 ## Commands
 
 - `GET /health` returns a public JSON health response for deployment probes.
 - `GET /api/v1/me` is a protected example resource and requires a valid OAuth2 bearer token.
+- `POST /api/v1/relationships/:relationshipId/invitations` creates a one-time invitation link for a relationship owner.
+- `GET /api/v1/invitations/:token` previews an invitation for an authenticated user.
+- `POST /api/v1/invitations/:token/accept` accepts an invitation using the authenticated user's subject claim.
 - `npm run api` starts the API through Nx.
 - `npx nx run api:test` runs the API contract tests.
 - `npx nx run api:typecheck` validates TypeScript without emitting files.
 - `npx nx run api:build` emits the compiled API to `dist/apps/api`.
-- `npm run dev` starts the mobile app, API, and identity provider together.
+- `npm run dev` starts the mobile app and API together.
 
 ### OAuth2 architecture
 
@@ -70,10 +84,9 @@ independent of Auth0, Entra, Okta, or another provider. Tests can inject an
 `AuthMiddleware` through `createApp` without contacting a real identity
 provider.
 
-For local development, the beta issuer and `api` audience are configured by
-default. In production, provide both values explicitly. Never replace missing
-configuration behavior with a development token bypass in shared or production
-code.
+Protected routes fail closed with `503 auth_not_configured` if the provider
+settings are removed. Never replace that behavior with a development token
+bypass in shared or production code.
 
 ## Deploy to Heroku
 

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, URL } from 'url';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFilePath), '..');
@@ -15,6 +15,18 @@ if (fs.existsSync(apiEnvironmentFile)) {
 const IDP_URL = process.env.AUTH_ISSUER_BASE_URL?.trim().replace(/\/$/, '');
 if (!IDP_URL) {
   throw new Error('AUTH_ISSUER_BASE_URL must be set in apps/api/.env');
+}
+const configuredDatabaseUrl = process.env.DATABASE_URL?.trim();
+if (!configuredDatabaseUrl) {
+  throw new Error('DATABASE_URL must be set in apps/api/.env');
+}
+const configuredDatabase = new URL(configuredDatabaseUrl);
+if (!['mongodb:', 'mongodb+srv:'].includes(configuredDatabase.protocol)) {
+  throw new Error('DATABASE_URL must use the mongodb or mongodb+srv scheme');
+}
+const databaseName = decodeURIComponent(configuredDatabase.pathname.slice(1));
+if (!databaseName) {
+  throw new Error('DATABASE_URL must include a database name');
 }
 
 const commands = [
@@ -128,11 +140,17 @@ const mongoPort = Number(mongoPortText.replace(/^\uFEFF/, ''));
 if (!Number.isInteger(mongoPort) || mongoPort < 1 || mongoPort > 65535) {
   throw new Error('MongoDB startup did not provide a valid host port');
 }
+configuredDatabase.protocol = 'mongodb:';
+configuredDatabase.hostname = '127.0.0.1';
+configuredDatabase.port = String(mongoPort);
+configuredDatabase.searchParams.set('directConnection', 'true');
+configuredDatabase.searchParams.set('serverSelectionTimeoutMS', '5000');
+configuredDatabase.searchParams.set('connectTimeoutMS', '5000');
 const sharedEnvironment = {
   NODE_ENV: 'development',
   AUTH_AUDIENCE: `${IDP_URL}/resources/api`,
   AUTH_ISSUER_BASE_URL: IDP_URL,
-  DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/relationship_app?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000`,
+  DATABASE_URL: configuredDatabase.toString(),
   EXPO_PUBLIC_IDP_URL: IDP_URL,
   EXPO_PUBLIC_OAUTH_AUDIENCE: `${IDP_URL}/resources/api`,
   EXPO_PUBLIC_OAUTH_CLIENT_ID: 'client_ASCACaC-QT2cM8DmF2IroxFe',

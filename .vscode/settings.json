@@ -4,5 +4,6 @@
         "Select-String": true,
         "npx nx": true,
         "Where-Object": true
-    }
+    },
+    "prisma.pinToPrisma6": true
 }

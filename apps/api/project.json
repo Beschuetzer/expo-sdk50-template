@@ -32,7 +32,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tsx --test src/app.spec.ts",
+        "command": "npx tsx --test src/app.spec.ts src/features/paymentRequests/routes.spec.ts src/logging.spec.ts",
         "cwd": "apps/api"
       }
     },
