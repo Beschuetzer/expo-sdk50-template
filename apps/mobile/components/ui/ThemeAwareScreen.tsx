@@ -1,7 +1,8 @@
 import { ScrollView } from '@gluestack-ui/themed';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListProps } from '@shopify/flash-list';
-import { ReactNode, useState } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { useState } from 'react';
 
 import { ThemeAwareSurface } from './ThemeAwareSurface';
 
@@ -11,6 +12,9 @@ import { absolutePositioning } from '@/constants/styles';
 type ThemeAwareScreenProps<ItemT> = {
   absolutelyPositionedJsx?: ReactNode | ReactNode[];
   children: ReactNode | ReactNode[];
+  contentContainerStyle?: ComponentProps<
+    typeof ScrollView
+  >['contentContainerStyle'];
   flashListProps?: FlashListProps<ItemT>;
 };
 
@@ -18,7 +22,12 @@ const CONTAINER_HEIGHT_DEFAULT = 0;
 export function ThemeAwareScreen<ItemT = unknown>(
   props: ThemeAwareScreenProps<ItemT>,
 ) {
-  const { absolutelyPositionedJsx, children, flashListProps } = props;
+  const {
+    absolutelyPositionedJsx,
+    children,
+    contentContainerStyle,
+    flashListProps,
+  } = props;
   const [containerHeight, setContainerHeight] = useState(
     CONTAINER_HEIGHT_DEFAULT,
   );
@@ -49,7 +58,10 @@ export function ThemeAwareScreen<ItemT = unknown>(
     return (
       <ScrollView
         keyboardShouldPersistTaps="always"
-        contentContainerStyle={{ paddingBottom: containerHeight }}
+        contentContainerStyle={[
+          { paddingBottom: containerHeight },
+          contentContainerStyle,
+        ]}
       >
         {contentJSX}
       </ScrollView>
