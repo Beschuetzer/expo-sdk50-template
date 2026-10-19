@@ -23,7 +23,7 @@ describe('access-token storage', () => {
   const token: StoredAccessToken = {
     accessToken: 'access-token',
     expiresAt: Date.now() + 60_000,
-    scope: 'profile',
+    scope: 'api:read',
     tokenType: 'Bearer',
   };
 
@@ -44,8 +44,8 @@ describe('access-token storage', () => {
     await saveAccessToken(token);
     await expect(loadAccessToken()).resolves.toEqual(token);
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-      'expo50sdktemplate.oauth.access-token',
-      JSON.stringify(token),
+      'relationship-app.oauth.access-token',
+      JSON.stringify({ ...token, storageVersion: 2 }),
       { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
     );
   });
@@ -66,7 +66,7 @@ describe('access-token storage', () => {
 
     await expect(loadAccessToken()).resolves.toBeNull();
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-      'expo50sdktemplate.oauth.access-token',
+      'relationship-app.oauth.access-token',
     );
   });
 
@@ -92,6 +92,28 @@ describe('access-token storage', () => {
       refreshToken: 'refresh-token',
     });
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it('stores the ID token separately from the access-token record', async () => {
+    const tokenWithIdToken = {
+      ...token,
+      idToken: 'id-token',
+    };
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockImplementation(async (key) =>
+        key === 'relationship-app.oauth.id-token'
+          ? 'id-token'
+          : JSON.stringify({ ...token, storageVersion: 2 }),
+      );
+
+    await saveAccessToken(tokenWithIdToken);
+    await expect(loadAccessToken()).resolves.toEqual(tokenWithIdToken);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      'relationship-app.oauth.id-token',
+      'id-token',
+      { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
+    );
   });
 
   it('returns null for expired web tokens and clears them', async () => {

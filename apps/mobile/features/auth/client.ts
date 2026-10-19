@@ -4,15 +4,34 @@ import { Platform } from 'react-native';
 import type { StoredAccessToken } from './storage';
 
 import { getBackendUrl } from '@/utils/helpers';
-import { getIdentityProviderUrl } from '@/utils/platform';
 
-export const MOBILE_OAUTH_CLIENT_ID = 'mobile-development-client';
-export const MOBILE_OAUTH_SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'offline_access',
-];
+export const MOBILE_OAUTH_CLIENT_ID =
+  process.env.EXPO_PUBLIC_OAUTH_CLIENT_ID?.trim() ||
+  'client_ASCACaC-QT2cM8DmF2IroxFe';
+export const MOBILE_OAUTH_AUDIENCE =
+  process.env.EXPO_PUBLIC_OAUTH_AUDIENCE?.trim() ||
+  'https://identity-beta.adammajor.com/resources/api';
+const configuredOAuthScopes = (
+  process.env.EXPO_PUBLIC_OAUTH_SCOPES?.trim() ||
+  'openid profile email offline_access relationships:read relationships:create relationships:invite relationships:accept-invite payment-requests:read payment-requests:write'
+)
+  .split(/[ ,]+/)
+  .filter(Boolean);
+export const MOBILE_OAUTH_SCOPES = Array.from(
+  new Set([...configuredOAuthScopes, 'offline_access']),
+);
+export const MOBILE_OAUTH_SCHEME =
+  process.env.EXPO_PUBLIC_OAUTH_SCHEME?.trim() || 'relationshipapp';
+export const MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI =
+  process.env.EXPO_PUBLIC_OAUTH_POST_LOGOUT_REDIRECT_URI?.trim();
+
+export function createInvitationUrl(token: string) {
+  const encodedToken = encodeURIComponent(token);
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `${window.location.origin}/invitation/${encodedToken}`;
+  }
+  return `${MOBILE_OAUTH_SCHEME}://invitation/${encodedToken}`;
+}
 
 export type AuthenticatedUser = {
   claims: Record<string, unknown>;
@@ -21,6 +40,7 @@ export type AuthenticatedUser = {
 
 type TokenResponse = {
   access_token?: unknown;
+  id_token?: unknown;
   refresh_token?: unknown;
   expires_in?: unknown;
   scope?: unknown;
@@ -41,17 +61,71 @@ function hasValidTokenMetadata(
   );
 }
 
-function getDiscoveryBaseUrl() {
-  return getIdentityProviderUrl();
+function normalizeEndpointProtocol(
+  endpoint: string | undefined,
+  issuerUrl: string,
+) {
+  if (!endpoint) return endpoint;
+
+  try {
+    const endpointUrl = new URL(endpoint);
+    const issuer = new URL(issuerUrl);
+    if (
+      issuer.protocol === 'https:' &&
+      endpointUrl.protocol === 'http:' &&
+      endpointUrl.host === issuer.host
+    ) {
+      endpointUrl.protocol = issuer.protocol;
+      return endpointUrl.toString();
+    }
+  } catch {
+    return endpoint;
+  }
+
+  return endpoint;
 }
 
-export function createIdentityProviderDiscovery(): DiscoveryDocument {
-  const baseUrl = getDiscoveryBaseUrl();
+export function normalizeIdentityProviderDiscovery(
+  discovery: DiscoveryDocument,
+  issuerUrl: string,
+): DiscoveryDocument {
+  const endSessionEndpoint = normalizeEndpointProtocol(
+    discovery.endSessionEndpoint,
+    issuerUrl,
+  );
+
   return {
-    authorizationEndpoint: `${baseUrl}/auth`,
-    revocationEndpoint: `${baseUrl}/token/revocation`,
-    tokenEndpoint: `${baseUrl}/token`,
+    ...discovery,
+    authorizationEndpoint: normalizeEndpointProtocol(
+      discovery.authorizationEndpoint,
+      issuerUrl,
+    ),
+    revocationEndpoint: normalizeEndpointProtocol(
+      discovery.revocationEndpoint,
+      issuerUrl,
+    ),
+    tokenEndpoint: normalizeEndpointProtocol(
+      discovery.tokenEndpoint,
+      issuerUrl,
+    ),
+    ...(endSessionEndpoint ? { endSessionEndpoint } : {}),
   };
+}
+
+export function createProviderLogoutUrl(
+  discovery: DiscoveryDocument,
+  redirectUri: string,
+  idTokenHint?: string,
+) {
+  if (!discovery.endSessionEndpoint) return null;
+
+  const logoutUrl = new URL(discovery.endSessionEndpoint);
+  logoutUrl.searchParams.set('client_id', MOBILE_OAUTH_CLIENT_ID);
+  logoutUrl.searchParams.set('post_logout_redirect_uri', redirectUri);
+  if (idTokenHint) {
+    logoutUrl.searchParams.set('id_token_hint', idTokenHint);
+  }
+  return logoutUrl.toString();
 }
 
 export async function revokeRefreshToken(
@@ -124,6 +198,7 @@ export async function exchangeAuthorizationCode({
 
   return {
     accessToken: result.access_token,
+    idToken: typeof result.id_token === 'string' ? result.id_token : undefined,
     expiresAt: Date.now() + result.expires_in * 1000,
     refreshToken:
       typeof result.refresh_token === 'string'
@@ -166,6 +241,7 @@ export async function exchangeAuthorizationCodeForCurrentPlatform(input: {
   return {
     accessToken: '',
     expiresAt: Date.now() + result.expires_in * 1000,
+    idToken: typeof result.id_token === 'string' ? result.id_token : undefined,
     refreshToken: undefined,
     scope: typeof result.scope === 'string' ? result.scope : '',
     tokenType: 'Bearer',
@@ -173,7 +249,7 @@ export async function exchangeAuthorizationCodeForCurrentPlatform(input: {
 }
 
 export async function refreshAccessToken(
-  token: StoredAccessToken,
+  token: StoredAccessToken | undefined,
   discovery: DiscoveryDocument,
 ): Promise<StoredAccessToken> {
   if (Platform.OS === 'web') {
@@ -192,12 +268,15 @@ export async function refreshAccessToken(
     return {
       accessToken: '',
       expiresAt: Date.now() + result.expires_in * 1000,
-      scope: typeof result.scope === 'string' ? result.scope : token.scope,
+      idToken:
+        typeof result.id_token === 'string' ? result.id_token : token?.idToken,
+      scope:
+        typeof result.scope === 'string' ? result.scope : token?.scope ?? '',
       tokenType: 'Bearer',
     };
   }
 
-  if (!token.refreshToken || !discovery.tokenEndpoint) {
+  if (!token?.refreshToken || !discovery.tokenEndpoint) {
     throw new Error('No refresh token is available.');
   }
   const response = await fetch(discovery.tokenEndpoint, {
@@ -213,8 +292,7 @@ export async function refreshAccessToken(
   if (
     !response.ok ||
     typeof result.access_token !== 'string' ||
-    !hasValidTokenMetadata(result) ||
-    typeof result.refresh_token !== 'string'
+    !hasValidTokenMetadata(result)
   ) {
     throw new Error(
       typeof result.error_description === 'string'
@@ -224,14 +302,135 @@ export async function refreshAccessToken(
   }
   return {
     accessToken: result.access_token,
+    idToken:
+      typeof result.id_token === 'string' ? result.id_token : token.idToken,
     expiresAt: Date.now() + result.expires_in * 1000,
-    refreshToken: result.refresh_token,
+    refreshToken:
+      typeof result.refresh_token === 'string'
+        ? result.refresh_token
+        : token.refreshToken,
     scope: typeof result.scope === 'string' ? result.scope : token.scope,
     tokenType: 'Bearer',
   };
 }
 
-export async function getAuthenticatedUser(accessToken: string) {
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  if (typeof globalThis.atob === 'function') {
+    return globalThis.atob(padded);
+  }
+
+  const alphabet =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  for (let index = 0; index < padded.length; index += 4) {
+    const first = alphabet.indexOf(padded[index]);
+    const second = alphabet.indexOf(padded[index + 1]);
+    const third = alphabet.indexOf(padded[index + 2]);
+    const fourth = alphabet.indexOf(padded[index + 3]);
+    result += String.fromCharCode((first << 2) | (second >> 4));
+    if (third >= 0) {
+      result += String.fromCharCode(((second & 15) << 4) | (third >> 2));
+    }
+    if (fourth >= 0) {
+      result += String.fromCharCode(((third & 3) << 6) | fourth);
+    }
+  }
+  return result;
+}
+
+function decodeIdTokenClaims(idToken: string | undefined) {
+  if (!idToken) return {};
+  try {
+    const payload = idToken.split('.')[1];
+    if (!payload) return {};
+    const binary = decodeBase64Url(payload);
+    const json = decodeURIComponent(
+      Array.from(binary)
+        .map(
+          (character) =>
+            `%${character.charCodeAt(0).toString(16).padStart(2, '0')}`,
+        )
+        .join(''),
+    );
+    const claims: unknown = JSON.parse(json);
+    return claims && typeof claims === 'object'
+      ? (claims as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getDisplayNameFromClaims(claims: Record<string, unknown>) {
+  for (const claim of ['name', 'preferred_username', 'email', 'nickname']) {
+    const value = claims[claim];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+export function getProfilePictureFromClaims(claims: Record<string, unknown>) {
+  const picture = claims.picture;
+  if (typeof picture !== 'string' || !picture.trim()) return undefined;
+
+  try {
+    const url = new URL(picture.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export type AccountProvider =
+  | 'apple'
+  | 'discord'
+  | 'facebook'
+  | 'github'
+  | 'gitlab'
+  | 'google'
+  | 'linkedin'
+  | 'microsoft'
+  | 'x';
+
+export function getAccountProviderFromClaims(claims: Record<string, unknown>) {
+  const provider = ['provider', 'idp', 'identity_provider', 'connection']
+    .map((key) => claims[key])
+    .find(
+      (value): value is string =>
+        typeof value === 'string' && value.trim().length > 0,
+    );
+
+  if (!provider) return undefined;
+
+  const normalizedProvider = provider
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+  const knownProviders: { key: AccountProvider; values: string[] }[] = [
+    { key: 'apple', values: ['apple'] },
+    { key: 'discord', values: ['discord'] },
+    { key: 'facebook', values: ['facebook'] },
+    { key: 'github', values: ['github'] },
+    { key: 'gitlab', values: ['gitlab'] },
+    { key: 'google', values: ['google'] },
+    { key: 'linkedin', values: ['linkedin'] },
+    { key: 'microsoft', values: ['microsoft', 'azuread', 'entra'] },
+    { key: 'x', values: ['twitter', 'x'] },
+  ];
+
+  return knownProviders.find(({ values }) =>
+    values.some((value) => normalizedProvider.includes(value)),
+  )?.key;
+}
+
+export async function getAuthenticatedUser(
+  accessToken: string,
+  idToken?: string,
+) {
   const response = await fetch(`${getBackendUrl()}/api/v1/me`, {
     ...(Platform.OS === 'web'
       ? { credentials: 'include' as const }
@@ -249,7 +448,10 @@ export async function getAuthenticatedUser(accessToken: string) {
   }
 
   return {
-    claims: result.claims ?? {},
+    claims: {
+      ...decodeIdTokenClaims(idToken),
+      ...(result.claims ?? {}),
+    },
     subject: result.subject ?? null,
   } satisfies AuthenticatedUser;
 }
