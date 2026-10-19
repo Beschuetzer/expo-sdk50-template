@@ -1,12 +1,15 @@
+import { getLocales } from 'expo-localization';
 import { Link, Stack } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
 import { ThemeAwareView } from '@/components/ui/ThemeAwareView';
-import { useI18n } from '@/utils/i18n';
+import { getMessage, type Locale } from '@/utils/i18n';
 
 export default function NotFoundScreen() {
-  const { t } = useI18n();
+  const locale: Locale =
+    getLocales()[0]?.languageCode?.toLowerCase() === 'es' ? 'es' : 'en';
+  const t = (key: Parameters<typeof getMessage>[1]) => getMessage(locale, key);
 
   return (
     <>
