@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+const IDP_URL = 'https://identity-beta.adammajor.com';
 const currentFilePath = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFilePath), '..');
 const apiEnvironmentFile = path.join(rootDir, 'apps/api/.env');
@@ -126,12 +127,11 @@ if (!Number.isInteger(mongoPort) || mongoPort < 1 || mongoPort > 65535) {
 }
 const sharedEnvironment = {
   NODE_ENV: 'development',
-  AUTH_AUDIENCE: 'https://identity-beta.adammajor.com/resources/api',
-  AUTH_ISSUER_BASE_URL: 'https://identity-server-00186add9672.herokuapp.com',
+  AUTH_AUDIENCE: `${IDP_URL}/resources/api`,
+  AUTH_ISSUER_BASE_URL: IDP_URL,
   DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/relationship_app?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000`,
-  EXPO_PUBLIC_IDP_URL: 'https://identity-server-00186add9672.herokuapp.com',
-  EXPO_PUBLIC_OAUTH_AUDIENCE:
-    'https://identity-server-00186add9672.herokuapp.com/resources/api',
+  EXPO_PUBLIC_IDP_URL: IDP_URL,
+  EXPO_PUBLIC_OAUTH_AUDIENCE: `${IDP_URL}/resources/api`,
   EXPO_PUBLIC_OAUTH_CLIENT_ID: 'client_ASCACaC-QT2cM8DmF2IroxFe',
   EXPO_PUBLIC_OAUTH_SCOPES:
     'openid profile email offline_access relationships:read relationships:create relationships:invite relationships:accept-invite payment-requests:read payment-requests:write',
@@ -141,9 +141,7 @@ await seedDevelopmentData();
 
 if (process.platform === 'win32') {
   commands.forEach(startWindowsTerminal);
-  console.log(
-    'Started Expo mobile and Node API. OAuth2 issuer: https://identity-beta.adammajor.com',
-  );
+  console.log(`Started Expo mobile and Node API. OAuth2 issuer: ${IDP_URL}`);
 } else {
   const children = commands.map(startSharedTerminal);
   await Promise.all(
