@@ -43,4 +43,28 @@ describe('diagnostics', () => {
       expect.any(Error),
     );
   });
+
+  it('omits the raw error from production diagnostic logs', () => {
+    const previousEnvironment = process.env.EXPO_PUBLIC_ENV;
+    process.env.EXPO_PUBLIC_ENV = 'production';
+    const error = new Error('sensitive details');
+    const context = { source: 'ErrorBoundary' };
+
+    try {
+      reportDiagnostic(error, context);
+
+      expect(consoleError).toHaveBeenCalledWith('Mobile diagnostic:', context);
+      expect(consoleError).not.toHaveBeenCalledWith(
+        'Mobile diagnostic:',
+        context,
+        error,
+      );
+    } finally {
+      if (previousEnvironment === undefined) {
+        delete process.env.EXPO_PUBLIC_ENV;
+      } else {
+        process.env.EXPO_PUBLIC_ENV = previousEnvironment;
+      }
+    }
+  });
 });

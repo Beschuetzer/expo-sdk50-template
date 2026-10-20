@@ -136,6 +136,62 @@ test('GET /health reports database degradation', async (t) => {
   assert.equal(response.body.error, undefined);
 });
 
+test('POST /api/v1/examples/random creates a random example', async (t) => {
+  let createdData: { email: string; name: string } | undefined;
+  const server = createServer(
+    createApp(loadConfig({}), {
+      authMiddleware: (_request, _response, next) => next(),
+      exampleDatabase: {
+        example: {
+          create: async ({
+            data,
+          }: {
+            data: { email: string; name: string };
+          }) => {
+            createdData = data;
+            return {
+              id: 'example-123',
+              ...data,
+              createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            };
+          },
+        },
+      },
+    }),
+  );
+  await listen(server);
+  t.after(() => server.close());
+
+  const response = await postRaw(server, '/api/v1/examples/random', '{}');
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.id, 'example-123');
+  assert.equal(response.body.name, createdData?.name);
+  assert.match(
+    createdData?.name ?? '',
+    /^(Morgan Ellis|Casey Rowan|Taylor Quinn|Riley Morgan)$/,
+  );
+  assert.match(createdData?.email ?? '', /^example-[0-9a-f-]+@example\.com$/);
+});
+
+test('POST /api/v1/examples/random rejects anonymous requests', async (t) => {
+  const server = createServer(
+    createApp(
+      loadConfig({
+        AUTH_AUDIENCE: 'api',
+        AUTH_ISSUER_BASE_URL: 'https://identity.example.com',
+      }),
+    ),
+  );
+  await listen(server);
+  t.after(() => server.close());
+
+  const response = await postRaw(server, '/api/v1/examples/random', '{}');
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.body.status, 'unauthorized');
+});
+
 test('unknown routes return a not found response', async (t) => {
   const server = createServer(createApp());
   await listen(server);

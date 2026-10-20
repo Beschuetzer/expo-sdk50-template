@@ -16,8 +16,9 @@ import {
   ThemeAwareHeading,
   ThemeAwareText,
 } from '@/components/ui/ThemeAwareText';
-import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
+import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
+import { createRandomExample } from '@/features/backend/api';
 import {
   backendHealthQueryKey,
   useBackendHealthQuery,
@@ -39,6 +40,9 @@ export default function HomeScreen() {
   const { t } = useI18n();
   const [connectionStatus, setConnectionStatus] =
     useState<TranslationKey | null>(null);
+  const [exampleStatus, setExampleStatus] = useState<TranslationKey | null>(
+    null,
+  );
   const [cacheStatus, setCacheStatus] = useState<TranslationKey | null>(null);
   const [securityStatus, setSecurityStatus] = useState<TranslationKey | null>(
     null,
@@ -122,6 +126,29 @@ export default function HomeScreen() {
 
   const onPressTestAuthenticatedEndpoint = async () => {
     await callAuthenticatedEndpoint();
+  };
+
+  const onPressCreateRandomExample = async () => {
+    setExampleStatus('status.creatingExample');
+
+    try {
+      const completed = await callAuthenticatedEndpoint(async (accessToken) => {
+        await createRandomExample(accessToken);
+        setExampleStatus('status.exampleCreated');
+      });
+      if (!completed) setExampleStatus(null);
+    } catch (error) {
+      setExampleStatus('errors.exampleCreationFailed');
+      dispatch(
+        setError({
+          message:
+            error instanceof Error
+              ? error.message
+              : t('errors.exampleCreationFailed'),
+          name: 'ExampleCreationError',
+        }),
+      );
+    }
   };
 
   const onPressTestTokenRefresh = async () => {
@@ -304,6 +331,16 @@ export default function HomeScreen() {
         >
           {t('actions.testBackendConnection')}
         </ThemeAwareButton>
+        <ThemeAwareButton
+          disabled={authState === 'authenticating' || authState === 'loading'}
+          onPress={onPressCreateRandomExample}
+          variant="outline"
+        >
+          {t('actions.addRandomExample')}
+        </ThemeAwareButton>
+        {exampleStatus ? (
+          <ThemeAwareText>{t(exampleStatus)}</ThemeAwareText>
+        ) : null}
         <ThemeAwareButton
           disabled={authState === 'authenticating' || authState === 'loading'}
           onPress={onPressTestAuthenticatedEndpoint}

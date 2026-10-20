@@ -50,6 +50,9 @@ export function useOAuth2AuthState() {
   const [nonce, setNonce] = useState(() => Crypto.randomUUID());
   const [shouldPrompt, setShouldPrompt] = useState(false);
   const signInAttemptInFlightRef = useRef(false);
+  const pendingAuthenticatedActionRef = useRef<
+    ((accessToken: string) => Promise<unknown>) | null
+  >(null);
   const promptAttemptRef = useRef<string | null>(null);
   const handledResponseRef = useRef<string | null>(null);
   const invalidatedRequestStatesRef = useRef(new Set<string>());
@@ -170,6 +173,7 @@ export function useOAuth2AuthState() {
     handledResponseRef.current = responseKey;
 
     if (response.type !== 'success') {
+      pendingAuthenticatedActionRef.current = null;
       signInAttemptInFlightRef.current = false;
       setState(response.type === 'cancel' ? 'cancelled' : 'error');
       return;
@@ -182,6 +186,7 @@ export function useOAuth2AuthState() {
       !response.params.state ||
       response.params.state !== request.state
     ) {
+      pendingAuthenticatedActionRef.current = null;
       signInAttemptInFlightRef.current = false;
       setState('error');
       return;
@@ -209,8 +214,18 @@ export function useOAuth2AuthState() {
           setUser(null);
         }
         setState('success');
+        const pendingAction = pendingAuthenticatedActionRef.current;
+        pendingAuthenticatedActionRef.current = null;
+        if (pendingAction) {
+          try {
+            await pendingAction(token.accessToken);
+          } catch {
+            setState('error');
+          }
+        }
       })
       .catch(() => {
+        pendingAuthenticatedActionRef.current = null;
         if (isCurrent) setState('error');
       })
       .finally(() => {
@@ -222,8 +237,10 @@ export function useOAuth2AuthState() {
     };
   }, [discovery, redirectUri, request?.codeVerifier, response]);
 
-  async function callAuthenticatedEndpoint() {
-    if (signInAttemptInFlightRef.current) return;
+  async function callAuthenticatedEndpoint(
+    authenticatedAction?: (accessToken: string) => Promise<unknown>,
+  ) {
+    if (signInAttemptInFlightRef.current) return false;
     signInAttemptInFlightRef.current = true;
     let waitingForCallback = false;
 
@@ -238,21 +255,22 @@ export function useOAuth2AuthState() {
         if (!request) {
           throw new Error('The OAuth2 request is still being prepared.');
         }
+        pendingAuthenticatedActionRef.current = authenticatedAction ?? null;
         setState('authenticating');
         waitingForCallback = true;
         setNonce(Crypto.randomUUID());
         setShouldPrompt(true);
-        return;
+        return false;
       }
       setIsAuthenticated(true);
 
+      let accessToken = storedToken.accessToken;
+      let authenticatedUser: AuthenticatedUser;
       try {
-        const authenticatedUser = await getAuthenticatedUser(
+        authenticatedUser = await getAuthenticatedUser(
           storedToken.accessToken,
           storedToken.idToken,
         );
-        setUser(authenticatedUser);
-        setState('success');
       } catch (error) {
         try {
           if (!discovery) {
@@ -263,20 +281,28 @@ export function useOAuth2AuthState() {
             discovery,
           );
           await saveAccessToken(refreshedToken);
+          accessToken = refreshedToken.accessToken;
           setIsAuthenticated(true);
-          const authenticatedUser = await getAuthenticatedUser(
+          authenticatedUser = await getAuthenticatedUser(
             refreshedToken.accessToken,
             refreshedToken.idToken,
           );
-          setUser(authenticatedUser);
-          setState('success');
         } catch {
           await clearAuthenticatedSession();
           throw error;
         }
       }
-    } catch {
+
+      setUser(authenticatedUser);
+      setState('success');
+      if (authenticatedAction) {
+        await authenticatedAction(accessToken);
+      }
+      return true;
+    } catch (error) {
       setState('error');
+      if (authenticatedAction) throw error;
+      return false;
     } finally {
       if (!waitingForCallback) {
         signInAttemptInFlightRef.current = false;
