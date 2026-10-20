@@ -16,6 +16,10 @@ const IDP_URL = process.env.AUTH_ISSUER_BASE_URL?.trim().replace(/\/$/, '');
 if (!IDP_URL) {
   throw new Error('AUTH_ISSUER_BASE_URL must be set in apps/api/.env');
 }
+const oauthClientId = process.env.AUTH_CLIENT_ID?.trim();
+if (!oauthClientId) {
+  throw new Error('AUTH_CLIENT_ID must be set in apps/api/.env');
+}
 const configuredDatabaseUrl = process.env.DATABASE_URL?.trim();
 if (!configuredDatabaseUrl) {
   throw new Error('DATABASE_URL must be set in apps/api/.env');
@@ -149,11 +153,12 @@ configuredDatabase.searchParams.set('connectTimeoutMS', '5000');
 const sharedEnvironment = {
   NODE_ENV: 'development',
   AUTH_AUDIENCE: `${IDP_URL}/resources/api`,
+  AUTH_CLIENT_ID: oauthClientId,
   AUTH_ISSUER_BASE_URL: IDP_URL,
   DATABASE_URL: configuredDatabase.toString(),
   EXPO_PUBLIC_IDP_URL: IDP_URL,
   EXPO_PUBLIC_OAUTH_AUDIENCE: `${IDP_URL}/resources/api`,
-  EXPO_PUBLIC_OAUTH_CLIENT_ID: 'client_ASCACaC-QT2cM8DmF2IroxFe',
+  EXPO_PUBLIC_OAUTH_CLIENT_ID: oauthClientId,
   EXPO_PUBLIC_OAUTH_SCOPES:
     'openid profile email offline_access relationships:read relationships:create relationships:invite relationships:accept-invite payment-requests:read payment-requests:write',
 };

@@ -178,6 +178,25 @@ release` workflow. Configure the real EAS project ID in `apps/mobile/app.json`
 and add an `EXPO_TOKEN` repository secret before starting a build; the workflow
 offers Android, iOS, and combined production builds.
 
+EAS cloud builds do not read local `.env` files or `.env.example`. The build
+profiles in `apps/mobile/eas.json` select the matching EAS environments:
+`development`, `preview`, and `production`. Add
+`EXPO_PUBLIC_OAUTH_CLIENT_ID` as a plain-text variable in each EAS environment,
+using the same value as `AUTH_CLIENT_ID` in `apps/api/.env`. This client ID is
+included in the mobile app and is public, not a secret. For example, run these
+commands from `apps/mobile`, replacing `YOUR_AUTH_CLIENT_ID` with the value from
+`apps/api/.env`:
+
+```bash
+npx --yes eas-cli@latest env:set --name EXPO_PUBLIC_OAUTH_CLIENT_ID --value "YOUR_AUTH_CLIENT_ID" --environment development --visibility plaintext
+npx --yes eas-cli@latest env:set --name EXPO_PUBLIC_OAUTH_CLIENT_ID --value "YOUR_AUTH_CLIENT_ID" --environment preview --visibility plaintext
+npx --yes eas-cli@latest env:set --name EXPO_PUBLIC_OAUTH_CLIENT_ID --value "YOUR_AUTH_CLIENT_ID" --environment production --visibility plaintext
+```
+
+The `preview` build uses the preview environment, and the release workflow's
+production build uses the production environment. If the variable is missing,
+mobile authentication fails at startup.
+
 ## VS Code Debugging
 
 The repository includes checked-in launch profiles under `.vscode`. They run

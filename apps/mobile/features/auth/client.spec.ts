@@ -7,6 +7,7 @@ import {
   getDisplayNameFromClaims,
   getAuthenticatedUser,
   getProfilePictureFromClaims,
+  MOBILE_OAUTH_CLIENT_ID,
   MOBILE_OAUTH_SCHEME,
   MOBILE_OAUTH_SCOPES,
   normalizeIdentityProviderDiscovery,
@@ -205,7 +206,7 @@ describe('auth client', () => {
         'relationshipapp://oauth/callback',
       ),
     ).toBe(
-      'http://localhost:4300/session/end?client_id=client_ASCACaC-QT2cM8DmF2IroxFe&post_logout_redirect_uri=relationshipapp%3A%2F%2Foauth%2Fcallback',
+      `http://localhost:4300/session/end?client_id=${encodeURIComponent(MOBILE_OAUTH_CLIENT_ID)}&post_logout_redirect_uri=relationshipapp%3A%2F%2Foauth%2Fcallback`,
     );
     expect(
       createProviderLogoutUrl(

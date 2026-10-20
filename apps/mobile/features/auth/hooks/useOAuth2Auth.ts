@@ -38,6 +38,12 @@ export type OAuth2AuthState =
   | 'error';
 
 export function useOAuth2AuthState() {
+  if (!MOBILE_OAUTH_CLIENT_ID) {
+    throw new Error(
+      'EXPO_PUBLIC_OAUTH_CLIENT_ID must be set from AUTH_CLIENT_ID.',
+    );
+  }
+
   const issuerUrl = getIdentityProviderUrl();
   const providerDiscovery = AuthSession.useAutoDiscovery(issuerUrl);
   const discovery = useMemo(

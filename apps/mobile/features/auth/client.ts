@@ -6,8 +6,7 @@ import type { StoredAccessToken } from './storage';
 import { getBackendUrl } from '@/utils/helpers';
 
 export const MOBILE_OAUTH_CLIENT_ID =
-  process.env.EXPO_PUBLIC_OAUTH_CLIENT_ID?.trim() ||
-  'client_ASCACaC-QT2cM8DmF2IroxFe';
+  process.env.EXPO_PUBLIC_OAUTH_CLIENT_ID?.trim() ?? '';
 const configuredIdentityProviderUrl =
   process.env.EXPO_PUBLIC_IDP_URL?.trim().replace(/\/$/, '');
 export const MOBILE_OAUTH_AUDIENCE =
