@@ -448,10 +448,14 @@ describe('useOAuth2AuthState', () => {
   });
 
   it('clears an invalid stored session when refresh is unavailable', async () => {
+    setPlatformOs('web');
     mockDiscovery = null;
     mockLoadAccessToken.mockResolvedValue(storedToken);
-    mockGetAuthenticatedUser.mockRejectedValue(new Error('request failed'));
     const auth = await renderAuth();
+
+    expect(auth().isAuthenticated).toBe(true);
+    expect(auth().user).toEqual(authenticatedUser);
+    mockGetAuthenticatedUser.mockRejectedValue(new Error('request failed'));
 
     await act(async () => {
       await auth().callAuthenticatedEndpoint();
@@ -460,6 +464,8 @@ describe('useOAuth2AuthState', () => {
 
     expect(mockClearAuthenticatedSession).toHaveBeenCalled();
     expect(auth().state).toBe('error');
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
   });
 
   it('refreshes a web token before calling the authenticated endpoint', async () => {

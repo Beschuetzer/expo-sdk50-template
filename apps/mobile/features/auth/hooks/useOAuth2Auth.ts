@@ -296,6 +296,8 @@ export function useOAuth2AuthState() {
             refreshedToken.idToken,
           );
         } catch {
+          setIsAuthenticated(false);
+          setUser(null);
           await clearAuthenticatedSession();
           throw error;
         }
