@@ -155,7 +155,48 @@ rebuild when troubleshooting, run:
 npm --prefix apps/mobile run dev:clear
 ```
 
-The mobile app's `Test Backend Connection` button calls the API health endpoint. `apps/mobile/setup.mjs` refreshes the Expo public IP and backend port and syncs the identity provider issuer from `apps/api/.env` into `apps/mobile/.env` before Metro starts. For a physical device, the generated IP must be reachable from the device.
+### Mobile Networking and OAuth
+
+The mobile app calls the API directly. `EXPO_PUBLIC_API_URL`, when set, is the
+base URL used by the app for API requests. Otherwise, development uses
+`http://EXPO_PUBLIC_IP_ADDRESS:EXPO_PUBLIC_PORT_NUMBER` (port `4200` by
+default). `EXPO_PUBLIC_IP_ADDRESS` is the computer hosting the API, not the
+phone's address:
+
+- Web on the host computer and usually the iOS simulator can use
+    `localhost` or `127.0.0.1`.
+- The Android emulator uses `10.0.2.2` to reach the host computer.
+- A physical device needs the host computer's reachable LAN address, such as
+    `192.168.4.39`.
+
+Before Metro starts, `apps/mobile/setup.mjs` detects a non-loopback IPv4 address
+and rewrites `EXPO_PUBLIC_IP_ADDRESS` and the backend port in
+`apps/mobile/.env`. Therefore, manually editing that IP is not persistent. To
+use a fixed address, set `EXPO_PUBLIC_API_URL` instead. Production and preview
+builds should use the deployed API URL; the production fallback is only a
+placeholder.
+
+The mobile client initiates OAuth: it discovers the identity provider and
+starts the PKCE authorization request. Native clients exchange the code with
+the identity provider directly. On web, the API BFF exchanges the code and
+refreshes tokens in HttpOnly cookies. The mobile app still needs
+`EXPO_PUBLIC_IDP_URL` to discover the provider. For local development,
+`apps/mobile/setup.mjs` copies `AUTH_ISSUER_BASE_URL` from `apps/api/.env` into
+the mobile environment.
+
+`EXPO_PUBLIC_OAUTH_CLIENT_ID` is required by the mobile auth flow and must match
+the API's `AUTH_CLIENT_ID`. `npm run dev` passes this value from
+`apps/api/.env` to both the API and Expo. If starting the mobile app by itself
+with `npm run mobile`, make sure `EXPO_PUBLIC_OAUTH_CLIENT_ID` is also available
+to Expo with that same value.
+
+`EXPO_PUBLIC_OAUTH_AUDIENCE` defaults to
+`${EXPO_PUBLIC_IDP_URL}/resources/api`, and the OAuth scopes have a built-in
+default; set either explicitly only when the identity provider configuration
+differs. `EXPO_PUBLIC_OAUTH_SCHEME` defaults to `expo50sdktemplate`, matching
+the current `scheme` in `apps/mobile/app.json`. If you change the app's deep
+link scheme, keep this variable and the `app.json` scheme identical. The scheme
+is used for native OAuth callbacks and invitation links.
 
 The mobile template includes a typed i18n provider with English and Spanish
 starter translations. The device locale selects the initial language, and the
@@ -178,14 +219,34 @@ release` workflow. Configure the real EAS project ID in `apps/mobile/app.json`
 and add an `EXPO_TOKEN` repository secret before starting a build; the workflow
 offers Android, iOS, and combined production builds.
 
-EAS cloud builds do not read local `.env` files or `.env.example`. The build
-profiles in `apps/mobile/eas.json` select the matching EAS environments:
-`development`, `preview`, and `production`. Add
-`EXPO_PUBLIC_OAUTH_CLIENT_ID` as a plain-text variable in each EAS environment,
-using the same value as `AUTH_CLIENT_ID` in `apps/api/.env`. This client ID is
-included in the mobile app and is public, not a secret. For example, run these
-commands from `apps/mobile`, replacing `YOUR_AUTH_CLIENT_ID` with the value from
-`apps/api/.env`:
+EAS cloud builds do not read local `.env` files. The build profiles in
+`apps/mobile/eas.json` select the matching EAS environments: `development`,
+`preview`, and `production`. Configure the following values for the environment
+selected by the build profile:
+
+- `EXPO_PUBLIC_OAUTH_CLIENT_ID`: required; use the same value as
+    `AUTH_CLIENT_ID` in `apps/api/.env`. It is embedded in the mobile app, so it
+    is public configuration, not a secret.
+- `EXPO_PUBLIC_IDP_URL`: required for mobile OAuth discovery. `npm run init`
+    writes it into the preview and production profile environment; set it in the
+    EAS development environment for development builds.
+- `EXPO_PUBLIC_API_URL`: set this to the API URL reachable by the installed
+    app. `npm run init` writes it into the preview and production profiles. For
+    development builds, set it to a reachable development API if the app will
+    not use the local IP and port fallback.
+- `EXPO_PUBLIC_ENV`: preview and production profiles already set this to
+    `production`; development can use `development`.
+- `EXPO_PUBLIC_OAUTH_SCHEME`: only needed if it differs from the default and
+    `scheme` in `apps/mobile/app.json`.
+
+`EXPO_PUBLIC_OAUTH_AUDIENCE` and `EXPO_PUBLIC_OAUTH_SCOPES` are optional when
+their defaults match the identity provider configuration. `EXPO_PUBLIC_IP_ADDRESS`
+and `EXPO_PUBLIC_PORT_NUMBER` are for local development; a build with
+`EXPO_PUBLIC_API_URL` does not need them.
+
+Add `EXPO_PUBLIC_OAUTH_CLIENT_ID` as a plain-text variable in each EAS
+environment, using the value from `apps/api/.env`. For example, run these
+commands from `apps/mobile`, replacing `YOUR_AUTH_CLIENT_ID` with that value:
 
 ```bash
 npx --yes eas-cli@latest env:set --name EXPO_PUBLIC_OAUTH_CLIENT_ID --value "YOUR_AUTH_CLIENT_ID" --environment development --visibility plaintext
@@ -194,8 +255,9 @@ npx --yes eas-cli@latest env:set --name EXPO_PUBLIC_OAUTH_CLIENT_ID --value "YOU
 ```
 
 The `preview` build uses the preview environment, and the release workflow's
-production build uses the production environment. If the variable is missing,
-mobile authentication fails at startup.
+production build uses the production environment. If the client ID or issuer
+URL is missing, mobile authentication fails at startup. If the API URL is
+missing for a production build, API requests use the placeholder URL.
 
 ## VS Code Debugging
 
