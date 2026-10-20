@@ -9,6 +9,7 @@ import { ThemeAwareSurface } from '@/components/ui/ThemeAwareSurface';
 import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
 import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
 import { COLORS } from '@/constants/colors';
+import { Routes } from '@/constants/navigation';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { useI18n } from '@/utils/i18n';
 
@@ -21,6 +22,8 @@ export default function OAuthCallbackScreen() {
   useEffect(() => {
     if (isAuthenticated && state === 'success') {
       router.replace('/');
+    } else if (state === 'error' || state === 'cancelled') {
+      router.replace(`/${Routes.AccountScreen}`);
     }
   }, [isAuthenticated, router, state]);
 
