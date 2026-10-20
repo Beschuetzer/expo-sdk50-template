@@ -480,6 +480,22 @@ describe('useOAuth2AuthState', () => {
     expect(auth().isAuthenticated).toBe(true);
   });
 
+  it('starts sign-in when refreshing a web session fails', async () => {
+    setPlatformOs('web');
+    mockRefreshAccessToken.mockRejectedValue(new Error('no web session'));
+    const auth = await renderAuth();
+    let completed: boolean | undefined;
+
+    await act(async () => {
+      completed = await auth().callAuthenticatedEndpoint();
+      await flushPromises();
+    });
+
+    expect(completed).toBe(false);
+    expect(mockPromptAsync).toHaveBeenCalledTimes(1);
+    expect(auth().state).toBe('authenticating');
+  });
+
   it('ignores a duplicate OAuth response', async () => {
     const auth = await renderAuth();
 

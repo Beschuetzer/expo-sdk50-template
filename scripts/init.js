@@ -21,8 +21,11 @@ const startDevScriptPath = path.join(root, 'scripts', 'start-dev.mjs');
 const startMongoScriptPath = path.join(root, 'scripts', 'start-mongodb.mjs');
 const stopMongoScriptPath = path.join(root, 'scripts', 'stop-mongodb.mjs');
 const sharedTypesReferenceFiles = [
-  path.join(root, 'apps', 'api', 'tsconfig.json'),
+  path.join(root, 'apps', 'api', 'src', 'routes', 'health.ts'),
   path.join(root, 'apps', 'api', 'tsconfig.build.json'),
+  path.join(root, 'apps', 'api', 'tsconfig.json'),
+  path.join(root, 'apps', 'mobile', 'app', '(tabs)', 'index.tsx'),
+  path.join(root, 'apps', 'mobile', 'features', 'backend', 'api.ts'),
   path.join(root, 'apps', 'mobile', 'tsconfig.json'),
   path.join(root, 'README.md'),
 ];

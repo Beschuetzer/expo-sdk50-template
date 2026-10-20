@@ -254,8 +254,10 @@ export function useOAuth2AuthState() {
     try {
       let storedToken = await loadAccessToken();
       if (!storedToken && Platform.OS === 'web' && discovery) {
-        storedToken = await refreshAccessToken(undefined, discovery);
-        await saveAccessToken(storedToken);
+        storedToken = await refreshAccessToken(undefined, discovery).catch(
+          () => null,
+        );
+        if (storedToken) await saveAccessToken(storedToken);
       }
       if (!storedToken) {
         if (!request) {
