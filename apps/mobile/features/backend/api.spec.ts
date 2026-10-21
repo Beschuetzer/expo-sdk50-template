@@ -14,9 +14,17 @@ function makeResponse(body: unknown, status: number): Response {
   } as Response;
 }
 
+function setPlatformOs(os: string) {
+  Object.defineProperty(require('react-native'), 'Platform', {
+    configurable: true,
+    value: { OS: os },
+  });
+}
+
 describe('backend API', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    setPlatformOs('android');
   });
 
   it('returns the health response', async () => {
@@ -62,6 +70,28 @@ describe('backend API', () => {
     );
   });
 
+  it('uses browser cookies when creating an example on web', async () => {
+    setPlatformOs('web');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          id: 'example-123',
+          name: 'Morgan Ellis',
+          email: 'example-123@example.com',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+        201,
+      ),
+    );
+
+    await createRandomExample('access-token');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:4200/api/v1/examples/random',
+      { credentials: 'include', method: 'POST' },
+    );
+  });
+
   it('throws when creating an example fails', async () => {
     jest
       .spyOn(global, 'fetch')
@@ -69,6 +99,14 @@ describe('backend API', () => {
 
     await expect(createRandomExample('access-token')).rejects.toThrow(
       'Forbidden.',
+    );
+  });
+
+  it('uses the HTTP status when an example error has no message', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 500));
+
+    await expect(createRandomExample('access-token')).rejects.toThrow(
+      'Backend returned HTTP 500',
     );
   });
 });

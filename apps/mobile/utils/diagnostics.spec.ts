@@ -67,4 +67,28 @@ describe('diagnostics', () => {
       }
     }
   });
+
+  it('logs development diagnostics when no crash reporter is configured', () => {
+    const previousEnvironment = process.env.EXPO_PUBLIC_ENV;
+    process.env.EXPO_PUBLIC_ENV = 'development';
+    const error = new Error('development failure');
+    const context = { source: 'ErrorBoundary' };
+
+    try {
+      setCrashReporter(undefined);
+      reportDiagnostic(error, context);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        'Mobile diagnostic:',
+        context,
+        error,
+      );
+    } finally {
+      if (previousEnvironment === undefined) {
+        delete process.env.EXPO_PUBLIC_ENV;
+      } else {
+        process.env.EXPO_PUBLIC_ENV = previousEnvironment;
+      }
+    }
+  });
 });

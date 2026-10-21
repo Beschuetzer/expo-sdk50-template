@@ -356,6 +356,20 @@ describe('auth client', () => {
     });
   });
 
+  it('ignores non-object ID token payloads and keeps API claims', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(makeResponse({ claims: { sub: 'api-user' } }, 200));
+    const primitivePayload = Buffer.from('null').toString('base64url');
+
+    await expect(
+      getAuthenticatedUser('access-token', `header.${primitivePayload}.sig`),
+    ).resolves.toEqual({
+      claims: { sub: 'api-user' },
+      subject: null,
+    });
+  });
+
   it('uses the BFF cookie for web authenticated requests', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,

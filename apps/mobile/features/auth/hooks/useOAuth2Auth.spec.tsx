@@ -390,6 +390,26 @@ describe('useOAuth2AuthState', () => {
     );
   });
 
+  it('marks auth state as error when a pending action rejects', async () => {
+    mockPromptResponse = {
+      type: 'success',
+      url: 'oauth-test-scheme://oauth/callback?code=auth-code&state=test-state',
+      params: { code: 'auth-code', state: 'test-state' },
+    };
+    const auth = await renderAuth();
+    const authenticatedAction = jest.fn(async () => {
+      throw new Error('action failed');
+    });
+
+    await completePrompt(auth, mockPromptResponse, authenticatedAction);
+
+    expect(authenticatedAction).toHaveBeenCalledWith(
+      refreshedToken.accessToken,
+    );
+    expect(auth().isAuthenticated).toBe(true);
+    expect(auth().state).toBe('error');
+  });
+
   it.each([
     ['missing code', undefined, 'test-state', 'test-code-verifier'],
     ['missing verifier', 'auth-code', 'test-state', undefined],
@@ -553,6 +573,23 @@ describe('useOAuth2AuthState', () => {
     });
 
     expect(completed).toBe(false);
+    expect(mockPromptAsync).toHaveBeenCalledTimes(1);
+    expect(auth().state).toBe('authenticating');
+  });
+
+  it('ignores duplicate auth requests while sign-in is pending', async () => {
+    const auth = await renderAuth();
+    let firstCompleted: boolean | undefined;
+    let duplicateCompleted: boolean | undefined;
+
+    await act(async () => {
+      firstCompleted = await auth().callAuthenticatedEndpoint();
+      duplicateCompleted = await auth().callAuthenticatedEndpoint();
+      await flushPromises();
+    });
+
+    expect(firstCompleted).toBe(false);
+    expect(duplicateCompleted).toBe(false);
     expect(mockPromptAsync).toHaveBeenCalledTimes(1);
     expect(auth().state).toBe('authenticating');
   });
