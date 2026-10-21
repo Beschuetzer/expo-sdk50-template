@@ -245,6 +245,33 @@ describe('useOAuth2AuthState', () => {
     expect(auth().state).toBe('idle');
   });
 
+  it('ignores a startup token load that completes after sign-out', async () => {
+    let resolveStartupToken!: (token: typeof storedToken) => void;
+    mockLoadAccessToken.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStartupToken = resolve;
+        }),
+    );
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await auth().signOut();
+      await flushPromises();
+    });
+    await act(async () => {
+      resolveStartupToken(storedToken);
+      await flushPromises();
+    });
+
+    expect(mockGetAuthenticatedUser).not.toHaveBeenCalled();
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+    expect(auth().state).toBe('idle');
+  });
+
   it('does not save a web token when sign-out beats startup refresh', async () => {
     setPlatformOs('web');
     let resolveStartupRefresh!: (token: typeof refreshedToken) => void;
@@ -322,6 +349,84 @@ describe('useOAuth2AuthState', () => {
     expect(mockSaveAccessToken).toHaveBeenCalledWith(refreshedToken);
     expect(auth().state).toBe('success');
     expect(auth().user).toEqual(authenticatedUser);
+  });
+
+  it('serializes foreground auth with delayed native startup refresh', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    let rejectStartupProfile!: (error: Error) => void;
+    mockGetAuthenticatedUser.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectStartupProfile = reject;
+        }),
+    );
+    let resolveStartupRefresh!: (token: typeof refreshedToken) => void;
+    mockRefreshAccessToken.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStartupRefresh = resolve;
+        }),
+    );
+
+    const auth = await renderAuth();
+
+    expect(auth().state).toBe('loading');
+    await act(async () => {
+      rejectStartupProfile(new Error('expired access token'));
+      await flushPromises();
+    });
+
+    let completed: boolean | undefined;
+    await act(async () => {
+      completed = await auth().callAuthenticatedEndpoint();
+      await flushPromises();
+    });
+
+    expect(completed).toBe(false);
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockPromptAsync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveStartupRefresh(refreshedToken);
+      await flushPromises();
+    });
+
+    expect(mockSaveAccessToken).toHaveBeenCalledTimes(1);
+    expect(auth().state).toBe('success');
+    expect(auth().isAuthenticated).toBe(true);
+  });
+
+  it('does not start interactive web auth during delayed startup cookie refresh', async () => {
+    setPlatformOs('web');
+    let resolveStartupRefresh!: (token: typeof refreshedToken) => void;
+    mockRefreshAccessToken.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStartupRefresh = resolve;
+        }),
+    );
+
+    const auth = await renderAuth();
+
+    expect(auth().state).toBe('loading');
+    let completed: boolean | undefined;
+    await act(async () => {
+      completed = await auth().callAuthenticatedEndpoint();
+      await flushPromises();
+    });
+
+    expect(completed).toBe(false);
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockPromptAsync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveStartupRefresh(refreshedToken);
+      await flushPromises();
+    });
+
+    expect(mockSaveAccessToken).toHaveBeenCalledTimes(1);
+    expect(auth().state).toBe('success');
+    expect(auth().isAuthenticated).toBe(true);
   });
 
   it('clears authenticated state when startup token refresh fails', async () => {

@@ -106,6 +106,8 @@ export function useOAuth2AuthState() {
     const sessionGeneration = sessionGenerationRef.current;
     const isCurrentSession = () =>
       isCurrent && sessionGenerationRef.current === sessionGeneration;
+    signInAttemptInFlightRef.current = true;
+    setState('loading');
 
     loadAccessToken()
       .then(async (storedToken) => {
@@ -118,7 +120,10 @@ export function useOAuth2AuthState() {
           await saveAccessToken(sessionToken);
           if (!isCurrentSession()) return;
         }
-        if (!sessionToken || !isCurrentSession()) return;
+        if (!sessionToken || !isCurrentSession()) {
+          if (isCurrentSession()) setState('idle');
+          return;
+        }
 
         try {
           let authenticatedUser: AuthenticatedUser;
@@ -158,10 +163,20 @@ export function useOAuth2AuthState() {
           }
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (isCurrentSession()) setState('error');
+      })
+      .finally(() => {
+        if (isCurrentSession()) {
+          signInAttemptInFlightRef.current = false;
+        }
+      });
 
     return () => {
       isCurrent = false;
+      if (sessionGenerationRef.current === sessionGeneration) {
+        signInAttemptInFlightRef.current = false;
+      }
     };
   }, [discovery]);
 
@@ -369,6 +384,7 @@ export function useOAuth2AuthState() {
 
   async function signOut() {
     sessionGenerationRef.current += 1;
+    signInAttemptInFlightRef.current = false;
     setState('loading');
     try {
       const storedToken = await loadAccessToken();
@@ -385,6 +401,7 @@ export function useOAuth2AuthState() {
 
   async function resetAuthentication() {
     sessionGenerationRef.current += 1;
+    signInAttemptInFlightRef.current = false;
     let storedToken: StoredAccessToken | null = null;
     try {
       storedToken = await loadAccessToken();
@@ -404,7 +421,6 @@ export function useOAuth2AuthState() {
     if (Platform.OS !== 'android') {
       AuthSession.dismiss();
     }
-    signInAttemptInFlightRef.current = false;
     setShouldPrompt(false);
     promptAttemptRef.current = null;
     if (request?.state) {
