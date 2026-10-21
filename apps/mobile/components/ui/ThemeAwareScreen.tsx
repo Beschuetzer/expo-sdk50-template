@@ -15,6 +15,7 @@ type ThemeAwareScreenProps<ItemT> = {
   contentContainerStyle?: ComponentProps<
     typeof ScrollView
   >['contentContainerStyle'];
+  fixedHeader?: boolean;
   flashListProps?: FlashListProps<ItemT>;
 };
 
@@ -26,6 +27,7 @@ export function ThemeAwareScreen<ItemT = unknown>(
     absolutelyPositionedJsx,
     children,
     contentContainerStyle,
+    fixedHeader = false,
     flashListProps,
   } = props;
   const [containerHeight, setContainerHeight] = useState(
@@ -40,6 +42,25 @@ export function ThemeAwareScreen<ItemT = unknown>(
     );
 
     if (flashListProps) {
+      if (fixedHeader) {
+        return (
+          <ThemeAwareSurface flex={1}>
+            {contentJSX}
+            <FlashList
+              {...flashListProps}
+              keyboardShouldPersistTaps={
+                flashListProps.keyboardShouldPersistTaps ?? 'always'
+              }
+              estimatedItemSize={flashListProps.estimatedItemSize ?? 200}
+              contentContainerStyle={{
+                ...flashListProps.contentContainerStyle,
+                paddingBottom: containerHeight,
+              }}
+            />
+          </ThemeAwareSurface>
+        );
+      }
+
       return (
         <FlashList
           {...flashListProps}
