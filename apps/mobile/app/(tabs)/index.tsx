@@ -128,26 +128,34 @@ export default function HomeScreen() {
     await callAuthenticatedEndpoint();
   };
 
+  const reportExampleCreationError = (error: unknown) => {
+    setExampleStatus('errors.exampleCreationFailed');
+    dispatch(
+      setError({
+        message:
+          error instanceof Error
+            ? error.message
+            : t('errors.exampleCreationFailed'),
+        name: 'ExampleCreationError',
+      }),
+    );
+  };
+
   const onPressCreateRandomExample = async () => {
     setExampleStatus('status.creatingExample');
 
     try {
       const completed = await callAuthenticatedEndpoint(async (accessToken) => {
-        await createRandomExample(accessToken);
-        setExampleStatus('status.exampleCreated');
+        try {
+          await createRandomExample(accessToken);
+          setExampleStatus('status.exampleCreated');
+        } catch (error) {
+          reportExampleCreationError(error);
+        }
       });
       if (!completed) setExampleStatus(null);
     } catch (error) {
-      setExampleStatus('errors.exampleCreationFailed');
-      dispatch(
-        setError({
-          message:
-            error instanceof Error
-              ? error.message
-              : t('errors.exampleCreationFailed'),
-          name: 'ExampleCreationError',
-        }),
-      );
+      reportExampleCreationError(error);
     }
   };
 
