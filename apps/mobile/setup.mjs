@@ -27,7 +27,13 @@ async function addIpAddressToEnvFile() {
     process.loadEnvFile(API_ENV_FILE_PATH);
   }
 
-  const identityProviderUrl = process.env.AUTH_ISSUER_BASE_URL?.trim();
+  const identityProviderUrl = process.env.AUTH_ISSUER_BASE_URL?.trim().replace(
+    /\/+$/,
+    '',
+  );
+  const oauthAudience =
+    process.env.AUTH_AUDIENCE?.trim() ||
+    (identityProviderUrl ? `${identityProviderUrl}/resources/api` : undefined);
   let lines;
   const toWrite = [
     `${EXPO_PUBLIC_ENV_STRING}=development`,
@@ -36,6 +42,7 @@ async function addIpAddressToEnvFile() {
     ...(identityProviderUrl
       ? [`EXPO_PUBLIC_IDP_URL=${identityProviderUrl}`]
       : []),
+    ...(oauthAudience ? [`EXPO_PUBLIC_OAUTH_AUDIENCE=${oauthAudience}`] : []),
   ];
   const environmentRegex = new RegExp(
     String.raw`\s*${EXPO_PUBLIC_ENV_STRING}\s*=`,
@@ -50,6 +57,7 @@ async function addIpAddressToEnvFile() {
     'ig',
   );
   const identityProviderUrlRegex = /^\s*EXPO_PUBLIC_IDP_URL\s*=.*$/i;
+  const oauthAudienceRegex = /^\s*EXPO_PUBLIC_OAUTH_AUDIENCE\s*=.*$/i;
 
   try {
     const data = await fs.promises.readFile(ENV_FILE_PATH, 'utf-8');
@@ -63,6 +71,7 @@ async function addIpAddressToEnvFile() {
             !data.match(portNumberRegex) &&
             !data.match(environmentRegex) &&
             (!identityProviderUrl || !identityProviderUrlRegex.test(data)) &&
+            (!oauthAudience || !oauthAudienceRegex.test(data)) &&
             Boolean(data),
         ) || [];
   } catch {

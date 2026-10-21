@@ -125,9 +125,11 @@ npm run init
 
 The initializer assigns the Expo name, slug, deep-link scheme, iOS bundle ID,
 Android package, EAS project ID, and API/OIDC URLs. It creates the API
-environment file if missing and updates its OIDC issuer. Database credentials,
-OAuth client configuration, EAS authentication, and other production secrets
-must still be supplied separately.
+environment file if missing and updates its OIDC issuer and audience. The
+audience is derived as `<issuer>/resources/api` and written to API configuration,
+the local mobile environment on startup, and preview/production EAS profiles.
+Database credentials, OAuth client configuration, EAS authentication, and
+other production secrets must still be supplied separately.
 
 Start Expo and the backend together:
 

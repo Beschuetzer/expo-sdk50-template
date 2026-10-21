@@ -211,6 +211,8 @@ async function main() {
       throw new Error('AUTH_ISSUER_BASE_URL must be set in the API env file.');
     }
     const issuerUrl = await ask(rl, 'OAuth/OIDC issuer URL', issuerUrlDefault);
+    const normalizedIssuerUrl = issuerUrl.replace(/\/+$/, '');
+    const audience = `${normalizedIssuerUrl}/resources/api`;
 
     updateJson(mobileAppConfigPath, (config) => {
       config.expo.name = displayName;
@@ -229,7 +231,8 @@ async function main() {
           ...config.build[profileName].env,
           EXPO_PUBLIC_ENV: 'production',
           EXPO_PUBLIC_API_URL: apiUrl,
-          EXPO_PUBLIC_IDP_URL: issuerUrl,
+          EXPO_PUBLIC_IDP_URL: normalizedIssuerUrl,
+          EXPO_PUBLIC_OAUTH_AUDIENCE: audience,
         };
       }
     });
@@ -240,7 +243,8 @@ async function main() {
       apiEnvPath,
       fs.readFileSync(apiEnvExamplePath, 'utf8'),
     );
-    setEnvValue(apiEnvPath, 'AUTH_ISSUER_BASE_URL', issuerUrl);
+    setEnvValue(apiEnvPath, 'AUTH_ISSUER_BASE_URL', normalizedIssuerUrl);
+    setEnvValue(apiEnvPath, 'AUTH_AUDIENCE', audience);
 
     console.log('\nInitialized mobile deployment configuration.');
     console.log(`- Expo slug: ${slug}`);
