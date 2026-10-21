@@ -196,7 +196,13 @@ default; set either explicitly only when the identity provider configuration
 differs. `EXPO_PUBLIC_OAUTH_SCHEME` defaults to `expo50sdktemplate`, matching
 the current `scheme` in `apps/mobile/app.json`. If you change the app's deep
 link scheme, keep this variable and the `app.json` scheme identical. The scheme
-is used for native OAuth callbacks and invitation links.
+is used for native OAuth callbacks and invitation links. Logout returns to the
+separate `/oauth/logout` route, which navigates to Account instead of waiting on
+the sign-in callback. Register the resulting logout redirect URI with the
+identity provider: for the default native scheme it is
+`expo50sdktemplate://oauth/logout`. If setting
+`EXPO_PUBLIC_OAUTH_POST_LOGOUT_REDIRECT_URI`, point it to a registered logout
+destination rather than `/oauth/callback`.
 
 The mobile template includes a typed i18n provider with English and Spanish
 starter translations. The device locale selects the initial language, and the

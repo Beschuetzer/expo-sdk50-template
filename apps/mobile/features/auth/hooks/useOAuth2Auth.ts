@@ -71,6 +71,14 @@ export function useOAuth2AuthState() {
       }),
     [],
   );
+  const logoutRedirectUri = useMemo(
+    () =>
+      AuthSession.makeRedirectUri({
+        path: 'oauth/logout',
+        scheme: MOBILE_OAUTH_SCHEME,
+      }),
+    [],
+  );
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId: MOBILE_OAUTH_CLIENT_ID,
@@ -384,7 +392,7 @@ export function useOAuth2AuthState() {
       // Continue clearing local state even when storage is unavailable.
     }
     const postLogoutRedirectUri =
-      MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI || redirectUri;
+      MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI || logoutRedirectUri;
     const providerLogoutUrl = discovery
       ? createProviderLogoutUrl(
           discovery,

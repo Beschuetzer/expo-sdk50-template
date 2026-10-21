@@ -105,7 +105,9 @@ jest.mock('expo-auth-session', () => {
   return {
     CodeChallengeMethod: { S256: 'S256' },
     ResponseType: { Code: 'code' },
-    makeRedirectUri: jest.fn(() => 'oauth-test-scheme://oauth/callback'),
+    makeRedirectUri: jest.fn(
+      ({ path }: { path: string }) => `oauth-test-scheme://${path}`,
+    ),
     dismiss: jest.fn(),
     useAutoDiscovery: () => mockDiscovery,
     useAuthRequest: (config: { extraParams: { nonce: string } }) => {
@@ -707,12 +709,12 @@ describe('useOAuth2AuthState', () => {
     expect(AuthSession.dismiss).toHaveBeenCalled();
     expect(mockCreateProviderLogoutUrl).toHaveBeenCalledWith(
       mockDiscovery,
-      'oauth-test-scheme://oauth/callback',
+      'oauth-test-scheme://oauth/logout',
       storedToken.idToken,
     );
     expect(mockOpenAuthSessionAsync).toHaveBeenCalledWith(
       'https://identity.example.com/logout',
-      'oauth-test-scheme://oauth/callback',
+      'oauth-test-scheme://oauth/logout',
     );
     expect(auth().state).toBe('idle');
     expect(auth().isAuthenticated).toBe(false);
@@ -729,7 +731,7 @@ describe('useOAuth2AuthState', () => {
     expect(AuthSession.dismiss).not.toHaveBeenCalled();
     expect(mockCreateProviderLogoutUrl).toHaveBeenCalledWith(
       mockDiscovery,
-      'oauth-test-scheme://oauth/callback',
+      'oauth-test-scheme://oauth/logout',
       undefined,
     );
     expect(mockClearAuthenticatedSession).toHaveBeenCalled();
