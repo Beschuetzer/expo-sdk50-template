@@ -147,6 +147,9 @@ if (!Number.isInteger(mongoPort) || mongoPort < 1 || mongoPort > 65535) {
 configuredDatabase.protocol = 'mongodb:';
 configuredDatabase.hostname = '127.0.0.1';
 configuredDatabase.port = String(mongoPort);
+configuredDatabase.username = '';
+configuredDatabase.password = '';
+configuredDatabase.search = '';
 configuredDatabase.searchParams.set('directConnection', 'true');
 configuredDatabase.searchParams.set('serverSelectionTimeoutMS', '5000');
 configuredDatabase.searchParams.set('connectTimeoutMS', '5000');
