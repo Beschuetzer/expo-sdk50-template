@@ -5,6 +5,13 @@ import type { ApiConfig } from '../config/env';
 
 export type AuthMiddleware = RequestHandler;
 
+export function requireOAuthScopes(scopes: string[]): AuthMiddleware {
+  if (scopes.length === 0) {
+    return (_request, _response, next) => next();
+  }
+  return requiredScopes(scopes);
+}
+
 export function createOAuth2Middleware(config: ApiConfig): AuthMiddleware {
   const { audience, issuerBaseUrl } = config.oauth2;
 

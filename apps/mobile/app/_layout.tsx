@@ -22,6 +22,7 @@ import { useAppState } from '@/components/hooks/tanstack/useAppState';
 import { useOnlineManager } from '@/components/hooks/tanstack/useOnlineManager';
 import { ErrorModal } from '@/components/modals/ErrorModal';
 import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
+import { OAuth2AuthProvider } from '@/features/auth/OAuth2AuthProvider';
 import { queryClient, queryPersistOptions } from '@/state/queryClient';
 import { persistor, store } from '@/state/store';
 import { FontProvider } from '@/utils/font';
@@ -102,22 +103,24 @@ function RootLayoutNav() {
                 loading={<ThemeAwareText>{t('common.loading')}</ThemeAwareText>}
                 persistor={persistor}
               >
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <MenuProvider>
-                    <BottomSheetModalProvider>
-                      <Stack>
-                        <Stack.Screen
-                          name="(tabs)"
-                          options={{
-                            headerShown: false,
-                            headerTitleAlign: 'center',
-                          }}
-                        />
-                      </Stack>
-                      <ErrorModal />
-                    </BottomSheetModalProvider>
-                  </MenuProvider>
-                </GestureHandlerRootView>
+                <OAuth2AuthProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <MenuProvider>
+                      <BottomSheetModalProvider>
+                        <Stack>
+                          <Stack.Screen
+                            name="(tabs)"
+                            options={{
+                              headerShown: false,
+                              headerTitleAlign: 'center',
+                            }}
+                          />
+                        </Stack>
+                        <ErrorModal />
+                      </BottomSheetModalProvider>
+                    </MenuProvider>
+                  </GestureHandlerRootView>
+                </OAuth2AuthProvider>
               </PersistGate>
             </Provider>
           </ThemeProvider>

@@ -26,9 +26,9 @@ export function getIdentityProviderUrl() {
     return configuredUrl.replace(/\/$/, '');
   }
 
-  const config = getEnvironmentOrDefault();
-  const port = process.env.EXPO_PUBLIC_IDP_PORT_NUMBER?.trim() || '4300';
-  return `http://${config.ipAddress}:${port}`;
+  throw new Error(
+    'EXPO_PUBLIC_IDP_URL is not configured. Set AUTH_ISSUER_BASE_URL in apps/api/.env and restart Expo.',
+  );
 }
 
 export async function measureExecutionTime(

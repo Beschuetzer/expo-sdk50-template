@@ -1,6 +1,5 @@
 import { FlatList, HStack } from '@gluestack-ui/themed';
 import { useCallback, useMemo } from 'react';
-import { Dimensions } from 'react-native';
 
 import { ThemeAwareButton } from '@/components/ui/ThemeAwareButton';
 import { ThemedModal } from '@/components/ui/ThemedModal';

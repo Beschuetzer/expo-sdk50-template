@@ -14,7 +14,6 @@ export interface ApiConfig {
 
 const DEFAULT_HOST = '0.0.0.0';
 const DEFAULT_PORT = 4200;
-const DEFAULT_OAUTH_CLIENT_ID = 'mobile-development-client';
 const DEFAULT_CORS_ORIGIN = 'http://localhost:8081';
 
 function parsePort(value: string | undefined) {
@@ -33,6 +32,11 @@ function parsePort(value: string | undefined) {
 export function loadConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): ApiConfig {
+  const oauthClientId = environment.AUTH_CLIENT_ID?.trim();
+  if (!oauthClientId) {
+    throw new Error('AUTH_CLIENT_ID must be set');
+  }
+
   const requiredScopes = (environment.AUTH_REQUIRED_SCOPES ?? '')
     .split(/[ ,]+/)
     .map((scope) => scope.trim())
@@ -43,11 +47,12 @@ export function loadConfig(
     host: environment.HOST?.trim() || DEFAULT_HOST,
     port: parsePort(environment.PORT),
     databaseUrl: environment.DATABASE_URL?.trim() || undefined,
-    oauthClientId:
-      environment.AUTH_CLIENT_ID?.trim() || DEFAULT_OAUTH_CLIENT_ID,
+    oauthClientId,
     corsOrigin: environment.CORS_ORIGIN?.trim() || DEFAULT_CORS_ORIGIN,
     oauth2: {
-      issuerBaseUrl: environment.AUTH_ISSUER_BASE_URL?.trim() || undefined,
+      issuerBaseUrl:
+        environment.AUTH_ISSUER_BASE_URL?.trim().replace(/\/+$/, '') ||
+        undefined,
       audience: environment.AUTH_AUDIENCE?.trim() || undefined,
       requiredScopes,
     },

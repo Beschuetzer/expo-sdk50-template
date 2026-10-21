@@ -1,22 +1,31 @@
 import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import {
-  createIdentityProviderDiscovery,
+  createProviderLogoutUrl,
   exchangeAuthorizationCodeForCurrentPlatform,
   getAuthenticatedUser,
+  MOBILE_OAUTH_AUDIENCE,
   MOBILE_OAUTH_CLIENT_ID,
+  MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI,
+  MOBILE_OAUTH_SCHEME,
   MOBILE_OAUTH_SCOPES,
   revokeRefreshToken,
   refreshAccessToken,
   type AuthenticatedUser,
+  normalizeIdentityProviderDiscovery,
 } from '../client';
 import {
   clearAuthenticatedSession,
   loadAccessToken,
   saveAccessToken,
+  type StoredAccessToken,
 } from '../storage';
+
+import { getIdentityProviderUrl } from '@/utils/platform';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,13 +37,45 @@ export type OAuth2AuthState =
   | 'cancelled'
   | 'error';
 
-export function useOAuth2Auth() {
-  const discovery = useMemo(createIdentityProviderDiscovery, []);
+export function useOAuth2AuthState() {
+  if (!MOBILE_OAUTH_CLIENT_ID) {
+    throw new Error(
+      'EXPO_PUBLIC_OAUTH_CLIENT_ID must be set from AUTH_CLIENT_ID.',
+    );
+  }
+
+  const issuerUrl = getIdentityProviderUrl();
+  const providerDiscovery = AuthSession.useAutoDiscovery(issuerUrl);
+  const discovery = useMemo(
+    () =>
+      providerDiscovery
+        ? normalizeIdentityProviderDiscovery(providerDiscovery, issuerUrl)
+        : null,
+    [issuerUrl, providerDiscovery],
+  );
+  const [nonce, setNonce] = useState(() => Crypto.randomUUID());
+  const [shouldPrompt, setShouldPrompt] = useState(false);
+  const signInAttemptInFlightRef = useRef(false);
+  const sessionGenerationRef = useRef(0);
+  const pendingAuthenticatedActionRef = useRef<
+    ((accessToken: string) => Promise<unknown>) | null
+  >(null);
+  const promptAttemptRef = useRef<string | null>(null);
+  const handledResponseRef = useRef<string | null>(null);
+  const invalidatedRequestStatesRef = useRef(new Set<string>());
   const redirectUri = useMemo(
     () =>
       AuthSession.makeRedirectUri({
         path: 'oauth/callback',
-        scheme: 'expo50sdktemplate',
+        scheme: MOBILE_OAUTH_SCHEME,
+      }),
+    [],
+  );
+  const logoutRedirectUri = useMemo(
+    () =>
+      AuthSession.makeRedirectUri({
+        path: 'oauth/logout',
+        scheme: MOBILE_OAUTH_SCHEME,
       }),
     [],
   );
@@ -45,17 +86,136 @@ export function useOAuth2Auth() {
       redirectUri,
       responseType: AuthSession.ResponseType.Code,
       scopes: MOBILE_OAUTH_SCOPES,
+      extraParams: {
+        audience: MOBILE_OAUTH_AUDIENCE,
+        nonce,
+        prompt: 'consent',
+      },
       usePKCE: true,
     },
     discovery,
   );
   const [state, setState] = useState<OAuth2AuthState>('idle');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
 
   useEffect(() => {
-    if (!response) return;
+    if (Platform.OS !== 'web' && !discovery) return;
+
+    let isCurrent = true;
+    const sessionGeneration = sessionGenerationRef.current;
+    const isCurrentSession = () =>
+      isCurrent && sessionGenerationRef.current === sessionGeneration;
+    signInAttemptInFlightRef.current = true;
+    setState('loading');
+
+    loadAccessToken()
+      .then(async (storedToken) => {
+        if (!isCurrentSession()) return;
+
+        let sessionToken = storedToken;
+        if (!sessionToken && Platform.OS === 'web' && discovery) {
+          sessionToken = await refreshAccessToken(undefined, discovery);
+          if (!isCurrentSession()) return;
+          await saveAccessToken(sessionToken);
+          if (!isCurrentSession()) return;
+        }
+        if (!sessionToken || !isCurrentSession()) {
+          if (isCurrentSession()) setState('idle');
+          return;
+        }
+
+        try {
+          let authenticatedUser: AuthenticatedUser;
+          try {
+            if (!isCurrentSession()) return;
+            authenticatedUser = await getAuthenticatedUser(
+              sessionToken.accessToken,
+              sessionToken.idToken,
+            );
+          } catch (error) {
+            if (!isCurrentSession()) return;
+            if (!discovery) throw error;
+
+            const refreshedToken = await refreshAccessToken(
+              sessionToken,
+              discovery,
+            );
+            if (!isCurrentSession()) return;
+            await saveAccessToken(refreshedToken);
+            if (!isCurrentSession()) return;
+            authenticatedUser = await getAuthenticatedUser(
+              refreshedToken.accessToken,
+              refreshedToken.idToken,
+            );
+          }
+
+          if (isCurrentSession()) {
+            setIsAuthenticated(true);
+            setUser(authenticatedUser);
+            setState('success');
+          }
+        } catch {
+          if (isCurrentSession()) {
+            setIsAuthenticated(false);
+            setUser(null);
+            setState('error');
+          }
+        }
+      })
+      .catch(() => {
+        if (isCurrentSession()) setState('error');
+      })
+      .finally(() => {
+        if (isCurrentSession()) {
+          signInAttemptInFlightRef.current = false;
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+      if (sessionGenerationRef.current === sessionGeneration) {
+        signInAttemptInFlightRef.current = false;
+      }
+    };
+  }, [discovery]);
+
+  useEffect(() => {
+    if (!shouldPrompt || !request || request.extraParams.nonce !== nonce)
+      return;
+
+    const promptKey = `${request.url}:${nonce}`;
+    if (promptAttemptRef.current === promptKey) return;
+
+    promptAttemptRef.current = promptKey;
+    setShouldPrompt(false);
+    handledResponseRef.current = null;
+    promptAsync().catch(() => {
+      signInAttemptInFlightRef.current = false;
+      setState('error');
+    });
+  }, [nonce, promptAsync, request, shouldPrompt]);
+
+  useEffect(() => {
+    if (!response || !discovery) return;
+
+    const responseKey =
+      response.type === 'success' || response.type === 'error'
+        ? response.url
+        : response.type;
+    if (
+      response.type === 'success' &&
+      invalidatedRequestStatesRef.current.has(response.params.state)
+    ) {
+      handledResponseRef.current = responseKey;
+      return;
+    }
+    if (handledResponseRef.current === responseKey) return;
+    handledResponseRef.current = responseKey;
 
     if (response.type !== 'success') {
+      pendingAuthenticatedActionRef.current = null;
+      signInAttemptInFlightRef.current = false;
       setState(response.type === 'cancel' ? 'cancelled' : 'error');
       return;
     }
@@ -67,6 +227,8 @@ export function useOAuth2Auth() {
       !response.params.state ||
       response.params.state !== request.state
     ) {
+      pendingAuthenticatedActionRef.current = null;
+      signInAttemptInFlightRef.current = false;
       setState('error');
       return;
     }
@@ -81,15 +243,34 @@ export function useOAuth2Auth() {
     })
       .then(async (token) => {
         await saveAccessToken(token);
-        return getAuthenticatedUser(token.accessToken);
-      })
-      .then((authenticatedUser) => {
+        setIsAuthenticated(true);
         if (!isCurrent) return;
-        setUser(authenticatedUser);
+        try {
+          const authenticatedUser = await getAuthenticatedUser(
+            token.accessToken,
+            token.idToken,
+          );
+          if (isCurrent) setUser(authenticatedUser);
+        } catch {
+          setUser(null);
+        }
         setState('success');
+        const pendingAction = pendingAuthenticatedActionRef.current;
+        pendingAuthenticatedActionRef.current = null;
+        if (pendingAction) {
+          try {
+            await pendingAction(token.accessToken);
+          } catch {
+            setState('error');
+          }
+        }
       })
       .catch(() => {
+        pendingAuthenticatedActionRef.current = null;
         if (isCurrent) setState('error');
+      })
+      .finally(() => {
+        signInAttemptInFlightRef.current = false;
       });
 
     return () => {
@@ -97,50 +278,90 @@ export function useOAuth2Auth() {
     };
   }, [discovery, redirectUri, request?.codeVerifier, response]);
 
-  async function callAuthenticatedEndpoint() {
+  async function callAuthenticatedEndpoint(
+    authenticatedAction?: (accessToken: string) => Promise<unknown>,
+  ) {
+    if (signInAttemptInFlightRef.current) return false;
+    signInAttemptInFlightRef.current = true;
+    let waitingForCallback = false;
+
     setState('loading');
     try {
-      const storedToken = await loadAccessToken();
+      let storedToken = await loadAccessToken();
+      if (!storedToken && Platform.OS === 'web' && discovery) {
+        storedToken = await refreshAccessToken(undefined, discovery).catch(
+          () => null,
+        );
+        if (storedToken) await saveAccessToken(storedToken);
+      }
       if (!storedToken) {
         if (!request) {
           throw new Error('The OAuth2 request is still being prepared.');
         }
+        pendingAuthenticatedActionRef.current = authenticatedAction ?? null;
         setState('authenticating');
-        await promptAsync();
-        return;
+        waitingForCallback = true;
+        setNonce(Crypto.randomUUID());
+        setShouldPrompt(true);
+        return false;
       }
+      setIsAuthenticated(true);
 
+      let accessToken = storedToken.accessToken;
+      let authenticatedUser: AuthenticatedUser;
       try {
-        const authenticatedUser = await getAuthenticatedUser(
+        authenticatedUser = await getAuthenticatedUser(
           storedToken.accessToken,
+          storedToken.idToken,
         );
-        setUser(authenticatedUser);
-        setState('success');
       } catch (error) {
         try {
+          if (!discovery) {
+            throw new Error('The OAuth2 discovery document is still loading.');
+          }
           const refreshedToken = await refreshAccessToken(
             storedToken,
             discovery,
           );
           await saveAccessToken(refreshedToken);
-          const authenticatedUser = await getAuthenticatedUser(
+          accessToken = refreshedToken.accessToken;
+          setIsAuthenticated(true);
+          authenticatedUser = await getAuthenticatedUser(
             refreshedToken.accessToken,
+            refreshedToken.idToken,
           );
-          setUser(authenticatedUser);
-          setState('success');
         } catch {
+          sessionGenerationRef.current += 1;
+          setIsAuthenticated(false);
+          setUser(null);
           await clearAuthenticatedSession();
           throw error;
         }
       }
-    } catch {
+
+      setUser(authenticatedUser);
+      setState('success');
+      if (authenticatedAction) {
+        await authenticatedAction(accessToken);
+      }
+      return true;
+    } catch (error) {
       setState('error');
+      if (authenticatedAction) throw error;
+      return false;
+    } finally {
+      if (!waitingForCallback) {
+        signInAttemptInFlightRef.current = false;
+      }
     }
   }
 
   async function refreshAuthenticatedSession() {
     setState('loading');
     try {
+      if (!discovery) {
+        throw new Error('The OAuth2 discovery document is still loading.');
+      }
       const storedToken = await loadAccessToken();
       if (!storedToken) {
         throw new Error('No authenticated session is available to refresh.');
@@ -148,8 +369,10 @@ export function useOAuth2Auth() {
 
       const refreshedToken = await refreshAccessToken(storedToken, discovery);
       await saveAccessToken(refreshedToken);
+      setIsAuthenticated(true);
       const authenticatedUser = await getAuthenticatedUser(
         refreshedToken.accessToken,
+        refreshedToken.idToken,
       );
       setUser(authenticatedUser);
       setState('success');
@@ -160,14 +383,66 @@ export function useOAuth2Auth() {
   }
 
   async function signOut() {
+    sessionGenerationRef.current += 1;
+    signInAttemptInFlightRef.current = false;
     setState('loading');
     try {
       const storedToken = await loadAccessToken();
-      if (storedToken?.refreshToken) {
+      if (storedToken?.refreshToken && discovery) {
         await revokeRefreshToken(storedToken.refreshToken, discovery);
       }
     } finally {
       await clearAuthenticatedSession();
+      setIsAuthenticated(false);
+      setUser(null);
+      setState('idle');
+    }
+  }
+
+  async function resetAuthentication() {
+    sessionGenerationRef.current += 1;
+    signInAttemptInFlightRef.current = false;
+    let storedToken: StoredAccessToken | null = null;
+    try {
+      storedToken = await loadAccessToken();
+    } catch {
+      // Continue clearing local state even when storage is unavailable.
+    }
+    const postLogoutRedirectUri =
+      MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI || logoutRedirectUri;
+    const providerLogoutUrl = discovery
+      ? createProviderLogoutUrl(
+          discovery,
+          postLogoutRedirectUri,
+          storedToken?.idToken,
+        )
+      : null;
+
+    if (Platform.OS !== 'android') {
+      AuthSession.dismiss();
+    }
+    setShouldPrompt(false);
+    promptAttemptRef.current = null;
+    if (request?.state) {
+      invalidatedRequestStatesRef.current.add(request.state);
+    }
+    handledResponseRef.current = response
+      ? response.type === 'success' || response.type === 'error'
+        ? response.url
+        : response.type
+      : null;
+
+    try {
+      await clearAuthenticatedSession();
+      if (providerLogoutUrl) {
+        await WebBrowser.openAuthSessionAsync(
+          providerLogoutUrl,
+          postLogoutRedirectUri,
+        );
+      }
+    } finally {
+      setNonce(Crypto.randomUUID());
+      setIsAuthenticated(false);
       setUser(null);
       setState('idle');
     }
@@ -176,7 +451,9 @@ export function useOAuth2Auth() {
   return {
     callAuthenticatedEndpoint,
     isReady: Boolean(request),
+    isAuthenticated,
     refreshAuthenticatedSession,
+    resetAuthentication,
     redirectUri,
     signOut,
     state,

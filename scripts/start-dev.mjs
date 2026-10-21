@@ -1,20 +1,41 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, URL } from 'url';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFilePath), '..');
-const localNetworkAddress = Object.values(os.networkInterfaces())
-  .flatMap((networkInterface) => networkInterface ?? [])
-  .find((address) => address.family === 'IPv4' && !address.internal)?.address;
-const authIssuer = `http://${localNetworkAddress ?? '127.0.0.1'}:4300`;
-const expoGoRedirectUri = `exp://${localNetworkAddress ?? '127.0.0.1'}:8081/--/oauth/callback`;
+const apiEnvironmentFile = path.join(rootDir, 'apps/api/.env');
+if (fs.existsSync(apiEnvironmentFile)) {
+  if (typeof process.loadEnvFile !== 'function') {
+    throw new Error('Node.js 20.12 or newer is required to load apps/api/.env');
+  }
+  process.loadEnvFile(apiEnvironmentFile);
+}
+const IDP_URL = process.env.AUTH_ISSUER_BASE_URL?.trim().replace(/\/$/, '');
+if (!IDP_URL) {
+  throw new Error('AUTH_ISSUER_BASE_URL must be set in apps/api/.env');
+}
+const oauthClientId = process.env.AUTH_CLIENT_ID?.trim();
+if (!oauthClientId) {
+  throw new Error('AUTH_CLIENT_ID must be set in apps/api/.env');
+}
+const configuredDatabaseUrl = process.env.DATABASE_URL?.trim();
+if (!configuredDatabaseUrl) {
+  throw new Error('DATABASE_URL must be set in apps/api/.env');
+}
+const configuredDatabase = new URL(configuredDatabaseUrl);
+if (!['mongodb:', 'mongodb+srv:'].includes(configuredDatabase.protocol)) {
+  throw new Error('DATABASE_URL must use the mongodb or mongodb+srv scheme');
+}
+const databaseName = decodeURIComponent(configuredDatabase.pathname.slice(1));
+if (!databaseName) {
+  throw new Error('DATABASE_URL must include a database name');
+}
+
 const commands = [
   { title: 'Expo mobile', script: 'mobile' },
   { title: 'Node API', script: 'api' },
-  { title: 'OAuth2 identity provider', script: 'idp' },
 ];
 
 function startWindowsTerminal({ title, script }) {
@@ -64,6 +85,41 @@ function startSharedTerminal({ script }) {
   return child;
 }
 
+async function seedDevelopmentData() {
+  if (process.env.SEED_DEVELOPMENT_DATA !== 'true') {
+    console.log(
+      '[dev-seed] Disabled. Set SEED_DEVELOPMENT_DATA=true to seed development data.',
+    );
+    return;
+  }
+
+  console.log('[dev-seed] Starting before the development servers...');
+
+  const seedProcess = spawn(
+    'npm',
+    ['--prefix', 'apps/api', 'run', 'prisma:seed:dev'],
+    {
+      cwd: rootDir,
+      env: { ...process.env, ...sharedEnvironment },
+      shell: true,
+      stdio: 'inherit',
+    },
+  );
+
+  await new Promise((resolve, reject) => {
+    seedProcess.once('error', reject);
+    seedProcess.once('exit', (code) => {
+      if (code && code !== 0) {
+        console.error(`[dev-seed] Failed with exit code ${code}.`);
+        reject(new Error(`Development seed exited with code ${code}`));
+        return;
+      }
+      console.log('[dev-seed] Finished successfully.');
+      resolve();
+    });
+  });
+}
+
 const databaseProcess = spawn('node', ['scripts/start-mongodb.mjs'], {
   cwd: rootDir,
   stdio: 'inherit',
@@ -88,19 +144,33 @@ const mongoPort = Number(mongoPortText.replace(/^\uFEFF/, ''));
 if (!Number.isInteger(mongoPort) || mongoPort < 1 || mongoPort > 65535) {
   throw new Error('MongoDB startup did not provide a valid host port');
 }
+configuredDatabase.protocol = 'mongodb:';
+configuredDatabase.hostname = '127.0.0.1';
+configuredDatabase.port = String(mongoPort);
+configuredDatabase.username = '';
+configuredDatabase.password = '';
+configuredDatabase.search = '';
+configuredDatabase.searchParams.set('directConnection', 'true');
+configuredDatabase.searchParams.set('serverSelectionTimeoutMS', '5000');
+configuredDatabase.searchParams.set('connectTimeoutMS', '5000');
 const sharedEnvironment = {
-  AUTH_AUDIENCE: 'api',
-  AUTH_ISSUER_BASE_URL: authIssuer,
-  DATABASE_URL: `mongodb://127.0.0.1:${mongoPort}/expo_50sdk_template`,
-  IDP_ISSUER: authIssuer,
-  IDP_MOBILE_REDIRECT_URI: expoGoRedirectUri,
+  NODE_ENV: 'development',
+  AUTH_AUDIENCE: `${IDP_URL}/resources/api`,
+  AUTH_CLIENT_ID: oauthClientId,
+  AUTH_ISSUER_BASE_URL: IDP_URL,
+  DATABASE_URL: configuredDatabase.toString(),
+  EXPO_PUBLIC_IDP_URL: IDP_URL,
+  EXPO_PUBLIC_OAUTH_AUDIENCE: `${IDP_URL}/resources/api`,
+  EXPO_PUBLIC_OAUTH_CLIENT_ID: oauthClientId,
+  EXPO_PUBLIC_OAUTH_SCOPES:
+    'openid profile email offline_access relationships:read relationships:create relationships:invite relationships:accept-invite payment-requests:read payment-requests:write',
 };
+
+await seedDevelopmentData();
 
 if (process.platform === 'win32') {
   commands.forEach(startWindowsTerminal);
-  console.log(
-    `Started Expo mobile, Node API, and OAuth2 identity provider. OAuth2 issuer: ${authIssuer}`,
-  );
+  console.log(`Started Expo mobile and Node API. OAuth2 issuer: ${IDP_URL}`);
 } else {
   const children = commands.map(startSharedTerminal);
   await Promise.all(

@@ -1,8 +1,16 @@
 import {
-  createIdentityProviderDiscovery,
   exchangeAuthorizationCode,
   exchangeAuthorizationCodeForCurrentPlatform,
+  createInvitationUrl,
+  createProviderLogoutUrl,
+  getAccountProviderFromClaims,
+  getDisplayNameFromClaims,
   getAuthenticatedUser,
+  getProfilePictureFromClaims,
+  MOBILE_OAUTH_CLIENT_ID,
+  MOBILE_OAUTH_SCHEME,
+  MOBILE_OAUTH_SCOPES,
+  normalizeIdentityProviderDiscovery,
   revokeRefreshToken,
   refreshAccessToken,
   verifyAuthenticatedEndpointRejectsAnonymousRequest,
@@ -10,10 +18,6 @@ import {
 
 jest.mock('@/utils/helpers', () => ({
   getBackendUrl: jest.fn(() => 'http://localhost:4200'),
-}));
-
-jest.mock('@/utils/platform', () => ({
-  getIdentityProviderUrl: jest.fn(() => 'http://localhost:4300'),
 }));
 
 function makeResponse(body: unknown, status: number): Response {
@@ -33,12 +37,184 @@ describe('auth client', () => {
     });
   });
 
-  it('builds identity-provider discovery endpoints', () => {
-    expect(createIdentityProviderDiscovery()).toEqual({
-      authorizationEndpoint: 'http://localhost:4300/authorize',
-      revocationEndpoint: 'http://localhost:4300/revoke',
-      tokenEndpoint: 'http://localhost:4300/token',
+  it('always requests offline access for refresh-token support', () => {
+    expect(MOBILE_OAUTH_SCOPES).toContain('offline_access');
+    expect(MOBILE_OAUTH_SCOPES).toEqual(
+      expect.arrayContaining([
+        'relationships:read',
+        'relationships:create',
+        'relationships:invite',
+        'relationships:accept-invite',
+        'payment-requests:read',
+        'payment-requests:write',
+      ]),
+    );
+  });
+
+  it('accepts only HTTP profile picture claim URLs', () => {
+    expect(
+      getProfilePictureFromClaims({ picture: 'https://example.com/tom.jpg' }),
+    ).toBe('https://example.com/tom.jpg');
+    expect(
+      getProfilePictureFromClaims({ picture: 'ftp://example.com/tom.jpg' }),
+    ).toBe(undefined);
+    expect(getProfilePictureFromClaims({})).toBeUndefined();
+    expect(getProfilePictureFromClaims({ picture: 'not a URL' })).toBeUndefined();
+  });
+
+  it.each([
+    ['apple', 'Apple'],
+    ['discord', 'discord'],
+    ['facebook', 'facebook'],
+    ['github', 'github'],
+    ['gitlab', 'gitlab'],
+    ['google', 'google'],
+    ['linkedin', 'linkedin'],
+    ['microsoft', 'azure_ad'],
+    ['x', 'Twitter'],
+  ])('recognizes the %s identity provider', (provider, claimValue) => {
+    expect(getAccountProviderFromClaims({ connection: claimValue })).toBe(
+      provider,
+    );
+  });
+
+  it('uses the first non-empty display-name claim', () => {
+    expect(
+      getDisplayNameFromClaims({
+        name: '  ',
+        preferred_username: '  morgan  ',
+        email: 'morgan@example.com',
+      }),
+    ).toBe('morgan');
+    expect(getDisplayNameFromClaims({})).toBeUndefined();
+  });
+
+  it('builds platform-appropriate invitation URLs', () => {
+    expect(createInvitationUrl('invite code')).toBe(
+      `${MOBILE_OAUTH_SCHEME}://invitation/invite%20code`,
+    );
+
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
     });
+    const originalWindow = globalThis.window;
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { location: { origin: 'https://app.example.com' } },
+    });
+    try {
+      expect(createInvitationUrl('invite code')).toBe(
+        'https://app.example.com/invitation/invite%20code',
+      );
+    } finally {
+      if (originalWindow === undefined) {
+        Reflect.deleteProperty(globalThis, 'window');
+      } else {
+        Object.defineProperty(globalThis, 'window', {
+          configurable: true,
+          value: originalWindow,
+        });
+      }
+    }
+  });
+
+  it('maps known provider claims and uses Custom for unknown providers', () => {
+    expect(getAccountProviderFromClaims({ connection: 'github-oauth' })).toBe(
+      'github',
+    );
+    expect(getAccountProviderFromClaims({ connection: 'Git Hub' })).toBe(
+      'github',
+    );
+    expect(getAccountProviderFromClaims({ connection: 'git_hub' })).toBe(
+      'github',
+    );
+    expect(getAccountProviderFromClaims({ idp: 'Microsoft Entra ID' })).toBe(
+      'microsoft',
+    );
+    expect(getAccountProviderFromClaims({ provider: 'company-sso' })).toBe(
+      undefined,
+    );
+    expect(getAccountProviderFromClaims({})).toBeUndefined();
+  });
+
+  it('normalizes same-host discovery endpoints to the issuer protocol', () => {
+    expect(
+      normalizeIdentityProviderDiscovery(
+        {
+          authorizationEndpoint: 'http://localhost:4300/auth',
+          revocationEndpoint: 'http://localhost:4300/token/revocation',
+          tokenEndpoint: 'http://localhost:4300/token',
+        },
+        'https://localhost:4300',
+      ),
+    ).toEqual({
+      authorizationEndpoint: 'https://localhost:4300/auth',
+      revocationEndpoint: 'https://localhost:4300/token/revocation',
+      tokenEndpoint: 'https://localhost:4300/token',
+    });
+  });
+
+  it('preserves missing and malformed discovery endpoints', () => {
+    expect(
+      normalizeIdentityProviderDiscovery({}, 'https://identity.example.com'),
+    ).toMatchObject({
+      authorizationEndpoint: undefined,
+      revocationEndpoint: undefined,
+      tokenEndpoint: undefined,
+    });
+    expect(
+      normalizeIdentityProviderDiscovery(
+        { authorizationEndpoint: 'not a URL' },
+        'https://identity.example.com',
+      ).authorizationEndpoint,
+    ).toBe('not a URL');
+  });
+
+  it.each([
+    [
+      'an HTTP issuer',
+      'http://identity.example.com',
+      'http://identity.example.com/token',
+    ],
+    [
+      'an already-secure endpoint',
+      'https://identity.example.com',
+      'https://identity.example.com/token',
+    ],
+    [
+      'a different endpoint host',
+      'https://identity.example.com',
+      'http://other.example.com/token',
+    ],
+  ])('does not rewrite discovery URLs for %s', (_caseName, issuerUrl, endpoint) => {
+    expect(
+      normalizeIdentityProviderDiscovery(
+        { tokenEndpoint: endpoint },
+        issuerUrl,
+      ).tokenEndpoint,
+    ).toBe(endpoint);
+  });
+
+  it('builds a provider logout URL with the registered redirect', () => {
+    expect(createProviderLogoutUrl({}, 'expo50sdktemplate://logout')).toBeNull();
+    expect(
+      createProviderLogoutUrl(
+        {
+          endSessionEndpoint: 'http://localhost:4300/session/end',
+        },
+        'relationshipapp://oauth/callback',
+      ),
+    ).toBe(
+      `http://localhost:4300/session/end?client_id=${encodeURIComponent(MOBILE_OAUTH_CLIENT_ID)}&post_logout_redirect_uri=relationshipapp%3A%2F%2Foauth%2Fcallback`,
+    );
+    expect(
+      createProviderLogoutUrl(
+        { endSessionEndpoint: 'http://localhost:4300/session/end' },
+        'relationshipapp://oauth/callback',
+        'id-token-hint',
+      ),
+    ).toContain('id_token_hint=id-token-hint');
   });
 
   it('revokes a native refresh token', async () => {
@@ -81,6 +257,28 @@ describe('auth client', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('skips native revocation when no revocation endpoint is published', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+
+    await expect(
+      revokeRefreshToken('refresh-token', {
+        authorizationEndpoint: 'https://identity.example.com/authorize',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('reports native revocation errors without a provider description', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 503));
+
+    await expect(
+      revokeRefreshToken('refresh-token', {
+        revocationEndpoint: 'https://identity.example.com/revoke',
+      }),
+    ).rejects.toThrow('Token revocation failed with HTTP 503');
+  });
+
   it('sends the bearer token to the authenticated endpoint', async () => {
     jest
       .spyOn(global, 'fetch')
@@ -94,6 +292,81 @@ describe('auth client', () => {
     });
     expect(fetch).toHaveBeenCalledWith('http://localhost:4200/api/v1/me', {
       headers: { Authorization: 'Bearer access-token' },
+    });
+  });
+
+  it('merges the ID token name when the API claims omit it', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        makeResponse({ claims: { sub: 'user-1' }, subject: 'user-1' }, 200),
+      );
+
+    await expect(
+      getAuthenticatedUser(
+        'access-token',
+        'eyJhbGciOiJub25lIn0.eyJuYW1lIjoiQWRhIExvdmVsYWNlIiwic3ViIjoiaWQtdXNlciJ9.signature',
+      ),
+    ).resolves.toEqual({
+      claims: { name: 'Ada Lovelace', sub: 'user-1' },
+      subject: 'user-1',
+    });
+  });
+
+  it('uses the base64url fallback when the runtime has no atob', async () => {
+    const originalAtob = globalThis.atob;
+    Object.defineProperty(globalThis, 'atob', {
+      configurable: true,
+      value: undefined,
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        makeResponse({ claims: { sub: 'api-user' } }, 200),
+      );
+
+    try {
+      const payload = Buffer.from(
+        JSON.stringify({ name: 'Mina', sub: 'token-user' }),
+      ).toString('base64url');
+      await expect(
+        getAuthenticatedUser('access-token', `header.${payload}.signature`),
+      ).resolves.toEqual({
+        claims: { name: 'Mina', sub: 'api-user' },
+        subject: null,
+      });
+    } finally {
+      Object.defineProperty(globalThis, 'atob', {
+        configurable: true,
+        value: originalAtob,
+      });
+    }
+  });
+
+  it('ignores malformed ID token payloads and keeps API claims', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(makeResponse({ claims: { sub: 'api-user' } }, 200));
+
+    await expect(
+      getAuthenticatedUser('access-token', 'not-a-token'),
+    ).resolves.toEqual({
+      claims: { sub: 'api-user' },
+      subject: null,
+    });
+  });
+
+  it('ignores non-object ID token payloads and keeps API claims', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(makeResponse({ claims: { sub: 'api-user' } }, 200));
+    const primitivePayload = Buffer.from('null').toString('base64url');
+
+    await expect(
+      getAuthenticatedUser('access-token', `header.${primitivePayload}.sig`),
+    ).resolves.toEqual({
+      claims: { sub: 'api-user' },
+      subject: null,
     });
   });
 
@@ -135,6 +408,14 @@ describe('auth client', () => {
 
     await expect(getAuthenticatedUser('expired-token')).rejects.toThrow(
       'Authentication is required.',
+    );
+  });
+
+  it('uses the HTTP status when an authenticated endpoint error has no message', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 502));
+
+    await expect(getAuthenticatedUser('access-token')).rejects.toThrow(
+      'Authenticated request failed with HTTP 502',
     );
   });
 
@@ -185,6 +466,7 @@ describe('auth client', () => {
         {
           access_token: 'native-access-token',
           expires_in: 900,
+          id_token: 'native-id-token',
           refresh_token: 'native-refresh-token',
           token_type: 'Bearer',
         },
@@ -204,6 +486,7 @@ describe('auth client', () => {
       }),
     ).resolves.toMatchObject({
       accessToken: 'native-access-token',
+      idToken: 'native-id-token',
       refreshToken: 'native-refresh-token',
       tokenType: 'Bearer',
     });
@@ -268,6 +551,33 @@ describe('auth client', () => {
     });
   });
 
+  it('refreshes a web session from its BFF cookie', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        { expires_in: 3600, scope: 'openid api:read', token_type: 'Bearer' },
+        200,
+      ),
+    );
+
+    await expect(
+      refreshAccessToken(undefined, {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+      }),
+    ).resolves.toMatchObject({
+      accessToken: '',
+      scope: 'openid api:read',
+      tokenType: 'Bearer',
+    });
+    expect(fetch).toHaveBeenCalledWith('http://localhost:4200/auth/refresh', {
+      credentials: 'include',
+      method: 'POST',
+    });
+  });
+
   it('reports BFF exchange failures without an upstream description', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
@@ -328,6 +638,39 @@ describe('auth client', () => {
       body: expect.stringContaining('grant_type=refresh_token'),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       method: 'POST',
+    });
+  });
+
+  it('preserves a native refresh token when the provider does not rotate it', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'android' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          access_token: 'refreshed-access-token',
+          expires_in: 900,
+          token_type: 'Bearer',
+        },
+        200,
+      ),
+    );
+
+    await expect(
+      refreshAccessToken(
+        {
+          accessToken: 'expired-access-token',
+          expiresAt: Date.now() - 1,
+          refreshToken: 'existing-refresh-token',
+          scope: 'openid offline_access orders.read',
+          tokenType: 'Bearer',
+        },
+        { tokenEndpoint: 'http://localhost:4300/token' },
+      ),
+    ).resolves.toMatchObject({
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'existing-refresh-token',
     });
   });
 

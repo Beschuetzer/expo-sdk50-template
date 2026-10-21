@@ -1,19 +1,13 @@
 import { loadConfig } from './config/env';
+import { connectPrisma } from './lib/prisma';
 import { createApiServer, startApiServer, stopApiServer } from './server';
 
-const localDevelopmentDefaults =
-  process.env.NODE_ENV === 'production'
-    ? {}
-    : {
-        AUTH_AUDIENCE: process.env.AUTH_AUDIENCE || 'api',
-        AUTH_ISSUER_BASE_URL:
-          process.env.AUTH_ISSUER_BASE_URL || 'http://localhost:4300',
-      };
-const config = loadConfig({
-  ...process.env,
-  ...localDevelopmentDefaults,
-});
+if (!process.env.AUTH_AUDIENCE || !process.env.AUTH_ISSUER_BASE_URL) {
+  throw new Error('AUTH_AUDIENCE and AUTH_ISSUER_BASE_URL must be set');
+}
+const config = loadConfig(process.env);
 const server = startApiServer(createApiServer(config), config);
+void connectPrisma(config.databaseUrl);
 
 function shutdown(signal: string) {
   console.log(`Received ${signal}; shutting down API`);
