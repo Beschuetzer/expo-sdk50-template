@@ -217,6 +217,59 @@ describe('useOAuth2AuthState', () => {
     );
   });
 
+  it('does not restore the user when sign-out beats the startup profile request', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    let resolveStartupProfile!: (user: typeof authenticatedUser) => void;
+    mockGetAuthenticatedUser.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStartupProfile = resolve;
+        }),
+    );
+
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await auth().signOut();
+      await flushPromises();
+    });
+    await act(async () => {
+      resolveStartupProfile(authenticatedUser);
+      await flushPromises();
+    });
+
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+    expect(auth().state).toBe('idle');
+  });
+
+  it('does not save a web token when sign-out beats startup refresh', async () => {
+    setPlatformOs('web');
+    let resolveStartupRefresh!: (token: typeof refreshedToken) => void;
+    mockRefreshAccessToken.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStartupRefresh = resolve;
+        }),
+    );
+
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await auth().signOut();
+      await flushPromises();
+    });
+    await act(async () => {
+      resolveStartupRefresh(refreshedToken);
+      await flushPromises();
+    });
+
+    expect(mockSaveAccessToken).not.toHaveBeenCalled();
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+    expect(auth().state).toBe('idle');
+  });
+
   it('passes the authenticated access token to a protected action', async () => {
     mockLoadAccessToken.mockResolvedValue(storedToken);
 

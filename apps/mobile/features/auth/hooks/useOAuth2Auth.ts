@@ -56,6 +56,7 @@ export function useOAuth2AuthState() {
   const [nonce, setNonce] = useState(() => Crypto.randomUUID());
   const [shouldPrompt, setShouldPrompt] = useState(false);
   const signInAttemptInFlightRef = useRef(false);
+  const sessionGenerationRef = useRef(0);
   const pendingAuthenticatedActionRef = useRef<
     ((accessToken: string) => Promise<unknown>) | null
   >(null);
@@ -94,44 +95,55 @@ export function useOAuth2AuthState() {
     if (Platform.OS !== 'web' && !discovery) return;
 
     let isCurrent = true;
+    const sessionGeneration = sessionGenerationRef.current;
+    const isCurrentSession = () =>
+      isCurrent && sessionGenerationRef.current === sessionGeneration;
 
     loadAccessToken()
       .then(async (storedToken) => {
+        if (!isCurrentSession()) return;
+
         let sessionToken = storedToken;
         if (!sessionToken && Platform.OS === 'web' && discovery) {
           sessionToken = await refreshAccessToken(undefined, discovery);
+          if (!isCurrentSession()) return;
           await saveAccessToken(sessionToken);
+          if (!isCurrentSession()) return;
         }
-        if (!sessionToken || !isCurrent) return;
+        if (!sessionToken || !isCurrentSession()) return;
 
         try {
           let authenticatedUser: AuthenticatedUser;
           try {
+            if (!isCurrentSession()) return;
             authenticatedUser = await getAuthenticatedUser(
               sessionToken.accessToken,
               sessionToken.idToken,
             );
           } catch (error) {
+            if (!isCurrentSession()) return;
             if (!discovery) throw error;
 
             const refreshedToken = await refreshAccessToken(
               sessionToken,
               discovery,
             );
+            if (!isCurrentSession()) return;
             await saveAccessToken(refreshedToken);
+            if (!isCurrentSession()) return;
             authenticatedUser = await getAuthenticatedUser(
               refreshedToken.accessToken,
               refreshedToken.idToken,
             );
           }
 
-          if (isCurrent) {
+          if (isCurrentSession()) {
             setIsAuthenticated(true);
             setUser(authenticatedUser);
             setState('success');
           }
         } catch {
-          if (isCurrent) {
+          if (isCurrentSession()) {
             setIsAuthenticated(false);
             setUser(null);
             setState('error');
@@ -296,6 +308,7 @@ export function useOAuth2AuthState() {
             refreshedToken.idToken,
           );
         } catch {
+          sessionGenerationRef.current += 1;
           setIsAuthenticated(false);
           setUser(null);
           await clearAuthenticatedSession();
@@ -347,6 +360,7 @@ export function useOAuth2AuthState() {
   }
 
   async function signOut() {
+    sessionGenerationRef.current += 1;
     setState('loading');
     try {
       const storedToken = await loadAccessToken();
@@ -362,6 +376,7 @@ export function useOAuth2AuthState() {
   }
 
   async function resetAuthentication() {
+    sessionGenerationRef.current += 1;
     let storedToken: StoredAccessToken | null = null;
     try {
       storedToken = await loadAccessToken();
