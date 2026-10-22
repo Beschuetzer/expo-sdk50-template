@@ -11,6 +11,6 @@
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
     "doctor": "expo-doctor",
-    "build-preview": "eas build -p android --profile preview"
+    "build-preview": "npx --yes eas-cli@latest build -p android --profile preview"
   }
 }
