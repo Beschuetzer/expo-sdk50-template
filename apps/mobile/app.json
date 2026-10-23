@@ -13,9 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.example.expo50sdktemplate",
@@ -43,7 +41,9 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-localization",
       "expo-router",
+      "expo-secure-store",
       "expo-font",
       [
         "expo-location",
@@ -60,9 +60,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "REPLACE_WITH_YOUR_EAS_PROJECT_ID"
+        "projectId": "82884bb4-1db8-410e-9dfc-6b7ab77bd30c"
       }
-    }
+    },
+    "owner": "beschuetzer"
   }
 }
-

@@ -8,22 +8,34 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "20.19.4"
     },
     "preview": {
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_ENV": "production"
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://expo-50sdk-template.adammajor.com",
+        "EXPO_PUBLIC_IDP_URL": "https://identity-beta.adammajor.com",
+        "EXPO_PUBLIC_OAUTH_CLIENT_ID": "client_ASCACaC-QT2cM8DmF2IroxFe",
+        "EXPO_PUBLIC_OAUTH_AUDIENCE": "https://identity-beta.adammajor.com/resources/api",
+        "EXPO_PUBLIC_OAUTH_SCOPES": "openid profile email offline_access"
       },
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "20.19.4"
     },
     "production": {
-      "environment": "production",
       "env": {
-        "EXPO_PUBLIC_ENV": "production"
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://expo-50sdk-template.adammajor.com",
+        "EXPO_PUBLIC_IDP_URL": "https://identity-beta.adammajor.com",
+        "EXPO_PUBLIC_OAUTH_CLIENT_ID": "client_ASCACaC-QT2cM8DmF2IroxFe",
+        "EXPO_PUBLIC_OAUTH_AUDIENCE": "https://identity-beta.adammajor.com/resources/api",
+        "EXPO_PUBLIC_OAUTH_SCOPES": "openid profile email offline_access"
       },
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "20.19.4"
     }
   },
   "submit": {

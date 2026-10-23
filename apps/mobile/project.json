@@ -91,7 +91,7 @@
     "build-preview": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx eas build -p android --profile preview",
+        "command": "npx --yes eas-cli@latest build -p android --profile preview",
         "cwd": "apps/mobile",
         "color": true
       }
