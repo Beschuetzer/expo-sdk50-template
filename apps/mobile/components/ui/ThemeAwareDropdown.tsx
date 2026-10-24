@@ -55,6 +55,7 @@ export function ThemeAwareDropdown({
             <SelectItem
               key={option.value}
               label={option.label}
+              textStyle={{ color: textColor, fontFamily }}
               value={option.value}
             />
           ))}
