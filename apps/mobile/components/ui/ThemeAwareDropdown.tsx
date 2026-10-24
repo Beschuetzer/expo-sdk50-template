@@ -31,7 +31,7 @@ export function ThemeAwareDropdown({
   placeholder,
   selectedValue,
 }: ThemeAwareDropdownProps) {
-  const { textColor } = useThemeAwareColors();
+  const { colorScheme, textColor } = useThemeAwareColors();
   const { fontFamily } = useThemeAwareTypography();
   const selectedLabel =
     options.find((option) => option.value === selectedValue)?.label ?? '';
@@ -54,6 +54,13 @@ export function ThemeAwareDropdown({
           {options.map((option) => (
             <SelectItem
               key={option.value}
+              bg={
+                option.value === selectedValue
+                  ? colorScheme === 'dark'
+                    ? '$backgroundDark800'
+                    : '$backgroundLight300'
+                  : undefined
+              }
               label={option.label}
               textStyle={{ color: textColor, fontFamily }}
               value={option.value}
