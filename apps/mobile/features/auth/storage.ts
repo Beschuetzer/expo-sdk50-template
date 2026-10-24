@@ -37,7 +37,7 @@ function isStoredAccessToken(value: unknown): value is StoredAccessToken {
   );
 }
 
-function isExpired(token: StoredAccessToken) {
+export function isAccessTokenExpiring(token: StoredAccessToken) {
   return token.expiresAt <= Date.now() + EXPIRY_SAFETY_WINDOW_MS;
 }
 
@@ -64,7 +64,7 @@ export async function loadAccessToken() {
       await clearAccessToken();
       return null;
     }
-    if (isExpired(parsedToken) && !parsedToken.refreshToken) {
+    if (isAccessTokenExpiring(parsedToken) && !parsedToken.refreshToken) {
       await clearAccessToken();
       return null;
     }
