@@ -1,4 +1,5 @@
 import { HStack, VStack } from '@gluestack-ui/themed';
+import { Stack } from 'expo-router';
 
 import { ThemeAwareButton } from '@/components/ui/ThemeAwareButton';
 import { ThemeAwareHeading } from '@/components/ui/ThemeAwareHeading';
@@ -14,11 +15,13 @@ export default function SettingsScreen() {
   const { mode, modes, setMode } = useThemeMode();
 
   return (
-    <ThemeAwareScreen
-      absolutelyPositionedJsx={
-        <ThemeAwareButton>{t('actions.saveSettings')}</ThemeAwareButton>
-      }
-    >
+    <ThemeAwareScreen>
+      <Stack.Screen
+        options={{
+          title: t('settings.title'),
+          headerTitleAlign: 'center',
+        }}
+      />
       <ThemeAwareHeading size="lg">{t('settings.title')}</ThemeAwareHeading>
       <VStack space="md">
         <HStack justifyContent="space-between" alignItems="center">

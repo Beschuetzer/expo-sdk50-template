@@ -1,7 +1,8 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Image } from 'expo-image';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
+import { Pressable } from 'react-native';
 
 import { useClientOnlyValue } from '@/components/hooks/useClientOnlyValue';
 import { useColorScheme } from '@/components/hooks/useColorScheme';
@@ -19,6 +20,7 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const { t } = useI18n();
   const { user } = useOAuth2Auth();
@@ -32,19 +34,12 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name={Routes.DashboardScreen}
+        name="(home)"
         options={{
           title: t('tabs.home'),
+          headerShown: false,
           headerTitleAlign: 'center',
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name={Routes.OptionsScreen}
-        options={{
-          title: t('tabs.settings'),
-          headerTitleAlign: 'center',
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -52,6 +47,25 @@ export default function TabLayout() {
         options={{
           title: t('tabs.account'),
           headerTitleAlign: 'center',
+          headerRightContainerStyle: { paddingRight: 12 },
+          headerRight: () => (
+            <Pressable
+              accessibilityLabel={t('tabs.settings')}
+              accessibilityRole="button"
+              hitSlop={10}
+              onPress={() => router.push('/settings')}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.6 : 1,
+                padding: 8,
+              })}
+            >
+              <FontAwesome
+                name="cog"
+                size={20}
+                color={COLORS[colorScheme ?? 'light'].tint}
+              />
+            </Pressable>
+          ),
           tabBarIcon: ({ color }) =>
             picture ? (
               <Image
