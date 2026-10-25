@@ -48,16 +48,18 @@ export async function requestAuthenticatedJson<T>(
 
   try {
     throwIfAborted(signal);
-    let token;
-    try {
-      token = await awaitWithAbort(getValidAccessToken({ signal }), signal);
-    } catch (error) {
-      logWarn('api_request_token_resolution_failed', {
-        endpoint,
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-        method,
-      });
-      throw error;
+    let token: Awaited<ReturnType<typeof getValidAccessToken>> = null;
+    if (Platform.OS !== 'web') {
+      try {
+        token = await awaitWithAbort(getValidAccessToken({ signal }), signal);
+      } catch (error) {
+        logWarn('api_request_token_resolution_failed', {
+          endpoint,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          method,
+        });
+        throw error;
+      }
     }
 
     const headers = new Headers(init.headers);

@@ -101,12 +101,9 @@ describe('authenticated request client', () => {
     ).toBe(`Bearer ${refreshedToken.accessToken}`);
   });
 
-  it('refreshes the web BFF session and retries with cookies after a 401', async () => {
+  it('skips web session lookup and refreshes with cookies after a 401', async () => {
     setPlatformOs('web');
-    jest
-      .mocked(getValidAccessToken)
-      .mockResolvedValueOnce(webSessionToken)
-      .mockResolvedValueOnce(webSessionToken);
+    jest.mocked(getValidAccessToken).mockResolvedValueOnce(webSessionToken);
     fetchMock
       .mockResolvedValueOnce(makeResponse(401, { message: 'Session expired' }))
       .mockResolvedValueOnce(makeResponse(200, { subject: 'web-user' }));
@@ -118,10 +115,8 @@ describe('authenticated request client', () => {
     const requestSignal =
       jest.mocked(getValidAccessToken).mock.calls[0][0]?.signal;
     expect(requestSignal).toBeDefined();
-    expect(getValidAccessToken).toHaveBeenNthCalledWith(1, {
-      signal: requestSignal,
-    });
-    expect(getValidAccessToken).toHaveBeenNthCalledWith(2, {
+    expect(getValidAccessToken).toHaveBeenCalledTimes(1);
+    expect(getValidAccessToken).toHaveBeenCalledWith({
       forceRefresh: true,
       signal: requestSignal,
     });
@@ -133,9 +128,8 @@ describe('authenticated request client', () => {
     }
   });
 
-  it('sends JSON bodies to non-API endpoints with an external signal', async () => {
+  it('sends web requests directly with cookies and an external signal', async () => {
     setPlatformOs('web');
-    jest.mocked(getValidAccessToken).mockResolvedValueOnce(webSessionToken);
     fetchMock.mockResolvedValueOnce(makeResponse(200, { accepted: true }));
     const controller = new AbortController();
 
@@ -147,6 +141,7 @@ describe('authenticated request client', () => {
       }),
     ).resolves.toEqual({ accepted: true });
 
+    expect(getValidAccessToken).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:4200/health',
       expect.objectContaining({
@@ -184,10 +179,7 @@ describe('authenticated request client', () => {
 
   it('does not retry a web request when session refresh returns no token', async () => {
     setPlatformOs('web');
-    jest
-      .mocked(getValidAccessToken)
-      .mockResolvedValueOnce(webSessionToken)
-      .mockResolvedValueOnce(null);
+    jest.mocked(getValidAccessToken).mockResolvedValueOnce(null);
     fetchMock.mockResolvedValueOnce(
       makeResponse(401, { message: 'Session expired' }),
     );
