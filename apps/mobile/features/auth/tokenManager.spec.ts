@@ -22,6 +22,7 @@ import {
 } from './storage';
 import {
   getAccessTokenExpiry,
+  getIdentityProviderDiscovery,
   getValidAccessToken,
   MissingRefreshTokenError,
   subscribeToAccessTokenExpiry,
@@ -125,6 +126,21 @@ describe('access-token manager', () => {
     expect(refreshAccessToken).not.toHaveBeenCalled();
   });
 
+  it('caches provider discovery and supports calls without a signal', async () => {
+    const issuerUrl = 'https://identity.example.com/discovery-cache-test';
+    const discovery = {
+      tokenEndpoint: `${issuerUrl}/token`,
+    } as DiscoveryDocument;
+    jest.mocked(getIdentityProviderUrl).mockReturnValue(issuerUrl);
+    jest.mocked(fetchIdentityProviderDiscovery).mockResolvedValue(discovery);
+
+    await expect(getIdentityProviderDiscovery()).resolves.toEqual(discovery);
+    await expect(getIdentityProviderDiscovery()).resolves.toEqual(discovery);
+
+    expect(fetchIdentityProviderDiscovery).toHaveBeenCalledTimes(1);
+    expect(fetchIdentityProviderDiscovery).toHaveBeenCalledWith(issuerUrl);
+  });
+
   it('reads the current expiry from token storage without refreshing', async () => {
     const token = makeToken();
     storedToken = token;
@@ -134,10 +150,47 @@ describe('access-token manager', () => {
     expect(refreshAccessToken).not.toHaveBeenCalled();
   });
 
+  it('logs token-expiry listener failures without interrupting notification', async () => {
+    const token = makeToken({ expiresAt: Date.now() + 1_000_000 });
+    const listenerFailure = { reason: 'listener failed' };
+    storedToken = token;
+    const errorListener = jest.fn(() => {
+      throw new Error('listener failed');
+    });
+    const nonErrorListener = jest.fn(() => {
+      throw listenerFailure;
+    });
+    const unsubscribeErrorListener =
+      subscribeToAccessTokenExpiry(errorListener);
+    const unsubscribeNonErrorListener =
+      subscribeToAccessTokenExpiry(nonErrorListener);
+
+    try {
+      await expect(getAccessTokenExpiry()).resolves.toBe(token.expiresAt);
+    } finally {
+      unsubscribeErrorListener();
+      unsubscribeNonErrorListener();
+    }
+
+    expect(errorListener).toHaveBeenCalledWith(token.expiresAt);
+    expect(nonErrorListener).toHaveBeenCalledWith(token.expiresAt);
+    expect(logWarn).toHaveBeenNthCalledWith(
+      1,
+      'auth_access_token_expiry_listener_failed',
+      { errorName: 'Error' },
+    );
+    expect(logWarn).toHaveBeenNthCalledWith(
+      2,
+      'auth_access_token_expiry_listener_failed',
+      { errorName: 'UnknownError' },
+    );
+  });
+
   it('refreshes a token near expiry and persists the replacement', async () => {
     const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
     const refreshed = makeToken({
       accessToken: 'refreshed-access-token',
+      expiresAt: Date.now() + 90_000,
       refreshToken: 'rotated-refresh-token',
     });
     storedToken = expiredSoon;

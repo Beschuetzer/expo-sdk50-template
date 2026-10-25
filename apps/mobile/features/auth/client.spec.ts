@@ -358,6 +358,18 @@ describe('auth client', () => {
     ).rejects.toThrow('Token revocation failed with HTTP 503');
   });
 
+  it('uses the provider description for native revocation errors', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(makeResponse({ error_description: 'Revoked' }, 503));
+
+    await expect(
+      revokeRefreshToken('refresh-token', {
+        revocationEndpoint: 'https://identity.example.com/revoke',
+      }),
+    ).rejects.toThrow('Revoked');
+  });
+
   it('sends the bearer token to the authenticated endpoint', async () => {
     const fetchSpy = jest
       .spyOn(global, 'fetch')

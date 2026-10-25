@@ -250,6 +250,45 @@ describe('authenticated request client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('does not retry a native request when token refresh returns no token', async () => {
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(currentToken)
+      .mockResolvedValueOnce(null);
+    fetchMock.mockResolvedValueOnce(
+      makeResponse(401, { message: 'Token expired' }),
+    );
+
+    await expect(
+      requestAuthenticatedJson('/api/v1/me'),
+    ).rejects.toMatchObject({
+      message: 'Token expired',
+      name: 'AuthenticatedRequestError',
+      statusCode: 401,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh when the platform changes before a web 401 is handled', async () => {
+    setPlatformOs('web');
+    fetchMock.mockImplementationOnce(async () => {
+      setPlatformOs('android');
+      return makeResponse(401, { message: 'Session expired' });
+    });
+
+    await expect(
+      requestAuthenticatedJson('/api/v1/me'),
+    ).rejects.toMatchObject({
+      message: 'Session expired',
+      name: 'AuthenticatedRequestError',
+      statusCode: 401,
+    });
+
+    expect(getValidAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the fallback message for an unsuccessful empty response', async () => {
     jest.mocked(getValidAccessToken).mockResolvedValueOnce(currentToken);
     fetchMock.mockResolvedValueOnce({
