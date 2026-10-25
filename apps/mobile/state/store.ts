@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
-import devToolsEnhancer from 'redux-devtools-expo-dev-plugin';
 import { persistStore, persistReducer } from 'redux-persist';
 
 import generalReducer, { generalSlice } from '@/state/slices/generalSlice';
@@ -38,10 +37,13 @@ const REDUX_PERSIST_IGNORE_ACTIONS = [
 export const store = configureStore({
   reducer: persistedReducer,
   devTools: false,
-  enhancers: (getDefaultEnhancers) =>
-    __DEV__
-      ? getDefaultEnhancers().concat(devToolsEnhancer())
-      : getDefaultEnhancers(),
+  enhancers: (getDefaultEnhancers) => {
+    const enhancers = getDefaultEnhancers();
+    if (!__DEV__) return enhancers;
+
+    const devToolsEnhancer = require('redux-devtools-expo-dev-plugin').default;
+    return enhancers.concat(devToolsEnhancer());
+  },
   middleware: (getDefaultMiddleware) => {
     return getDefaultMiddleware({
       serializableCheck: {
