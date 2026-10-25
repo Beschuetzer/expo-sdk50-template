@@ -1,4 +1,5 @@
 /* global __dirname */
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { stdin: input, stdout: output } = require('node:process');
@@ -14,6 +15,7 @@ const sharedTypesPackagePath = path.join(
   'package.json',
 );
 const mobileAppConfigPath = path.join(root, 'apps', 'mobile', 'app.json');
+const mobileRoot = path.dirname(mobileAppConfigPath);
 const easConfigPath = path.join(root, 'apps', 'mobile', 'eas.json');
 const apiEnvPath = path.join(root, 'apps', 'api', '.env');
 const apiEnvExamplePath = path.join(root, 'apps', 'api', '.env.example');
@@ -30,6 +32,51 @@ const sharedTypesReferenceFiles = [
   path.join(root, 'README.md'),
 ];
 const templateSharedTypesName = '@expo-50sdk-template/shared-types';
+const EAS_PROJECT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidEasProjectId(projectId) {
+  return (
+    typeof projectId === 'string' && EAS_PROJECT_ID_PATTERN.test(projectId)
+  );
+}
+
+function ensureEasProject() {
+  const appConfig = JSON.parse(fs.readFileSync(mobileAppConfigPath, 'utf8'));
+  const projectId = appConfig.expo.extra?.eas?.projectId;
+  if (isValidEasProjectId(projectId)) {
+    return projectId;
+  }
+
+  console.log('\nCreate or link the EAS project for this app:');
+  const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  const result = spawnSync(command, ['--yes', 'eas-cli@latest', 'init'], {
+    cwd: mobileRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  if (result.error) {
+    throw new Error(
+      `Unable to start EAS project initialization: ${result.error.message}`,
+    );
+  }
+  if (result.status !== 0) {
+    throw new Error('EAS project initialization failed.');
+  }
+
+  const updatedConfig = JSON.parse(
+    fs.readFileSync(mobileAppConfigPath, 'utf8'),
+  );
+  const initializedProjectId = updatedConfig.expo.extra?.eas?.projectId;
+  if (!isValidEasProjectId(initializedProjectId)) {
+    throw new Error(
+      'EAS did not write a valid project ID to apps/mobile/app.json.',
+    );
+  }
+
+  return initializedProjectId;
+}
 
 function slugify(value) {
   return value
@@ -194,11 +241,6 @@ async function main() {
     );
     const androidPackage = await ask(rl, 'Android package', bundleIdentifier);
     const scheme = await ask(rl, 'Deep-link scheme', identifier);
-    const easProjectId = await ask(
-      rl,
-      'EAS project ID (leave placeholder if not created yet)',
-      'REPLACE_WITH_YOUR_EAS_PROJECT_ID',
-    );
     const apiUrl = await ask(
       rl,
       'Deployed API URL',
@@ -220,7 +262,10 @@ async function main() {
       config.expo.scheme = scheme;
       config.expo.ios.bundleIdentifier = bundleIdentifier;
       config.expo.android.package = androidPackage;
-      config.expo.extra.eas.projectId = easProjectId;
+      const easProjectId = config.expo.extra?.eas?.projectId;
+      if (!isValidEasProjectId(easProjectId)) {
+        delete config.expo.extra?.eas?.projectId;
+      }
     });
 
     updatePackageNames(mongoName, sharedTypesName);
@@ -246,16 +291,14 @@ async function main() {
     setEnvValue(apiEnvPath, 'AUTH_ISSUER_BASE_URL', normalizedIssuerUrl);
     setEnvValue(apiEnvPath, 'AUTH_AUDIENCE', audience);
 
+    rl.close();
+    const easProjectId = ensureEasProject();
+
     console.log('\nInitialized mobile deployment configuration.');
     console.log(`- Expo slug: ${slug}`);
     console.log(`- Bundle/package identity: ${bundleIdentifier}`);
     console.log(`- EAS project: ${easProjectId}`);
     if (createdApiEnv) console.log('- Created apps/api/.env from its example.');
-    if (easProjectId === 'REPLACE_WITH_YOUR_EAS_PROJECT_ID') {
-      console.log(
-        'Next: create an EAS project and replace the placeholder ID.',
-      );
-    }
     console.log(
       'Secrets and production provider credentials still need to be configured.',
     );
