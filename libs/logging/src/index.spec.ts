@@ -47,6 +47,26 @@ test('redacts secret fields and sensitive values nested in objects', () => {
   assert.match(output, /\[REDACTED_EMAIL\]/);
 });
 
+test('redacts BFF access, ID, and refresh token fields', () => {
+  const entries: LogEntry[] = [];
+  const logger = createLogger({
+    level: 'debug',
+    service: 'test',
+    sink: (entry) => entries.push(entry),
+  });
+
+  logger.info('auth_event', {
+    bff_access_token: 'bff-access-secret',
+    bff_id_token: 'bff-id-secret',
+    bff_refresh_token: 'bff-refresh-secret',
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].bff_access_token, '[REDACTED]');
+  assert.equal(entries[0].bff_id_token, '[REDACTED]');
+  assert.equal(entries[0].bff_refresh_token, '[REDACTED]');
+});
+
 test('handles circular values and errors without throwing', () => {
   const entries: LogEntry[] = [];
   const logger = createLogger({

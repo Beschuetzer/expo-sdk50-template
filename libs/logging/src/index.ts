@@ -33,7 +33,7 @@ const levelPriority: Record<Exclude<LogLevel, 'silent'>, number> = {
 };
 
 const sensitiveKeyPattern =
-  /^(?:access_?token|id_?token|refresh_?token|token|authorization|cookie|set_cookie|client_secret|secret|password|passwd|credential|credentials|code|code_verifier|nonce|state|email|phone|subject|user_id|userid|session_id|sessionid|api_key|private_key|signature)$/i;
+  /^(?:(?:bff_)?(?:access_?token|id_?token|refresh_?token)|token|authorization|cookie|set_cookie|client_secret|secret|password|passwd|credential|credentials|code|code_verifier|nonce|state|email|phone|subject|user_id|userid|session_id|sessionid|api_key|private_key|signature)$/i;
 
 const secretTextPattern =
   /(^|[^a-z0-9])((?:access[_-]?token|id[_-]?token|refresh[_-]?token|token|code[_-]?verifier|client[_-]?secret|password|authorization|cookie|code))=([^&\s]+)/gi;
