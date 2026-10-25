@@ -9,7 +9,7 @@
         "command": "npx tsc -p tsconfig.build.json",
         "cwd": "libs/logging"
       },
-      "outputs": ["{workspaceRoot}/dist/libs/logging"]
+      "outputs": ["{projectRoot}/dist"]
     },
     "typecheck": {
       "executor": "nx:run-commands",

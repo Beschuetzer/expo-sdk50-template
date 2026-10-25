@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": false,
     "declaration": true,
-    "outDir": "../../dist/libs/logging",
+    "outDir": "./dist",
     "rootDir": "./src"
   }
 }
