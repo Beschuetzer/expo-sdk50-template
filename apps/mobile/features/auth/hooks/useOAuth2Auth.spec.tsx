@@ -369,6 +369,25 @@ describe('useOAuth2AuthState', () => {
     expect(authenticatedAction).toHaveBeenCalledWith(storedToken.accessToken);
   });
 
+  it('stops a protected action when the current session disappears', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    const auth = await renderAuth();
+    const authenticatedAction = jest.fn(async () => undefined);
+    mockGetValidAccessToken.mockResolvedValueOnce(null);
+
+    let completed = true;
+    await act(async () => {
+      completed = await auth().callAuthenticatedEndpoint(authenticatedAction);
+      await flushPromises();
+    });
+
+    expect(completed).toBe(false);
+    expect(authenticatedAction).not.toHaveBeenCalled();
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+    expect(auth().state).toBe('idle');
+  });
+
   it('propagates protected-action failures and marks auth state as error', async () => {
     const actionError = new Error('protected action failed');
     mockLoadAccessToken
@@ -529,6 +548,26 @@ describe('useOAuth2AuthState', () => {
     expect(authenticatedAction).toHaveBeenCalledWith(
       refreshedToken.accessToken,
     );
+  });
+
+  it('stops a pending action when the session disappears after sign-in', async () => {
+    mockGetValidAccessToken.mockResolvedValueOnce(null);
+    mockPromptResponse = {
+      type: 'success',
+      url: 'oauth-test-scheme://oauth/callback?code=auth-code&state=test-state',
+      params: { code: 'auth-code', state: 'test-state' },
+    };
+    const auth = await renderAuth();
+    const authenticatedAction = jest.fn(
+      async (accessToken: string) => accessToken,
+    );
+
+    await completePrompt(auth, mockPromptResponse, authenticatedAction);
+
+    expect(authenticatedAction).not.toHaveBeenCalled();
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+    expect(auth().state).toBe('idle');
   });
 
   it('marks auth state as error when a pending action rejects', async () => {

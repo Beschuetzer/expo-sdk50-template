@@ -350,7 +350,13 @@ export function useOAuth2AuthState() {
         if (pendingAction) {
           try {
             const latestToken = await getValidAccessToken();
-            await pendingAction(latestToken?.accessToken ?? token.accessToken);
+            if (!latestToken) {
+              setIsAuthenticated(false);
+              setUser(null);
+              setState('idle');
+              return;
+            }
+            await pendingAction(latestToken.accessToken);
           } catch (error) {
             logError('authenticated_action_failed', {
               errorName: error instanceof Error ? error.name : 'UnknownError',
@@ -430,11 +436,16 @@ export function useOAuth2AuthState() {
       }
 
       const currentToken = await getValidAccessToken();
-      const accessToken = currentToken?.accessToken ?? storedToken.accessToken;
+      if (!currentToken) {
+        setIsAuthenticated(false);
+        setUser(null);
+        setState('idle');
+        return false;
+      }
       setUser(authenticatedUser);
       setState('success');
       if (authenticatedAction) {
-        await authenticatedAction(accessToken);
+        await authenticatedAction(currentToken.accessToken);
       }
       logInfo('authenticated_action_succeeded');
       return true;
