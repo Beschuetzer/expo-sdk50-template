@@ -56,6 +56,20 @@ describe('generalSlice', () => {
     ]);
   });
 
+  it('ignores missing setError payloads and handles missing setErrors state', () => {
+    const unchangedState = reducer(
+      { errors: [{ message: 'Existing error' }] },
+      setError(null as any),
+    );
+    expect(unchangedState.errors).toEqual([{ message: 'Existing error' }]);
+
+    const resetState = reducer(
+      { errors: undefined } as any,
+      setErrors(null as any),
+    );
+    expect(resetState.errors).toEqual([]);
+  });
+
   it('resets errors back to the initial empty list', () => {
     const nextState = reducer(
       { errors: [{ message: 'Previous issue' }] },

@@ -14,6 +14,10 @@ describe('formatAccessTokenTtl', () => {
     expect(formatAccessTokenTtl(0, 1, translate)).toBe('Expired');
   });
 
+  it('omits zero-valued time units', () => {
+    expect(formatAccessTokenTtl(60_000, 0, translate)).toBe('1m');
+  });
+
   it('reports an unavailable lifetime for invalid timestamps', () => {
     expect(formatAccessTokenTtl(Number.NaN, 0, translate)).toBe('Unavailable');
   });

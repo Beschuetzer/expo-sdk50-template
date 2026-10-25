@@ -33,7 +33,7 @@ let mockDiscovery: {
   authorizationEndpoint: 'https://identity.example.com/authorize',
   tokenEndpoint: 'https://identity.example.com/token',
 };
-let mockDiscoveryError: Error | null = null;
+let mockDiscoveryError: unknown = null;
 let mockPromptResponse: unknown = { type: 'cancel' };
 let mockNonceCounter = 0;
 let mockAuthRequestReady = true;
@@ -407,6 +407,21 @@ describe('useOAuth2AuthState', () => {
     expect(auth().state).toBe('error');
   });
 
+  it('propagates non-Error protected-action failures', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    const auth = await renderAuth();
+    const actionError = 'protected action failed';
+
+    await act(async () => {
+      await expect(
+        auth().callAuthenticatedEndpoint(async () => Promise.reject(actionError)),
+      ).rejects.toBe(actionError);
+      await flushPromises();
+    });
+
+    expect(auth().state).toBe('error');
+  });
+
   it('does not retry startup profile failures in the auth hook', async () => {
     mockLoadAccessToken.mockResolvedValue(storedToken);
     mockGetAuthenticatedUser.mockRejectedValueOnce(new Error('expired token'));
@@ -417,6 +432,16 @@ describe('useOAuth2AuthState', () => {
     expect(auth().state).toBe('error');
     expect(auth().isAuthenticated).toBe(false);
     expect(auth().user).toBeNull();
+  });
+
+  it('handles non-Error startup profile failures', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    mockGetAuthenticatedUser.mockRejectedValueOnce('profile request failed');
+
+    const auth = await renderAuth();
+
+    expect(auth().state).toBe('error');
+    expect(auth().isAuthenticated).toBe(false);
   });
 
   it('serializes foreground auth while the startup profile request is pending', async () => {
@@ -631,6 +656,21 @@ describe('useOAuth2AuthState', () => {
     expect(auth().isAuthenticated).toBe(false);
   });
 
+  it('handles non-Error authorization-code exchange failures', async () => {
+    mockExchangeAuthorizationCode.mockRejectedValueOnce('exchange rejected');
+    mockPromptResponse = {
+      type: 'success',
+      url: 'oauth-test-scheme://oauth/callback?code=auth-code&state=test-state',
+      params: { code: 'auth-code', state: 'test-state' },
+    };
+    const auth = await renderAuth();
+
+    await completePrompt(auth);
+
+    expect(auth().state).toBe('error');
+    expect(auth().isAuthenticated).toBe(false);
+  });
+
   it('keeps an authenticated session when the profile request fails after login', async () => {
     mockGetAuthenticatedUser.mockRejectedValueOnce(
       new Error('profile request failed'),
@@ -662,6 +702,18 @@ describe('useOAuth2AuthState', () => {
     expect(mockPromptAsync).not.toHaveBeenCalled();
   });
 
+  it('handles non-Error browser prompt failures', async () => {
+    mockPromptAsync.mockRejectedValueOnce('browser prompt failed');
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await auth().callAuthenticatedEndpoint();
+      await flushPromises();
+    });
+
+    expect(auth().state).toBe('error');
+  });
+
   it('reports discovery failures and retries OAuth setup', async () => {
     mockDiscoveryError = new Error('network request failed');
     const auth = await renderAuth();
@@ -683,6 +735,18 @@ describe('useOAuth2AuthState', () => {
 
     expect(auth().isReady).toBe(true);
     expect(auth().hasSetupError).toBe(false);
+  });
+
+  it('reports non-Error discovery failures', async () => {
+    mockDiscoveryError = 'network request failed';
+
+    const auth = await renderAuth();
+
+    expect(auth().hasSetupError).toBe(true);
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      'oauth_discovery_failed',
+      expect.objectContaining({ errorName: 'UnknownError' }),
+    );
   });
 
   it('uses a stored access token to load the authenticated user', async () => {
@@ -964,6 +1028,20 @@ describe('useOAuth2AuthState', () => {
     expect(auth().state).toBe('error');
   });
 
+  it('handles non-Error session refresh failures', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    const auth = await renderAuth();
+    mockGetValidAccessToken.mockRejectedValueOnce('refresh failed');
+
+    await act(async () => {
+      await expect(auth().refreshAuthenticatedSession()).rejects.toBe(
+        'refresh failed',
+      );
+    });
+
+    expect(auth().state).toBe('error');
+  });
+
   it('requires sign-in when a refresh outcome is unknown', async () => {
     mockLoadAccessToken
       .mockResolvedValueOnce(null)
@@ -1064,6 +1142,28 @@ describe('useOAuth2AuthState', () => {
     );
     expect(auth().state).toBe('idle');
     expect(auth().isAuthenticated).toBe(false);
+  });
+
+  it('resets after cancel and error callback responses without a request state', async () => {
+    mockRequestState = '';
+    const auth = await renderAuth();
+
+    for (const response of [
+      { type: 'cancel' },
+      { type: 'error', url: 'oauth-test-scheme://callback?error=denied' },
+    ]) {
+      await act(async () => {
+        mockSetAuthResponse?.(response);
+        await flushPromises();
+      });
+      await act(async () => {
+        await auth().resetAuthentication();
+        await flushPromises();
+      });
+    }
+
+    expect(auth().state).toBe('idle');
+    expect(mockClearAuthenticatedSession).toHaveBeenCalledTimes(2);
   });
 
   it('resets locally on Android when token loading fails', async () => {

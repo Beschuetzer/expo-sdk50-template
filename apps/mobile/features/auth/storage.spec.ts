@@ -112,6 +112,28 @@ describe('access-token storage', () => {
     );
   });
 
+  it('clears records with invalid required token fields', async () => {
+    const invalidTokens: unknown[] = [
+      false,
+      { ...token, accessToken: 123 },
+      { ...token, tokenType: 'MAC' },
+      { ...token, scope: 123 },
+      { ...token, expiresAt: 'later' },
+    ];
+
+    for (const invalidToken of invalidTokens) {
+      jest
+        .mocked(SecureStore.getItemAsync)
+        .mockResolvedValueOnce(JSON.stringify(invalidToken));
+
+      await expect(loadAccessToken()).resolves.toBeNull();
+    }
+
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(
+      invalidTokens.length * 2,
+    );
+  });
+
   it('retains an expired access token when a refresh token is available', async () => {
     jest.mocked(SecureStore.getItemAsync).mockResolvedValue(
       JSON.stringify({
@@ -195,6 +217,26 @@ describe('access-token storage', () => {
     await expect(loadAccessToken()).resolves.toBeNull();
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it('passes cancellation to web session reads', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    const signal = new AbortController().signal;
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: true } as Response);
+
+    await expect(loadAccessToken({ signal })).resolves.toMatchObject({
+      accessToken: '',
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:4200/auth/session',
+      expect.objectContaining({ credentials: 'include', signal }),
+    );
   });
 
   it('clears cookies after a pending web refresh applies its response cookies', async () => {
@@ -619,5 +661,46 @@ describe('access-token storage', () => {
     await expect(commit).resolves.toBe(false);
     await replacement;
     await expect(loadAccessToken()).resolves.toEqual(replacementToken);
+  });
+
+  it('skips refresh commits without a current token or matching session', async () => {
+    const refreshedToken = {
+      ...token,
+      accessToken: 'refreshed-access-token',
+    };
+    const initialRevision = getAccessTokenSessionRevision();
+
+    await expect(
+      persistRefreshedAccessTokenIfCurrent(
+        refreshedToken,
+        token,
+        initialRevision,
+      ),
+    ).resolves.toBe(false);
+
+    await saveAccessToken(token);
+    const currentRevision = getAccessTokenSessionRevision();
+
+    await expect(
+      persistRefreshedAccessTokenIfCurrent(
+        refreshedToken,
+        { ...token, accessToken: 'different-access-token' },
+        currentRevision,
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      persistRefreshedAccessTokenIfCurrent(
+        refreshedToken,
+        { ...token, refreshToken: 'different-refresh-token' },
+        currentRevision,
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      persistRefreshedAccessTokenIfCurrent(
+        refreshedToken,
+        token,
+        currentRevision - 1,
+      ),
+    ).resolves.toBe(false);
   });
 });

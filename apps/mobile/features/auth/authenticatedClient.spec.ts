@@ -107,6 +107,21 @@ describe('authenticated request client', () => {
     ).toBe(`Bearer ${refreshedToken.accessToken}`);
   });
 
+  it('does not retry when a 401 refresh returns the same access token', async () => {
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(currentToken)
+      .mockResolvedValueOnce(currentToken);
+    fetchMock.mockResolvedValueOnce(makeResponse(401, { message: 'Expired' }));
+
+    await expect(
+      requestAuthenticatedJson('/api/v1/me'),
+    ).rejects.toMatchObject({ statusCode: 401, message: 'Expired' });
+
+    expect(getValidAccessToken).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('skips web session lookup and refreshes with cookies after a 401', async () => {
     setPlatformOs('web');
     jest.mocked(getValidAccessToken).mockResolvedValueOnce(webSessionToken);
