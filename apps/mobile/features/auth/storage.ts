@@ -231,14 +231,19 @@ export function isAccessTokenExpiring(token: StoredAccessToken) {
   return token.expiresAt <= Date.now() + EXPIRY_SAFETY_WINDOW_MS;
 }
 
-async function loadAccessTokenUnlocked(signal?: AbortSignal) {
+async function loadAccessTokenUnlocked(
+  signal: AbortSignal | undefined,
+  expectedRevision: number,
+) {
   throwIfAborted(signal);
+  if (tokenSessionRevision !== expectedRevision) return null;
   if (Platform.OS === 'web') {
     const response = await fetch(`${getBackendUrl()}/auth/session`, {
       credentials: 'include',
       ...(signal ? { signal } : {}),
     });
     throwIfAborted(signal);
+    if (tokenSessionRevision !== expectedRevision) return null;
     return response.ok ? webSessionToken : null;
   }
 
@@ -246,11 +251,13 @@ async function loadAccessTokenUnlocked(signal?: AbortSignal) {
     throw new Error('Secure storage is unavailable on this device.');
   }
   throwIfAborted(signal);
+  if (tokenSessionRevision !== expectedRevision) return null;
 
   const serializedToken = await SecureStore.getItemAsync(
     ACCESS_TOKEN_STORAGE_KEY,
   );
   throwIfAborted(signal);
+  if (tokenSessionRevision !== expectedRevision) return null;
   if (!serializedToken) return null;
 
   try {
@@ -297,12 +304,14 @@ async function loadAccessTokenUnlocked(signal?: AbortSignal) {
     ) {
       const idToken = await SecureStore.getItemAsync(ID_TOKEN_STORAGE_KEY);
       throwIfAborted(signal);
+      if (tokenSessionRevision !== expectedRevision) return null;
       const { storageVersion: _storageVersion, ...storedToken } = parsedToken;
       return idToken ? { ...storedToken, idToken } : storedToken;
     }
     return parsedToken;
   } catch {
     if (signal?.aborted) throwIfAborted(signal);
+    if (tokenSessionRevision !== expectedRevision) return null;
     const revision = advanceTokenSessionRevision();
     const intent = setTokenStorageIntent(revision, null);
     await clearAccessTokenUnlocked(
@@ -482,7 +491,7 @@ export function loadAccessToken(options: { signal?: AbortSignal } = {}) {
   const requestedRevision = tokenSessionRevision;
   const load = async (signal?: AbortSignal) => {
     throwIfAborted(signal);
-    const token = await loadAccessTokenUnlocked(signal);
+    const token = await loadAccessTokenUnlocked(signal, requestedRevision);
     if (requestedRevision !== tokenSessionRevision) return null;
     return resolveTokenStorageIntent(token, requestedRevision);
   };
@@ -519,7 +528,10 @@ export function persistRefreshedAccessTokenIfCurrent(
 ): Promise<boolean> {
   return serializeAccessTokenOperation(async (operationSignal) => {
     throwIfAborted(operationSignal);
-    const currentToken = await loadAccessTokenUnlocked(operationSignal);
+    const currentToken = await loadAccessTokenUnlocked(
+      operationSignal,
+      expectedRevision,
+    );
     if (!currentToken) return false;
     if (
       currentToken.accessToken !== originalToken.accessToken ||

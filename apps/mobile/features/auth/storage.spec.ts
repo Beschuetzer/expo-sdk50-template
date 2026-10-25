@@ -83,6 +83,89 @@ describe('access-token storage', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 
+  it('skips a native read that is already stale when it leaves the queue', async () => {
+    const read = loadAccessToken();
+    const newerToken = {
+      ...token,
+      accessToken: 'new-sign-in-access-token',
+      refreshToken: 'new-sign-in-refresh-token',
+    };
+    const save = saveAccessToken(newerToken);
+
+    await expect(read).resolves.toBeNull();
+    await expect(save).resolves.toBeUndefined();
+    expect(SecureStore.getItemAsync).not.toHaveBeenCalled();
+    await expect(loadAccessToken()).resolves.toEqual(newerToken);
+  });
+
+  it('skips a native read when a sign-in supersedes it during availability checks', async () => {
+    let resolveAvailability!: (available: boolean) => void;
+    jest.mocked(SecureStore.isAvailableAsync).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAvailability = resolve;
+        }),
+    );
+
+    const read = loadAccessToken();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resolveAvailability).toBeDefined();
+
+    const newerToken = {
+      ...token,
+      accessToken: 'new-sign-in-access-token',
+      refreshToken: 'new-sign-in-refresh-token',
+    };
+    const save = saveAccessToken(newerToken);
+    resolveAvailability(true);
+
+    await expect(read).resolves.toBeNull();
+    await expect(save).resolves.toBeUndefined();
+    expect(SecureStore.getItemAsync).not.toHaveBeenCalled();
+    await expect(loadAccessToken()).resolves.toEqual(newerToken);
+  });
+
+  it.each([
+    ['malformed token data', '{not-json'],
+    [
+      'an expired token without a refresh credential',
+      JSON.stringify({ ...token, expiresAt: Date.now() - 1 }),
+    ],
+  ])(
+    'does not let a stale %s read clear a queued newer sign-in',
+    async (_caseName, storedValue) => {
+      let resolveTokenRead!: (value: string | null) => void;
+      jest
+        .mocked(SecureStore.getItemAsync)
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveTokenRead = resolve;
+            }),
+        );
+
+      const read = loadAccessToken();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(resolveTokenRead).toBeDefined();
+
+      const newerToken = {
+        ...token,
+        accessToken: 'new-sign-in-access-token',
+        refreshToken: 'new-sign-in-refresh-token',
+      };
+      const save = saveAccessToken(newerToken);
+      resolveTokenRead(storedValue);
+
+      await expect(read).resolves.toBeNull();
+      await expect(save).resolves.toBeUndefined();
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(1);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+        'expo50sdktemplate.oauth.id-token',
+      );
+      await expect(loadAccessToken()).resolves.toEqual(newerToken);
+    },
+  );
+
   it('clears expired tokens', async () => {
     jest
       .mocked(SecureStore.getItemAsync)
@@ -180,6 +263,43 @@ describe('access-token storage', () => {
       .mockResolvedValueOnce(null);
 
     await expect(loadAccessToken()).resolves.toEqual(token);
+  });
+
+  it('does not return an ID token read after a newer sign-in starts', async () => {
+    const accessTokenKey = 'expo50sdktemplate.oauth.access-token';
+    const idTokenKey = 'expo50sdktemplate.oauth.id-token';
+    secureStoreValues.set(
+      accessTokenKey,
+      JSON.stringify({ ...token, storageVersion: 2 }),
+    );
+    secureStoreValues.set(idTokenKey, 'old-id-token');
+    let resolveIdTokenRead!: (idToken: string | null) => void;
+    let shouldStallIdTokenRead = true;
+    jest.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
+      if (key === idTokenKey && shouldStallIdTokenRead) {
+        shouldStallIdTokenRead = false;
+        return new Promise((resolve) => {
+          resolveIdTokenRead = resolve;
+        });
+      }
+      return secureStoreValues.get(key) ?? null;
+    });
+
+    const read = loadAccessToken();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resolveIdTokenRead).toBeDefined();
+
+    const newerToken = {
+      ...token,
+      accessToken: 'new-sign-in-access-token',
+      refreshToken: 'new-sign-in-refresh-token',
+    };
+    const save = saveAccessToken(newerToken);
+    resolveIdTokenRead('old-id-token');
+
+    await expect(read).resolves.toBeNull();
+    await expect(save).resolves.toBeUndefined();
+    await expect(loadAccessToken()).resolves.toEqual(newerToken);
   });
 
   it('returns null for expired web tokens and clears them', async () => {
