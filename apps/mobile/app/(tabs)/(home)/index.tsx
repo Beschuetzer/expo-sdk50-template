@@ -1,7 +1,8 @@
 import type { HealthResponse } from '@expo-50sdk-template/shared-types';
 import { HStack, VStack } from '@gluestack-ui/themed';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 import {
   BarcodeScanner,
@@ -18,6 +19,8 @@ import {
 } from '@/components/ui/ThemeAwareText';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
+import { loadAccessToken } from '@/features/auth/storage';
+import { formatAccessTokenTtl } from '@/features/auth/tokenTtl';
 import { createRandomExample } from '@/features/backend/api';
 import {
   backendHealthQueryKey,
@@ -30,6 +33,59 @@ import {
 } from '@/state/slices/generalSlice';
 import { useAppDispatch } from '@/state/store';
 import { useI18n, type TranslationKey } from '@/utils/i18n';
+
+function AccessTokenTtl({ authState }: { authState: string }) {
+  const { t } = useI18n();
+  const [expiresAt, setExpiresAt] = useState<number | null | undefined>(
+    undefined,
+  );
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      setExpiresAt(null);
+      return undefined;
+    }
+
+    let isCurrent = true;
+    setExpiresAt(undefined);
+    loadAccessToken()
+      .then((token) => {
+        if (!isCurrent) return;
+        setExpiresAt(token?.expiresAt ?? null);
+        setNow(Date.now());
+      })
+      .catch(() => {
+        if (isCurrent) setExpiresAt(null);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [authState]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const ttl =
+    Platform.OS === 'web'
+      ? t('home.accessTokenTtlWebUnavailable')
+      : expiresAt === undefined
+        ? t('common.loading')
+        : expiresAt === null
+          ? t('home.accessTokenTtlUnavailable')
+          : formatAccessTokenTtl(expiresAt, now, t);
+
+  return (
+    <ThemeAwareText>
+      {t('home.accessTokenTtl')}: {ttl}
+    </ThemeAwareText>
+  );
+}
 
 /*
  * The home screen intentionally uses FlashList even for this small starter
@@ -403,6 +459,7 @@ export default function HomeScreen() {
             {authenticatedUser.subject ?? 'Authenticated user'}
           </ThemeAwareText>
         ) : null}
+        {authenticatedUser ? <AccessTokenTtl authState={authState} /> : null}
       </VStack>
     </ThemeAwareScreen>
   );
