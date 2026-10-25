@@ -157,11 +157,13 @@ export function getAccessTokenSessionRevision() {
 
 export function loadAccessToken(options: { signal?: AbortSignal } = {}) {
   const requestedRevision = tokenSessionRevision;
-  return serializeAccessTokenOperation(async () => {
+  const load = async () => {
     throwIfAborted(options.signal);
     const token = await loadAccessTokenUnlocked(options.signal);
     return requestedRevision === tokenSessionRevision ? token : null;
-  });
+  };
+
+  return Platform.OS === 'web' ? load() : serializeAccessTokenOperation(load);
 }
 
 export function saveAccessToken(token: StoredAccessToken) {

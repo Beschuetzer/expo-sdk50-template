@@ -186,6 +186,50 @@ describe('access-token storage', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 
+  it('does not block web reads or clearing behind a stalled session probe', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+
+    let resolveSessionProbe!: (response: Response) => void;
+    let sessionProbeCount = 0;
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input) => {
+      if (String(input).endsWith('/auth/session')) {
+        sessionProbeCount += 1;
+        if (sessionProbeCount > 1) {
+          return Promise.resolve({ ok: true } as Response);
+        }
+        return new Promise((resolve) => {
+          resolveSessionProbe = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    const sessionProbe = loadAccessToken();
+    const clearing = clearAccessToken();
+    const laterLookup = loadAccessToken();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const logoutStartedBeforeProbeCompleted = fetchSpy.mock.calls.some(
+      ([input]) => String(input).endsWith('/auth/logout'),
+    );
+    const laterLookupStartedBeforeProbeCompleted = sessionProbeCount === 2;
+
+    resolveSessionProbe({ ok: true } as Response);
+    await expect(sessionProbe).resolves.toBeNull();
+    await expect(laterLookup).resolves.toEqual({
+      accessToken: '',
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      scope: '',
+      tokenType: 'Bearer',
+    });
+    await clearing;
+
+    expect(logoutStartedBeforeProbeCompleted).toBe(true);
+    expect(laterLookupStartedBeforeProbeCompleted).toBe(true);
+  });
+
   it('fails when secure storage is unavailable', async () => {
     jest.mocked(SecureStore.isAvailableAsync).mockResolvedValue(false);
 
