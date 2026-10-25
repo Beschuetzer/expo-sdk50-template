@@ -108,8 +108,7 @@ light and dark mode behavior stays consistent across screens.
 
 ## Local Development
 
-Use Node.js 26 for this workspace. The required range is `>=26.0.0 <27` and
-the major version is pinned in `.nvmrc`.
+Use Node.js 20.12.0+, 21, 22, or 23 for this workspace. The required range is `>=20.12.0 <23`.
 
 Install dependencies once:
 

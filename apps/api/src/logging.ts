@@ -8,9 +8,10 @@ import {
 let logger: Logger | undefined;
 
 function getLogger(): Logger {
+  const logLevel = parseLogLevel(process.env.LOG_LEVEL, 'info');
   if (!logger) {
     logger = createLogger({
-      level: parseLogLevel(process.env.LOG_LEVEL, 'info'),
+      level: logLevel,
       service: 'api',
     });
   }
