@@ -517,11 +517,19 @@ export function useOAuth2AuthState() {
       });
       throw error;
     } finally {
-      await clearAuthenticatedSession();
-      setIsAuthenticated(false);
-      setUser(null);
-      setState('idle');
-      logInfo('auth_sign_out_completed');
+      try {
+        await clearAuthenticatedSession();
+        logInfo('auth_sign_out_completed');
+      } catch (error) {
+        logWarn('auth_sign_out_failed', {
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
+        throw error;
+      } finally {
+        setIsAuthenticated(false);
+        setUser(null);
+        setState('idle');
+      }
     }
   }
 

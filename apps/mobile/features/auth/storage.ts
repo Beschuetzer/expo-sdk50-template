@@ -242,6 +242,9 @@ export function clearAccessToken() {
 }
 
 export async function clearAuthenticatedSession() {
-  await clearAccessToken();
-  await clearPersistedQueryCache();
+  try {
+    await clearAccessToken();
+  } finally {
+    await clearPersistedQueryCache();
+  }
 }

@@ -3,12 +3,15 @@ import * as SecureStore from 'expo-secure-store';
 import { ApiRequestTimeoutError, AUTH_REQUEST_TIMEOUT_MS } from './errors';
 import {
   clearAccessToken,
+  clearAuthenticatedSession,
   getAccessTokenSessionRevision,
   loadAccessToken,
   persistRefreshedAccessTokenIfCurrent,
   saveAccessToken,
   type StoredAccessToken,
 } from './storage';
+
+import { clearPersistedQueryCache } from '@/state/queryClient';
 
 jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
@@ -20,6 +23,10 @@ jest.mock('expo-secure-store', () => ({
 
 jest.mock('@/utils/helpers', () => ({
   getBackendUrl: jest.fn(() => 'http://localhost:4200'),
+}));
+
+jest.mock('@/state/queryClient', () => ({
+  clearPersistedQueryCache: jest.fn(),
 }));
 
 describe('access-token storage', () => {
@@ -50,6 +57,7 @@ describe('access-token storage', () => {
       secureStoreValues.delete(key);
     });
     jest.mocked(SecureStore.isAvailableAsync).mockResolvedValue(true);
+    jest.mocked(clearPersistedQueryCache).mockResolvedValue(undefined);
   });
 
   it('saves and loads a valid native token', async () => {
@@ -273,6 +281,22 @@ describe('access-token storage', () => {
       await expect(saveAccessToken(token)).resolves.toBeUndefined();
     } finally {
       jest.useRealTimers();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('clears the query cache and propagates web logout failures', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    const logoutError = new Error('logout failed');
+    const fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(logoutError);
+
+    try {
+      await expect(clearAuthenticatedSession()).rejects.toBe(logoutError);
+      expect(clearPersistedQueryCache).toHaveBeenCalledTimes(1);
+    } finally {
       fetchSpy.mockRestore();
     }
   });

@@ -1025,6 +1025,21 @@ describe('useOAuth2AuthState', () => {
     expect(auth().isAuthenticated).toBe(false);
   });
 
+  it('resets local auth state and propagates session cleanup failures on sign out', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    const cleanupError = new Error('logout failed');
+    mockClearAuthenticatedSession.mockRejectedValueOnce(cleanupError);
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await expect(auth().signOut()).rejects.toBe(cleanupError);
+    });
+
+    expect(auth().state).toBe('idle');
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+  });
+
   it('opens provider logout and resets local state', async () => {
     setPlatformOs('ios');
     mockLoadAccessToken.mockResolvedValue(storedToken);
