@@ -3,16 +3,26 @@ import {
   setCrashReporter,
   type CrashReporter,
 } from './diagnostics';
-import { logError } from './logging';
-
-jest.mock('./logging', () => ({
-  logError: jest.fn(),
-}));
 
 describe('diagnostics', () => {
+  let consoleError: jest.SpyInstance;
+
+  function getLoggedEvents(): Record<string, unknown>[] {
+    return consoleError.mock.calls.map((call) => {
+      expect(call).toHaveLength(1);
+      const [output] = call;
+      expect(typeof output).toBe('string');
+      return JSON.parse(output as string) as Record<string, unknown>;
+    });
+  }
+
+  beforeEach(() => {
+    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
   afterEach(() => {
     setCrashReporter(undefined);
-    jest.mocked(logError).mockClear();
+    consoleError.mockRestore();
   });
 
   it('forwards errors and context to the configured crash reporter', () => {
@@ -24,9 +34,15 @@ describe('diagnostics', () => {
     reportDiagnostic(error, context);
 
     expect(reporter).toHaveBeenCalledWith(error, context);
-    expect(logError).toHaveBeenCalledWith(
-      'mobile_diagnostic',
-      expect.objectContaining({ context }),
+    expect(getLoggedEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'mobile_diagnostic',
+          service: 'mobile',
+          level: 'error',
+          context,
+        }),
+      ]),
     );
   });
 
@@ -38,9 +54,19 @@ describe('diagnostics', () => {
     expect(() =>
       reportDiagnostic(new Error('original failure'), {}),
     ).not.toThrow();
-    expect(logError).toHaveBeenCalledWith('crash_reporter_failed', {
-      error: expect.any(Error),
-    });
+    expect(getLoggedEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'crash_reporter_failed',
+          service: 'mobile',
+          level: 'error',
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'reporter failure',
+          }),
+        }),
+      ]),
+    );
   });
 
   it('omits the raw error from production diagnostic logs', () => {
@@ -52,11 +78,15 @@ describe('diagnostics', () => {
     try {
       reportDiagnostic(error, context);
 
-      expect(logError).toHaveBeenCalledWith('mobile_diagnostic', { context });
-      expect(logError).not.toHaveBeenCalledWith('mobile_diagnostic', {
+      const [event] = getLoggedEvents();
+      expect(event).toMatchObject({
+        event: 'mobile_diagnostic',
+        service: 'mobile',
+        level: 'error',
         context,
-        error,
       });
+      expect(event).not.toHaveProperty('error');
+      expect(JSON.stringify(event)).not.toContain('sensitive details');
     } finally {
       if (previousEnvironment === undefined) {
         delete process.env.EXPO_PUBLIC_ENV;
@@ -76,10 +106,18 @@ describe('diagnostics', () => {
       setCrashReporter(undefined);
       reportDiagnostic(error, context);
 
-      expect(logError).toHaveBeenCalledWith('mobile_diagnostic', {
-        context,
-        error,
-      });
+      expect(getLoggedEvents()).toEqual([
+        expect.objectContaining({
+          event: 'mobile_diagnostic',
+          service: 'mobile',
+          level: 'error',
+          context,
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'development failure',
+          }),
+        }),
+      ]);
     } finally {
       if (previousEnvironment === undefined) {
         delete process.env.EXPO_PUBLIC_ENV;
