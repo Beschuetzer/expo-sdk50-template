@@ -1,5 +1,7 @@
+import type { DiscoveryDocument } from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
 
+import { refreshAccessToken } from './client';
 import { ApiRequestTimeoutError, AUTH_REQUEST_TIMEOUT_MS } from './errors';
 import {
   clearAccessToken,
@@ -195,6 +197,71 @@ describe('access-token storage', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 
+  it('clears cookies after a pending web refresh applies its response cookies', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    let cookie = 'original-refresh-cookie';
+    let resolveRefresh!: (response: Response) => void;
+    const requestOrder: string[] = [];
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation((input) => {
+        const url = String(input);
+        if (url.endsWith('/auth/refresh')) {
+          requestOrder.push('refresh-started');
+          return new Promise((resolve) => {
+            resolveRefresh = (response) => {
+              cookie = 'rotated-refresh-cookie';
+              requestOrder.push('refresh-set-cookie');
+              resolve(response);
+            };
+          });
+        }
+        if (url.endsWith('/auth/logout')) {
+          requestOrder.push('logout');
+          cookie = '';
+          return Promise.resolve({ ok: true } as Response);
+        }
+        if (url.endsWith('/auth/session')) {
+          return Promise.resolve({ ok: cookie.length > 0 } as Response);
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      });
+
+    try {
+      const refresh = refreshAccessToken(
+        undefined,
+        {} as DiscoveryDocument,
+      );
+      const clearing = clearAccessToken();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(requestOrder).toEqual(['refresh-started']);
+
+      resolveRefresh({
+        json: async () => ({
+          expires_in: 900,
+          token_type: 'Bearer',
+        }),
+        ok: true,
+      } as Response);
+      await expect(refresh).resolves.toMatchObject({ accessToken: '' });
+      await clearing;
+
+      expect(requestOrder).toEqual([
+        'refresh-started',
+        'refresh-set-cookie',
+        'logout',
+      ]);
+      expect(cookie).toBe('');
+      await expect(loadAccessToken()).resolves.toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it('skips a queued web logout when a newer session is saved', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
@@ -343,6 +410,122 @@ describe('access-token storage', () => {
 
     expect(logoutStartedBeforeProbeCompleted).toBe(true);
     expect(laterLookupStartedBeforeProbeCompleted).toBe(true);
+  });
+
+  it('releases the native storage queue when a read is aborted', async () => {
+    const controller = new AbortController();
+    let resolveSessionRead!: (value: string | null) => void;
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSessionRead = resolve;
+          }),
+      );
+
+    const lookup = loadAccessToken({ signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resolveSessionRead).toBeDefined();
+
+    controller.abort();
+    await expect(lookup).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(clearAccessToken()).resolves.toBeUndefined();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'expo50sdktemplate.oauth.access-token',
+    );
+
+    resolveSessionRead(JSON.stringify(token));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(loadAccessToken()).resolves.toBeNull();
+  });
+
+  it('bounds a stalled native read so queued cleanup can run', async () => {
+    jest.useFakeTimers();
+    let resolveSessionRead!: (value: string | null) => void;
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSessionRead = resolve;
+          }),
+      );
+
+    try {
+      const lookup = loadAccessToken();
+      const timedOut = expect(lookup).rejects.toBeInstanceOf(
+        ApiRequestTimeoutError,
+      );
+      await jest.advanceTimersByTimeAsync(0);
+      expect(resolveSessionRead).toBeDefined();
+
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+      await timedOut;
+      await expect(clearAccessToken()).resolves.toBeUndefined();
+
+      resolveSessionRead(null);
+      await Promise.resolve();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('repairs late refresh writes without overwriting a new sign-in', async () => {
+    const originalToken = { ...token, refreshToken: 'refresh-token' };
+    const refreshedToken = {
+      ...originalToken,
+      accessToken: 'refreshed-access-token',
+    };
+    const replacementToken = {
+      ...originalToken,
+      accessToken: 'replacement-access-token',
+      refreshToken: 'replacement-refresh-token',
+    };
+    const accessTokenKey = 'expo50sdktemplate.oauth.access-token';
+    secureStoreValues.set(
+      accessTokenKey,
+      JSON.stringify({ ...originalToken, storageVersion: 2 }),
+    );
+
+    const controller = new AbortController();
+    let resolveLateWrite!: () => void;
+    jest
+      .mocked(SecureStore.setItemAsync)
+      .mockImplementation(async (key, value) => {
+        if (
+          key === accessTokenKey &&
+          value ===
+            JSON.stringify({ ...refreshedToken, storageVersion: 2 })
+        ) {
+          await new Promise<void>((resolve) => {
+            resolveLateWrite = resolve;
+          });
+        }
+        secureStoreValues.set(key, value);
+      });
+
+    const commit = persistRefreshedAccessTokenIfCurrent(
+      refreshedToken,
+      originalToken,
+      getAccessTokenSessionRevision(),
+      controller.signal,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resolveLateWrite).toBeDefined();
+
+    controller.abort();
+    await expect(commit).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(clearAccessToken()).resolves.toBeUndefined();
+    expect(secureStoreValues.has(accessTokenKey)).toBe(false);
+
+    await expect(saveAccessToken(replacementToken)).resolves.toBeUndefined();
+    resolveLateWrite();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(loadAccessToken()).resolves.toEqual(replacementToken);
+    expect(secureStoreValues.get(accessTokenKey)).toBe(
+      JSON.stringify({ ...replacementToken, storageVersion: 2 }),
+    );
   });
 
   it('fails when secure storage is unavailable', async () => {
