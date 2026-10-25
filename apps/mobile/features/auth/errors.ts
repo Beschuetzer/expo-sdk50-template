@@ -7,6 +7,16 @@ export class ApiRequestTimeoutError extends Error {
   }
 }
 
+export class DefinitiveOAuthRejectionError extends Error {
+  constructor(
+    readonly oauthErrorCode: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'DefinitiveOAuthRejectionError';
+  }
+}
+
 export class RefreshOutcomeUnknownError extends ApiRequestTimeoutError {
   constructor() {
     super();

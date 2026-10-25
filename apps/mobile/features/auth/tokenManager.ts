@@ -10,6 +10,7 @@ import {
 import {
   ApiRequestTimeoutError,
   AUTH_REQUEST_TIMEOUT_MS,
+  DefinitiveOAuthRejectionError,
   RefreshOutcomeUnknownError,
 } from './errors';
 import {
@@ -94,6 +95,12 @@ function recoverRefreshFailure(
   refreshState: RefreshState,
   sessionRevision: number,
 ): unknown {
+  const isDefinitiveOAuthRejection =
+    refreshState.tokenExchangeStarted &&
+    !refreshState.tokenExchangeCompleted &&
+    error instanceof DefinitiveOAuthRejectionError;
+  if (isDefinitiveOAuthRejection) return error;
+
   const sessionIsCurrent = getAccessTokenSessionRevision() === sessionRevision;
   if (refreshState.deadlineExpired) {
     if (refreshState.tokenExchangeStarted && sessionIsCurrent) {
@@ -103,7 +110,7 @@ function recoverRefreshFailure(
     return new ApiRequestTimeoutError();
   }
 
-  if (refreshState.tokenExchangeCompleted && sessionIsCurrent) {
+  if (refreshState.tokenExchangeStarted && sessionIsCurrent) {
     clearSessionAfterUncertainRefresh(sessionRevision);
     return new RefreshOutcomeUnknownError();
   }

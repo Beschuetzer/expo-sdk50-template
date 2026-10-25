@@ -1,6 +1,7 @@
 import type { DiscoveryDocument } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
+import { DefinitiveOAuthRejectionError } from './errors';
 import type { StoredAccessToken } from './storage';
 
 import { getBackendUrl } from '@/utils/helpers';
@@ -45,17 +46,77 @@ type TokenResponse = {
   token_type?: unknown;
   error?: unknown;
   error_description?: unknown;
+  status?: unknown;
 };
 
+const DEFINITIVE_OAUTH_REJECTION_CODES = new Set([
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+]);
+
+function getTokenResponseField(
+  result: unknown,
+  field: keyof TokenResponse,
+): unknown {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    return undefined;
+  }
+  return (result as TokenResponse)[field];
+}
+
+function getDefinitiveOAuthRejectionCode(
+  response: Response,
+  result: unknown,
+): string | undefined {
+  if (
+    response.status < 400 ||
+    response.status >= 500 ||
+    response.status === 408 ||
+    response.status === 425 ||
+    response.status === 429
+  ) {
+    return undefined;
+  }
+
+  const errorCodes = [
+    getTokenResponseField(result, 'error'),
+    getTokenResponseField(result, 'status'),
+  ];
+  return errorCodes.find(
+    (code): code is string =>
+      typeof code === 'string' && DEFINITIVE_OAUTH_REJECTION_CODES.has(code),
+  );
+}
+
+function createTokenRefreshError(response: Response, result: unknown): Error {
+  const errorDescription = getTokenResponseField(result, 'error_description');
+  const message =
+    typeof errorDescription === 'string'
+      ? errorDescription
+      : `Token refresh failed with HTTP ${response.status}`;
+  const oauthError = getDefinitiveOAuthRejectionCode(response, result);
+  return oauthError
+    ? new DefinitiveOAuthRejectionError(oauthError, message)
+    : new Error(message);
+}
+
 function hasValidTokenMetadata(
-  result: TokenResponse,
+  result: unknown,
 ): result is TokenResponse & { expires_in: number; token_type: string } {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    return false;
+  }
+  const tokenResponse = result as TokenResponse;
   return (
-    typeof result.expires_in === 'number' &&
-    Number.isFinite(result.expires_in) &&
-    result.expires_in > 0 &&
-    typeof result.token_type === 'string' &&
-    result.token_type.toLowerCase() === 'bearer'
+    typeof tokenResponse.expires_in === 'number' &&
+    Number.isFinite(tokenResponse.expires_in) &&
+    tokenResponse.expires_in > 0 &&
+    typeof tokenResponse.token_type === 'string' &&
+    tokenResponse.token_type.toLowerCase() === 'bearer'
   );
 }
 
@@ -290,13 +351,9 @@ export async function refreshAccessToken(
       method: 'POST',
       ...(signal ? { signal } : {}),
     });
-    const result = (await response.json()) as TokenResponse;
+    const result: unknown = await response.json();
     if (!response.ok || !hasValidTokenMetadata(result)) {
-      throw new Error(
-        typeof result.error_description === 'string'
-          ? result.error_description
-          : `Token refresh failed with HTTP ${response.status}`,
-      );
+      throw createTokenRefreshError(response, result);
     }
     return {
       accessToken: '',
@@ -322,17 +379,13 @@ export async function refreshAccessToken(
     method: 'POST',
     ...(signal ? { signal } : {}),
   });
-  const result = (await response.json()) as TokenResponse;
+  const result: unknown = await response.json();
   if (
     !response.ok ||
-    typeof result.access_token !== 'string' ||
-    !hasValidTokenMetadata(result)
+    !hasValidTokenMetadata(result) ||
+    typeof result.access_token !== 'string'
   ) {
-    throw new Error(
-      typeof result.error_description === 'string'
-        ? result.error_description
-        : `Token refresh failed with HTTP ${response.status}`,
-    );
+    throw createTokenRefreshError(response, result);
   }
   return {
     accessToken: result.access_token,

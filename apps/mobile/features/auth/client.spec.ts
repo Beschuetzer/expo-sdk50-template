@@ -16,6 +16,7 @@ import {
   refreshAccessToken,
   verifyAuthenticatedEndpointRejectsAnonymousRequest,
 } from './client';
+import { DefinitiveOAuthRejectionError } from './errors';
 import { getValidAccessToken } from './tokenManager';
 
 jest.mock('./tokenManager', () => ({
@@ -882,6 +883,31 @@ describe('auth client', () => {
     ).rejects.toThrow('Token refresh failed with HTTP 401');
   });
 
+  it('marks a definitive BFF refresh rejection', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          message: 'A refresh session is required.',
+          status: 'invalid_grant',
+        },
+        401,
+      ),
+    );
+
+    await expect(
+      refreshAccessToken(undefined, {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+      }),
+    ).rejects.toMatchObject({
+      name: 'DefinitiveOAuthRejectionError',
+      oauthErrorCode: 'invalid_grant',
+    });
+  });
+
   it('requires a native refresh token and token endpoint', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
@@ -916,6 +942,31 @@ describe('auth client', () => {
         { tokenEndpoint: 'http://localhost:4300/token' },
       ),
     ).rejects.toThrow('Token refresh failed with HTTP 200');
+  });
+
+  it('marks a definitive native OAuth refresh rejection', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          error: 'invalid_grant',
+          error_description: 'The refresh token is invalid.',
+        },
+        400,
+      ),
+    );
+
+    await expect(
+      refreshAccessToken(
+        {
+          accessToken: 'expired-access-token',
+          expiresAt: Date.now() - 1,
+          refreshToken: 'refresh-token',
+          scope: 'api:read',
+          tokenType: 'Bearer',
+        },
+        { tokenEndpoint: 'http://localhost:4300/token' },
+      ),
+    ).rejects.toBeInstanceOf(DefinitiveOAuthRejectionError);
   });
 
   it.each([

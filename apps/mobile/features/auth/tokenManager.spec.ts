@@ -9,6 +9,7 @@ import {
 import {
   ApiRequestTimeoutError,
   AUTH_REQUEST_TIMEOUT_MS,
+  DefinitiveOAuthRejectionError,
   RefreshOutcomeUnknownError,
 } from './errors';
 import {
@@ -395,6 +396,34 @@ describe('access-token manager', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('clears the current session after a native refresh transport failure', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    storedToken = expiredSoon;
+    jest
+      .mocked(refreshAccessToken)
+      .mockRejectedValueOnce(new TypeError('Network request failed.'));
+
+    await expect(getValidAccessToken()).rejects.toBeInstanceOf(
+      RefreshOutcomeUnknownError,
+    );
+    expect(clearAuthenticatedSession).toHaveBeenCalledTimes(1);
+    expect(storedToken).toBeNull();
+  });
+
+  it('preserves the current session after a definitive OAuth rejection', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const rejection = new DefinitiveOAuthRejectionError(
+      'invalid_grant',
+      'The refresh token is invalid.',
+    );
+    storedToken = expiredSoon;
+    jest.mocked(refreshAccessToken).mockRejectedValueOnce(rejection);
+
+    await expect(getValidAccessToken()).rejects.toBe(rejection);
+    expect(clearAuthenticatedSession).not.toHaveBeenCalled();
+    expect(storedToken).toEqual(expiredSoon);
   });
 
   it('bounds web refreshes and clears sessions after uncertain outcomes', async () => {
