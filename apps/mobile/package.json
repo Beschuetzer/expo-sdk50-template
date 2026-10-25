@@ -2,9 +2,6 @@
   "name": "mobile",
   "private": true,
   "main": "expo-router/entry",
-  "dependencies": {
-    "@expo-50sdk-template/logging": "1.0.0"
-  },
   "scripts": {
     "dev": "node setup.mjs && node ../../scripts/start-expo.mjs start",
     "dev:clear": "node setup.mjs && node ../../scripts/start-expo.mjs start --clear",
@@ -17,6 +14,7 @@
     "build-preview": "npx --yes eas-cli@latest build -p android --profile preview"
   },
   "dependencies": {
+    "@expo-50sdk-template/logging": "1.0.0",
     "@expo/vector-icons": "^14.0.4",
     "@gluestack-style/react": "1.0.57",
     "@gluestack-ui/config": "1.1.20",
