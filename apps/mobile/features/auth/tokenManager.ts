@@ -8,6 +8,12 @@ import {
   refreshAccessToken,
 } from './client';
 import {
+  ApiRequestTimeoutError,
+  AUTH_REQUEST_TIMEOUT_MS,
+  RefreshOutcomeUnknownError,
+} from './errors';
+import {
+  clearAuthenticatedSession,
   getAccessTokenSessionRevision,
   isAccessTokenExpiring,
   loadAccessToken,
@@ -18,9 +24,15 @@ import {
 import { logInfo, logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
 
+type RefreshState = {
+  deadlineExpired: boolean;
+  tokenExchangeCompleted: boolean;
+  tokenExchangeStarted: boolean;
+};
+
 type PendingRefresh = {
   controller: AbortController;
-  refreshState: { tokenExchangeStarted: boolean };
+  refreshState: RefreshState;
   sessionRevision: number;
   promise: Promise<StoredAccessToken | null>;
   settled: boolean;
@@ -37,10 +49,66 @@ export class MissingRefreshTokenError extends Error {
 }
 
 let cachedDiscovery:
-  | { issuerUrl: string; discovery: DiscoveryDocument }
-  | undefined;
+  { issuerUrl: string; discovery: DiscoveryDocument } | undefined;
 const pendingRefreshes = new Map<string, PendingRefresh>();
 let pendingWebRefresh: PendingWebRefresh | undefined;
+
+function createRefreshState(): RefreshState {
+  return {
+    deadlineExpired: false,
+    tokenExchangeCompleted: false,
+    tokenExchangeStarted: false,
+  };
+}
+
+function startRefreshDeadline(
+  controller: AbortController,
+  refreshState: RefreshState,
+) {
+  let stopped = false;
+  const timeoutId = setTimeout(() => {
+    refreshState.deadlineExpired = true;
+    controller.abort();
+  }, AUTH_REQUEST_TIMEOUT_MS);
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    clearTimeout(timeoutId);
+  };
+}
+
+function clearSessionAfterUncertainRefresh(sessionRevision: number): boolean {
+  if (getAccessTokenSessionRevision() !== sessionRevision) return false;
+
+  void clearAuthenticatedSession().catch((error: unknown) => {
+    logWarn('auth_access_token_session_clear_failed', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    });
+  });
+  return true;
+}
+
+function recoverRefreshFailure(
+  error: unknown,
+  refreshState: RefreshState,
+  sessionRevision: number,
+): unknown {
+  const sessionIsCurrent = getAccessTokenSessionRevision() === sessionRevision;
+  if (refreshState.deadlineExpired) {
+    if (refreshState.tokenExchangeStarted && sessionIsCurrent) {
+      clearSessionAfterUncertainRefresh(sessionRevision);
+      return new RefreshOutcomeUnknownError();
+    }
+    return new ApiRequestTimeoutError();
+  }
+
+  if (refreshState.tokenExchangeCompleted && sessionIsCurrent) {
+    clearSessionAfterUncertainRefresh(sessionRevision);
+    return new RefreshOutcomeUnknownError();
+  }
+  return error;
+}
 
 function loadAccessTokenForRequest(signal?: AbortSignal) {
   return signal ? loadAccessToken({ signal }) : loadAccessToken();
@@ -86,7 +154,8 @@ function getIdentityProviderDiscovery(signal?: AbortSignal) {
 async function refreshAndPersistToken(
   token: StoredAccessToken,
   sessionRevision: number,
-  refreshState: PendingRefresh['refreshState'],
+  refreshState: RefreshState,
+  stopDeadline: () => void,
   signal?: AbortSignal,
 ) {
   logInfo('auth_access_token_refresh_started');
@@ -99,6 +168,7 @@ async function refreshAndPersistToken(
       : refreshAccessToken(token, discovery);
     const refreshedToken = await awaitWithAbort(refreshRequest, signal);
     throwIfAborted(signal);
+    refreshState.tokenExchangeCompleted = true;
     const persistRequest = signal
       ? persistRefreshedAccessTokenIfCurrent(
           refreshedToken,
@@ -118,10 +188,18 @@ async function refreshAndPersistToken(
     logInfo('auth_access_token_refresh_succeeded');
     return refreshedToken;
   } catch (error) {
+    const recoveredError = recoverRefreshFailure(
+      error,
+      refreshState,
+      sessionRevision,
+    );
     logWarn('auth_access_token_refresh_failed', {
-      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorName:
+        recoveredError instanceof Error ? recoveredError.name : 'UnknownError',
     });
-    throw error;
+    throw recoveredError;
+  } finally {
+    stopDeadline();
   }
 }
 
@@ -139,11 +217,13 @@ function refreshStoredToken(
   }
 
   const controller = new AbortController();
-  const refreshState = { tokenExchangeStarted: false };
+  const refreshState = createRefreshState();
+  const stopDeadline = startRefreshDeadline(controller, refreshState);
   const promise = refreshAndPersistToken(
     token,
     sessionRevision,
     refreshState,
+    stopDeadline,
     controller.signal,
   );
   const pending = {
@@ -178,20 +258,42 @@ function refreshWebSession(
   }
 
   const controller = new AbortController();
-  const refreshState = { tokenExchangeStarted: false };
+  const refreshState = createRefreshState();
+  const stopDeadline = startRefreshDeadline(controller, refreshState);
   const promise = (async () => {
-    const discovery = await getIdentityProviderDiscovery(controller.signal);
-    throwIfAborted(controller.signal);
-    refreshState.tokenExchangeStarted = true;
-    const refreshedToken = await refreshAccessToken(
-      token ?? undefined,
-      discovery,
-      controller.signal,
-    );
-    if (getAccessTokenSessionRevision() !== sessionRevision) {
-      return loadAccessTokenForRequest(controller.signal);
+    try {
+      const discovery = await getIdentityProviderDiscovery(controller.signal);
+      throwIfAborted(controller.signal);
+      refreshState.tokenExchangeStarted = true;
+      const refreshedToken = await awaitWithAbort(
+        refreshAccessToken(token ?? undefined, discovery, controller.signal),
+        controller.signal,
+      );
+      throwIfAborted(controller.signal);
+      refreshState.tokenExchangeCompleted = true;
+      if (getAccessTokenSessionRevision() !== sessionRevision) {
+        return await awaitWithAbort(
+          loadAccessTokenForRequest(controller.signal),
+          controller.signal,
+        );
+      }
+      return refreshedToken;
+    } catch (error) {
+      const recoveredError = recoverRefreshFailure(
+        error,
+        refreshState,
+        sessionRevision,
+      );
+      logWarn('auth_access_token_refresh_failed', {
+        errorName:
+          recoveredError instanceof Error
+            ? recoveredError.name
+            : 'UnknownError',
+      });
+      throw recoveredError;
+    } finally {
+      stopDeadline();
     }
-    return refreshedToken;
   })();
   const pending = {
     controller,

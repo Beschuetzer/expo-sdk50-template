@@ -1,24 +1,18 @@
 import { Platform } from 'react-native';
 
 import { awaitWithAbort, throwIfAborted } from './abort';
+import { ApiRequestTimeoutError, AUTH_REQUEST_TIMEOUT_MS } from './errors';
 import { getValidAccessToken } from './tokenManager';
 
 import { getBackendUrl } from '@/utils/helpers';
 import { logDebug, logWarn } from '@/utils/logging';
 
+export { ApiRequestTimeoutError };
+
 type ApiError = { message?: string };
 type RequestOptions = {
   fallbackErrorMessage?: (statusCode: number) => string;
 };
-
-const API_REQUEST_TIMEOUT_MS = 15_000;
-
-export class ApiRequestTimeoutError extends Error {
-  constructor() {
-    super();
-    this.name = 'ApiRequestTimeoutError';
-  }
-}
 
 export async function requestAuthenticatedJson<T>(
   path: string,
@@ -46,7 +40,7 @@ export async function requestAuthenticatedJson<T>(
   const timeoutId = setTimeout(() => {
     requestTimedOut = true;
     controller.abort();
-  }, API_REQUEST_TIMEOUT_MS);
+  }, AUTH_REQUEST_TIMEOUT_MS);
 
   try {
     throwIfAborted(signal);

@@ -52,6 +52,15 @@ describe('i18n', () => {
     );
   });
 
+  it('localizes refreshes whose outcome is unknown', () => {
+    expect(getMessage('en', 'errors.refreshOutcomeUnknown')).toBe(
+      'The token refresh could not be completed safely. Sign in again to continue.',
+    );
+    expect(getMessage('es', 'errors.refreshOutcomeUnknown')).toBe(
+      'No se pudo completar la renovación del token de forma segura. Inicia sesión de nuevo para continuar.',
+    );
+  });
+
   it('falls back to english strings for missing locale values', () => {
     expect(getMessage('es', 'tabs.missing' as never)).toBe('tabs.missing');
     expect(getMessage('es', 'settings.title')).toBe('Configuración');

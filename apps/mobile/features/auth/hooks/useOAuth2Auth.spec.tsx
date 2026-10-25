@@ -3,6 +3,7 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { useOAuth2AuthState } from './useOAuth2Auth';
+import { RefreshOutcomeUnknownError } from '../errors';
 
 const storedToken = {
   accessToken: 'stored-access-token',
@@ -817,6 +818,34 @@ describe('useOAuth2AuthState', () => {
     });
 
     expect(auth().state).toBe('error');
+  });
+
+  it('requires sign-in when a refresh outcome is unknown', async () => {
+    mockLoadAccessToken
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(storedToken);
+    mockGetValidAccessToken.mockResolvedValue(refreshedToken);
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await auth().refreshAuthenticatedSession();
+      await flushPromises();
+    });
+    expect(auth().isAuthenticated).toBe(true);
+
+    mockGetValidAccessToken.mockRejectedValueOnce(
+      new RefreshOutcomeUnknownError(),
+    );
+    await act(async () => {
+      await expect(auth().refreshAuthenticatedSession()).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      await flushPromises();
+    });
+
+    expect(auth().state).toBe('error');
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
   });
 
   it('revokes the refresh token and clears local state on sign out', async () => {

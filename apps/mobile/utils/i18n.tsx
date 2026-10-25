@@ -171,6 +171,8 @@ const messages = {
       backendUnavailable: 'Backend connection failed. Is the API running?',
       authenticationFailed: 'Sign-in or authenticated request failed.',
       noRefreshToken: 'No refresh token is available.',
+      refreshOutcomeUnknown:
+        'The token refresh could not be completed safely. Sign in again to continue.',
       tokenRefreshFailed: 'Token refresh failed. Sign in again if needed.',
       signOutFailed: 'Sign out failed. Please try again.',
       errorBoundaryMessage: 'Message:',
@@ -422,6 +424,8 @@ const messages = {
       authenticationFailed:
         'El inicio de sesión o la solicitud autenticada falló.',
       noRefreshToken: 'No hay un token de actualización disponible.',
+      refreshOutcomeUnknown:
+        'No se pudo completar la renovación del token de forma segura. Inicia sesión de nuevo para continuar.',
       tokenRefreshFailed:
         'La renovación del token falló. Inicia sesión de nuevo si es necesario.',
       signOutFailed: 'No se pudo cerrar la sesión. Inténtalo de nuevo.',

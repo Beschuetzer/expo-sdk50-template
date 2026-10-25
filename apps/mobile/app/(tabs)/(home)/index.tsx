@@ -20,6 +20,7 @@ import {
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { ApiRequestTimeoutError } from '@/features/auth/authenticatedClient';
 import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
+import { RefreshOutcomeUnknownError } from '@/features/auth/errors';
 import { loadAccessToken } from '@/features/auth/storage';
 import { MissingRefreshTokenError } from '@/features/auth/tokenManager';
 import { formatAccessTokenTtl } from '@/features/auth/tokenTtl';
@@ -189,11 +190,13 @@ export default function HomeScreen() {
   const reportExampleCreationError = (error: unknown) => {
     setExampleStatus('errors.exampleCreationFailed');
     const message =
-      error instanceof ApiRequestTimeoutError
-        ? t('errors.apiRequestTimedOut')
-        : error instanceof Error
-          ? error.message
-          : t('errors.exampleCreationFailed');
+      error instanceof RefreshOutcomeUnknownError
+        ? t('errors.refreshOutcomeUnknown')
+        : error instanceof ApiRequestTimeoutError
+          ? t('errors.apiRequestTimedOut')
+          : error instanceof Error
+            ? error.message
+            : t('errors.exampleCreationFailed');
     dispatch(
       setError({
         message,
@@ -230,13 +233,15 @@ export default function HomeScreen() {
       dispatch(
         setError({
           message:
-            error instanceof ApiRequestTimeoutError
-              ? t('errors.apiRequestTimedOut')
-              : error instanceof MissingRefreshTokenError
-                ? t('errors.noRefreshToken')
-                : error instanceof Error
-                  ? error.message
-                  : t('errors.tokenRefreshFailed'),
+            error instanceof RefreshOutcomeUnknownError
+              ? t('errors.refreshOutcomeUnknown')
+              : error instanceof ApiRequestTimeoutError
+                ? t('errors.apiRequestTimedOut')
+                : error instanceof MissingRefreshTokenError
+                  ? t('errors.noRefreshToken')
+                  : error instanceof Error
+                    ? error.message
+                    : t('errors.tokenRefreshFailed'),
           name: 'TokenRefreshError',
         }),
       );

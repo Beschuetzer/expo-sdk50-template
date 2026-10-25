@@ -19,6 +19,7 @@ import {
   revokeRefreshToken,
   normalizeIdentityProviderDiscovery,
 } from '../client';
+import { RefreshOutcomeUnknownError } from '../errors';
 import {
   clearAuthenticatedSession,
   loadAccessToken,
@@ -156,6 +157,11 @@ export function useOAuth2AuthState() {
   const [state, setState] = useState<OAuth2AuthState>('idle');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const clearAuthStateAfterUnknownRefresh = (error: unknown) => {
+    if (!(error instanceof RefreshOutcomeUnknownError)) return;
+    setIsAuthenticated(false);
+    setUser(null);
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web' && !discovery) return;
@@ -213,7 +219,13 @@ export function useOAuth2AuthState() {
         logError('auth_session_restore_failed', {
           errorName: error instanceof Error ? error.name : 'UnknownError',
         });
-        if (isCurrentSession()) setState('error');
+        if (isCurrentSession()) {
+          if (error instanceof RefreshOutcomeUnknownError) {
+            setIsAuthenticated(false);
+            setUser(null);
+          }
+          setState('error');
+        }
       })
       .finally(() => {
         if (isCurrentSession()) {
@@ -360,11 +372,16 @@ export function useOAuth2AuthState() {
       let storedToken = await loadAccessToken();
       if (!storedToken && Platform.OS === 'web' && discovery) {
         storedToken = await getValidAccessToken({ forceRefresh: true }).catch(
-          () => null,
+          (error: unknown) => {
+            clearAuthStateAfterUnknownRefresh(error);
+            return null;
+          },
         );
         if (storedToken) await saveAccessToken(storedToken);
       }
       if (!storedToken) {
+        setIsAuthenticated(false);
+        setUser(null);
         logInfo('auth_sign_in_required');
         if (!request) {
           throw new Error('The OAuth2 request is still being prepared.');
@@ -402,6 +419,7 @@ export function useOAuth2AuthState() {
       logWarn('authenticated_action_failed', {
         errorName: error instanceof Error ? error.name : 'UnknownError',
       });
+      clearAuthStateAfterUnknownRefresh(error);
       setState('error');
       if (authenticatedAction) throw error;
       return false;
@@ -421,6 +439,8 @@ export function useOAuth2AuthState() {
       }
       const storedToken = await loadAccessToken();
       if (!storedToken) {
+        setIsAuthenticated(false);
+        setUser(null);
         throw new Error('No authenticated session is available to refresh.');
       }
 
@@ -439,6 +459,7 @@ export function useOAuth2AuthState() {
       logWarn('auth_session_refresh_failed', {
         errorName: error instanceof Error ? error.name : 'UnknownError',
       });
+      clearAuthStateAfterUnknownRefresh(error);
       setState('error');
       throw error;
     }

@@ -7,6 +7,12 @@ import {
   refreshAccessToken,
 } from './client';
 import {
+  ApiRequestTimeoutError,
+  AUTH_REQUEST_TIMEOUT_MS,
+  RefreshOutcomeUnknownError,
+} from './errors';
+import {
+  clearAuthenticatedSession,
   getAccessTokenSessionRevision,
   loadAccessToken,
   persistRefreshedAccessTokenIfCurrent,
@@ -29,6 +35,7 @@ jest.mock('./storage', () => ({
   getAccessTokenSessionRevision: jest.fn(),
   loadAccessToken: jest.fn(),
   persistRefreshedAccessTokenIfCurrent: jest.fn(),
+  clearAuthenticatedSession: jest.fn(),
 }));
 
 jest.mock('@/utils/platform', () => ({
@@ -75,6 +82,10 @@ describe('access-token manager', () => {
         storedToken = refreshedToken;
         return true;
       });
+    jest.mocked(clearAuthenticatedSession).mockImplementation(async () => {
+      storedToken = null;
+      sessionRevision += 1;
+    });
     jest.mocked(fetchIdentityProviderDiscovery).mockResolvedValue({
       tokenEndpoint: 'https://identity.example.com/token',
     } as DiscoveryDocument);
@@ -241,30 +252,32 @@ describe('access-token manager', () => {
       resolvePersistence = resolve;
     });
     storedToken = expiredSoon;
-    jest.mocked(refreshAccessToken).mockImplementationOnce(
-      (_token, _discovery, signal) => {
+    jest
+      .mocked(refreshAccessToken)
+      .mockImplementationOnce((_token, _discovery, signal) => {
         refreshSignal = signal;
         return new Promise((resolve) => {
           resolveRefresh = resolve;
         });
-      },
-    );
+      });
     jest
       .mocked(persistRefreshedAccessTokenIfCurrent)
-      .mockImplementationOnce(async (nextToken, originalToken, revision, signal) => {
-        if (
-          revision !== sessionRevision ||
-          !storedToken ||
-          signal?.aborted ||
-          storedToken.accessToken !== originalToken.accessToken ||
-          storedToken.refreshToken !== originalToken.refreshToken
-        ) {
-          return false;
-        }
-        storedToken = nextToken;
-        resolvePersistence();
-        return true;
-      });
+      .mockImplementationOnce(
+        async (nextToken, originalToken, revision, signal) => {
+          if (
+            revision !== sessionRevision ||
+            !storedToken ||
+            signal?.aborted ||
+            storedToken.accessToken !== originalToken.accessToken ||
+            storedToken.refreshToken !== originalToken.refreshToken
+          ) {
+            return false;
+          }
+          storedToken = nextToken;
+          resolvePersistence();
+          return true;
+        },
+      );
 
     const request = getValidAccessToken({ signal: controller.signal });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -301,28 +314,26 @@ describe('access-token manager', () => {
     });
     storedToken = expiredSoon;
     jest.mocked(refreshAccessToken).mockResolvedValueOnce(refreshed);
-    jest
-      .mocked(persistRefreshedAccessTokenIfCurrent)
-      .mockImplementationOnce(
-        (nextToken, originalToken, revision, signal) =>
-          new Promise((resolve) => {
-            resolveCommit = () => {
-              if (
-                revision !== sessionRevision ||
-                !storedToken ||
-                signal?.aborted ||
-                storedToken.accessToken !== originalToken.accessToken ||
-                storedToken.refreshToken !== originalToken.refreshToken
-              ) {
-                resolve(false);
-                return;
-              }
-              storedToken = nextToken;
-              resolve(true);
-            };
-            resolvePersistenceStarted();
-          }),
-      );
+    jest.mocked(persistRefreshedAccessTokenIfCurrent).mockImplementationOnce(
+      (nextToken, originalToken, revision, signal) =>
+        new Promise((resolve) => {
+          resolveCommit = () => {
+            if (
+              revision !== sessionRevision ||
+              !storedToken ||
+              signal?.aborted ||
+              storedToken.accessToken !== originalToken.accessToken ||
+              storedToken.refreshToken !== originalToken.refreshToken
+            ) {
+              resolve(false);
+              return;
+            }
+            storedToken = nextToken;
+            resolve(true);
+          };
+          resolvePersistenceStarted();
+        }),
+    );
 
     const request = getValidAccessToken({ signal: controller.signal });
     await persistenceStarted;
@@ -342,6 +353,170 @@ describe('access-token manager', () => {
       0,
       refreshSignal,
     );
+  });
+
+  it('bounds native refreshes and clears sessions after uncertain outcomes', async () => {
+    jest.useFakeTimers();
+    const token = makeToken({ expiresAt: Date.now() + 10_000 });
+    let refreshSignal: AbortSignal | undefined;
+    storedToken = token;
+    jest
+      .mocked(refreshAccessToken)
+      .mockImplementationOnce((_token, _discovery, signal) => {
+        refreshSignal = signal;
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('aborted');
+              error.name = 'AbortError';
+              reject(error);
+            },
+            { once: true },
+          );
+        });
+      });
+
+    try {
+      const request = getValidAccessToken();
+      const timedOut = expect(request).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      await jest.advanceTimersByTimeAsync(0);
+      expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+
+      await timedOut;
+      expect(refreshSignal?.aborted).toBe(true);
+      expect(clearAuthenticatedSession).toHaveBeenCalledTimes(1);
+      await expect(getValidAccessToken()).resolves.toBeNull();
+      expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('bounds web refreshes and clears sessions after uncertain outcomes', async () => {
+    jest.useFakeTimers();
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    let refreshSignal: AbortSignal | undefined;
+    jest
+      .mocked(refreshAccessToken)
+      .mockImplementationOnce((_token, _discovery, signal) => {
+        refreshSignal = signal;
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('aborted');
+              error.name = 'AbortError';
+              reject(error);
+            },
+            { once: true },
+          );
+        });
+      });
+
+    try {
+      const request = getValidAccessToken({ forceRefresh: true });
+      const timedOut = expect(request).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      await jest.advanceTimersByTimeAsync(0);
+      expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+
+      await timedOut;
+      expect(refreshSignal?.aborted).toBe(true);
+      expect(clearAuthenticatedSession).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('invalidates a rotated token when persistence exceeds the deadline', async () => {
+    jest.useFakeTimers();
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const refreshed = makeToken({
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+    });
+    let resolveCommit!: () => void;
+    let resolvePersistenceStarted!: () => void;
+    const persistenceStarted = new Promise<void>((resolve) => {
+      resolvePersistenceStarted = resolve;
+    });
+    storedToken = expiredSoon;
+    jest.mocked(refreshAccessToken).mockResolvedValueOnce(refreshed);
+    jest.mocked(persistRefreshedAccessTokenIfCurrent).mockImplementationOnce(
+      (nextToken, originalToken, revision, signal) =>
+        new Promise((resolve) => {
+          resolveCommit = () => {
+            if (
+              revision !== sessionRevision ||
+              !storedToken ||
+              signal?.aborted ||
+              storedToken.accessToken !== originalToken.accessToken ||
+              storedToken.refreshToken !== originalToken.refreshToken
+            ) {
+              resolve(false);
+              return;
+            }
+            storedToken = nextToken;
+            resolve(true);
+          };
+          resolvePersistenceStarted();
+        }),
+    );
+
+    try {
+      const request = getValidAccessToken();
+      const timedOut = expect(request).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      await jest.advanceTimersByTimeAsync(0);
+      await persistenceStarted;
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+
+      await timedOut;
+      expect(clearAuthenticatedSession).toHaveBeenCalledTimes(1);
+      expect(storedToken).toBeNull();
+
+      resolveCommit();
+      await Promise.resolve();
+      expect(storedToken).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not invalidate a session when timeout occurs before exchange', async () => {
+    jest.useFakeTimers();
+    storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
+    jest
+      .mocked(fetchIdentityProviderDiscovery)
+      .mockImplementationOnce(() => new Promise(() => {}));
+
+    try {
+      const request = getValidAccessToken();
+      const timedOut = expect(request).rejects.toBeInstanceOf(
+        ApiRequestTimeoutError,
+      );
+      await jest.advanceTimersByTimeAsync(0);
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+
+      await timedOut;
+      expect(refreshAccessToken).not.toHaveBeenCalled();
+      expect(clearAuthenticatedSession).not.toHaveBeenCalled();
+      expect(storedToken).not.toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('coalesces concurrent refreshes for the same access token', async () => {
