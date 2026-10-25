@@ -173,6 +173,8 @@ const messages = {
       noRefreshToken: 'No refresh token is available.',
       refreshOutcomeUnknown:
         'The token refresh could not be completed safely. Sign in again to continue.',
+      tokenEndpointUnavailable:
+        'The identity provider configuration does not include a token endpoint.',
       tokenRefreshFailed: 'Token refresh failed. Sign in again if needed.',
       signOutFailed: 'Sign out failed. Please try again.',
       errorBoundaryMessage: 'Message:',
@@ -426,6 +428,8 @@ const messages = {
       noRefreshToken: 'No hay un token de actualización disponible.',
       refreshOutcomeUnknown:
         'No se pudo completar la renovación del token de forma segura. Inicia sesión de nuevo para continuar.',
+      tokenEndpointUnavailable:
+        'La configuración del proveedor de identidad no incluye un endpoint de token.',
       tokenRefreshFailed:
         'La renovación del token falló. Inicia sesión de nuevo si es necesario.',
       signOutFailed: 'No se pudo cerrar la sesión. Inténtalo de nuevo.',

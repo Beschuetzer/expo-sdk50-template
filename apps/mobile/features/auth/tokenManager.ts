@@ -11,6 +11,7 @@ import {
   ApiRequestTimeoutError,
   AUTH_REQUEST_TIMEOUT_MS,
   DefinitiveOAuthRejectionError,
+  MissingTokenEndpointError,
   RefreshOutcomeUnknownError,
 } from './errors';
 import {
@@ -199,6 +200,9 @@ async function refreshAndPersistToken(
   try {
     const discovery = await getIdentityProviderDiscovery(signal);
     throwIfAborted(signal);
+    if (!discovery.tokenEndpoint) {
+      throw new MissingTokenEndpointError();
+    }
     refreshState.tokenExchangeStarted = true;
     const refreshRequest = signal
       ? refreshAccessToken(token, discovery, signal)

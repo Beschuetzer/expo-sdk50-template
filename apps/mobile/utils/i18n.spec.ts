@@ -61,6 +61,15 @@ describe('i18n', () => {
     );
   });
 
+  it('localizes missing token endpoint errors', () => {
+    expect(getMessage('en', 'errors.tokenEndpointUnavailable')).toBe(
+      'The identity provider configuration does not include a token endpoint.',
+    );
+    expect(getMessage('es', 'errors.tokenEndpointUnavailable')).toBe(
+      'La configuración del proveedor de identidad no incluye un endpoint de token.',
+    );
+  });
+
   it('falls back to english strings for missing locale values', () => {
     expect(getMessage('es', 'tabs.missing' as never)).toBe('tabs.missing');
     expect(getMessage('es', 'settings.title')).toBe('Configuración');

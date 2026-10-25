@@ -10,6 +10,7 @@ import {
   ApiRequestTimeoutError,
   AUTH_REQUEST_TIMEOUT_MS,
   DefinitiveOAuthRejectionError,
+  MissingTokenEndpointError,
   RefreshOutcomeUnknownError,
 } from './errors';
 import {
@@ -550,6 +551,22 @@ describe('access-token manager', () => {
     );
     expect(clearAuthenticatedSession).toHaveBeenCalledTimes(1);
     expect(storedToken).toBeNull();
+  });
+
+  it('preserves the session when native discovery has no token endpoint', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    storedToken = expiredSoon;
+    jest
+      .mocked(fetchIdentityProviderDiscovery)
+      .mockResolvedValueOnce({} as DiscoveryDocument);
+
+    await expect(getValidAccessToken()).rejects.toBeInstanceOf(
+      MissingTokenEndpointError,
+    );
+
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(clearAuthenticatedSession).not.toHaveBeenCalled();
+    expect(storedToken).toEqual(expiredSoon);
   });
 
   it('preserves the current session after a definitive OAuth rejection', async () => {

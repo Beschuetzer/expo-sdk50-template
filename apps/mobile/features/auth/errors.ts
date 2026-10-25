@@ -27,6 +27,13 @@ export class DefinitiveOAuthRejectionError extends Error {
   }
 }
 
+export class MissingTokenEndpointError extends Error {
+  constructor() {
+    super();
+    this.name = 'MissingTokenEndpointError';
+  }
+}
+
 export class RefreshOutcomeUnknownError extends ApiRequestTimeoutError {
   constructor() {
     super();
