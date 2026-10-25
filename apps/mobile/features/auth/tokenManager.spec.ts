@@ -227,6 +227,123 @@ describe('access-token manager', () => {
     await expect(secondRequest).resolves.toEqual(refreshed);
   });
 
+  it('finishes an in-flight refresh after its last caller cancels', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const refreshed = makeToken({
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+    });
+    const controller = new AbortController();
+    let resolveRefresh!: (token: StoredAccessToken) => void;
+    let resolvePersistence!: () => void;
+    let refreshSignal: AbortSignal | undefined;
+    const persistenceStarted = new Promise<void>((resolve) => {
+      resolvePersistence = resolve;
+    });
+    storedToken = expiredSoon;
+    jest.mocked(refreshAccessToken).mockImplementationOnce(
+      (_token, _discovery, signal) => {
+        refreshSignal = signal;
+        return new Promise((resolve) => {
+          resolveRefresh = resolve;
+        });
+      },
+    );
+    jest
+      .mocked(persistRefreshedAccessTokenIfCurrent)
+      .mockImplementationOnce(async (nextToken, originalToken, revision, signal) => {
+        if (
+          revision !== sessionRevision ||
+          !storedToken ||
+          signal?.aborted ||
+          storedToken.accessToken !== originalToken.accessToken ||
+          storedToken.refreshToken !== originalToken.refreshToken
+        ) {
+          return false;
+        }
+        storedToken = nextToken;
+        resolvePersistence();
+        return true;
+      });
+
+    const request = getValidAccessToken({ signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(refreshSignal?.aborted).toBe(false);
+
+    resolveRefresh(refreshed);
+    await persistenceStarted;
+
+    expect(refreshSignal?.aborted).toBe(false);
+    expect(storedToken).toEqual(refreshed);
+    expect(persistRefreshedAccessTokenIfCurrent).toHaveBeenCalledWith(
+      refreshed,
+      expiredSoon,
+      0,
+      refreshSignal,
+    );
+  });
+
+  it('finishes queued persistence after its last caller cancels', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const refreshed = makeToken({
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+    });
+    const controller = new AbortController();
+    let resolveCommit!: () => void;
+    let resolvePersistenceStarted!: () => void;
+    const persistenceStarted = new Promise<void>((resolve) => {
+      resolvePersistenceStarted = resolve;
+    });
+    storedToken = expiredSoon;
+    jest.mocked(refreshAccessToken).mockResolvedValueOnce(refreshed);
+    jest
+      .mocked(persistRefreshedAccessTokenIfCurrent)
+      .mockImplementationOnce(
+        (nextToken, originalToken, revision, signal) =>
+          new Promise((resolve) => {
+            resolveCommit = () => {
+              if (
+                revision !== sessionRevision ||
+                !storedToken ||
+                signal?.aborted ||
+                storedToken.accessToken !== originalToken.accessToken ||
+                storedToken.refreshToken !== originalToken.refreshToken
+              ) {
+                resolve(false);
+                return;
+              }
+              storedToken = nextToken;
+              resolve(true);
+            };
+            resolvePersistenceStarted();
+          }),
+      );
+
+    const request = getValidAccessToken({ signal: controller.signal });
+    await persistenceStarted;
+    const refreshSignal = jest.mocked(refreshAccessToken).mock.calls[0][2];
+
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(refreshSignal?.aborted).toBe(false);
+
+    resolveCommit();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(storedToken).toEqual(refreshed);
+    expect(persistRefreshedAccessTokenIfCurrent).toHaveBeenCalledWith(
+      refreshed,
+      expiredSoon,
+      0,
+      refreshSignal,
+    );
+  });
+
   it('coalesces concurrent refreshes for the same access token', async () => {
     const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
     const refreshed = makeToken({ accessToken: 'refreshed-access-token' });

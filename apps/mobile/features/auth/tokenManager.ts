@@ -20,6 +20,7 @@ import { getIdentityProviderUrl } from '@/utils/platform';
 
 type PendingRefresh = {
   controller: AbortController;
+  refreshState: { tokenExchangeStarted: boolean };
   sessionRevision: number;
   promise: Promise<StoredAccessToken | null>;
   settled: boolean;
@@ -52,7 +53,11 @@ function waitForPendingRefresh(pending: PendingRefresh, signal?: AbortSignal) {
     if (released) return;
     released = true;
     pending.waiters -= 1;
-    if (pending.waiters === 0 && !pending.settled) {
+    if (
+      pending.waiters === 0 &&
+      !pending.settled &&
+      !pending.refreshState.tokenExchangeStarted
+    ) {
       pending.controller.abort();
     }
   };
@@ -81,11 +86,14 @@ function getIdentityProviderDiscovery(signal?: AbortSignal) {
 async function refreshAndPersistToken(
   token: StoredAccessToken,
   sessionRevision: number,
+  refreshState: PendingRefresh['refreshState'],
   signal?: AbortSignal,
 ) {
   logInfo('auth_access_token_refresh_started');
   try {
     const discovery = await getIdentityProviderDiscovery(signal);
+    throwIfAborted(signal);
+    refreshState.tokenExchangeStarted = true;
     const refreshRequest = signal
       ? refreshAccessToken(token, discovery, signal)
       : refreshAccessToken(token, discovery);
@@ -131,13 +139,16 @@ function refreshStoredToken(
   }
 
   const controller = new AbortController();
+  const refreshState = { tokenExchangeStarted: false };
   const promise = refreshAndPersistToken(
     token,
     sessionRevision,
+    refreshState,
     controller.signal,
   );
   const pending = {
     controller,
+    refreshState,
     sessionRevision,
     promise,
     settled: false,
@@ -167,8 +178,11 @@ function refreshWebSession(
   }
 
   const controller = new AbortController();
+  const refreshState = { tokenExchangeStarted: false };
   const promise = (async () => {
     const discovery = await getIdentityProviderDiscovery(controller.signal);
+    throwIfAborted(controller.signal);
+    refreshState.tokenExchangeStarted = true;
     const refreshedToken = await refreshAccessToken(
       token ?? undefined,
       discovery,
@@ -181,6 +195,7 @@ function refreshWebSession(
   })();
   const pending = {
     controller,
+    refreshState,
     sessionRevision,
     promise,
     settled: false,
