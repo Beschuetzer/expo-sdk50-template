@@ -20,4 +20,16 @@ describe('abort helpers', () => {
       awaitWithAbort(Promise.resolve('complete'), controller.signal),
     ).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('handles input rejection when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const inputPromise = Promise.reject(new Error('request failed'));
+    const rejectionHandler = jest.spyOn(inputPromise, 'catch');
+
+    await expect(
+      awaitWithAbort(inputPromise, controller.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(rejectionHandler).toHaveBeenCalledWith(expect.any(Function));
+  });
 });

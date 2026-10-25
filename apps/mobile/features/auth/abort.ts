@@ -13,7 +13,10 @@ export function awaitWithAbort<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(createAbortError());
+  if (signal.aborted) {
+    promise.catch(() => undefined);
+    return Promise.reject(createAbortError());
+  }
 
   return new Promise((resolve, reject) => {
     const onAbort = () => {
