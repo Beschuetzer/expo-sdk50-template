@@ -24,8 +24,11 @@ import {
   MissingTokenEndpointError,
   RefreshOutcomeUnknownError,
 } from '@/features/auth/errors';
-import { loadAccessToken } from '@/features/auth/storage';
-import { MissingRefreshTokenError } from '@/features/auth/tokenManager';
+import {
+  getAccessTokenExpiry,
+  MissingRefreshTokenError,
+  subscribeToAccessTokenExpiry,
+} from '@/features/auth/tokenManager';
 import { formatAccessTokenTtl } from '@/features/auth/tokenTtl';
 import { createRandomExample } from '@/features/backend/api';
 import {
@@ -55,10 +58,15 @@ function AccessTokenTtl({ authState }: { authState: string }) {
 
     let isCurrent = true;
     setExpiresAt(undefined);
-    loadAccessToken()
-      .then((token) => {
+    const unsubscribe = subscribeToAccessTokenExpiry((nextExpiresAt) => {
+      if (!isCurrent) return;
+      setExpiresAt(nextExpiresAt);
+      setNow(Date.now());
+    });
+    getAccessTokenExpiry()
+      .then((nextExpiresAt) => {
         if (!isCurrent) return;
-        setExpiresAt(token?.expiresAt ?? null);
+        setExpiresAt(nextExpiresAt);
         setNow(Date.now());
       })
       .catch(() => {
@@ -67,6 +75,7 @@ function AccessTokenTtl({ authState }: { authState: string }) {
 
     return () => {
       isCurrent = false;
+      unsubscribe();
     };
   }, [authState]);
 

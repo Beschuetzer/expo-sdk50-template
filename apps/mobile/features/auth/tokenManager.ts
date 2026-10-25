@@ -49,6 +49,9 @@ type PendingRefresh = {
 type PendingWebRefresh = PendingRefresh;
 
 const refreshOutcomeUnknownListeners = new Set<() => void>();
+const accessTokenExpiryListeners = new Set<(expiresAt: number | null) => void>();
+let currentAccessTokenExpiry: number | null | undefined;
+let accessTokenExpiryRevision = 0;
 
 export class MissingRefreshTokenError extends Error {
   constructor() {
@@ -68,6 +71,43 @@ export function subscribeToRefreshOutcomeUnknown(listener: () => void) {
   return () => {
     refreshOutcomeUnknownListeners.delete(listener);
   };
+}
+
+export function subscribeToAccessTokenExpiry(
+  listener: (expiresAt: number | null) => void,
+) {
+  accessTokenExpiryListeners.add(listener);
+  return () => {
+    accessTokenExpiryListeners.delete(listener);
+  };
+}
+
+function publishAccessTokenExpiry(token: StoredAccessToken | null) {
+  const expiresAt = token?.expiresAt ?? null;
+  if (currentAccessTokenExpiry === expiresAt) return;
+
+  currentAccessTokenExpiry = expiresAt;
+  accessTokenExpiryRevision += 1;
+  for (const listener of accessTokenExpiryListeners) {
+    try {
+      listener(expiresAt);
+    } catch (error) {
+      logWarn('auth_access_token_expiry_listener_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+    }
+  }
+}
+
+export async function getAccessTokenExpiry(): Promise<number | null> {
+  const revision = accessTokenExpiryRevision;
+  const token = await loadAccessTokenForRequest();
+  if (revision !== accessTokenExpiryRevision) {
+    return currentAccessTokenExpiry ?? null;
+  }
+
+  publishAccessTokenExpiry(token);
+  return token?.expiresAt ?? null;
 }
 
 function notifyRefreshOutcomeUnknown() {
@@ -111,6 +151,7 @@ function clearSessionAfterUncertainRefresh(sessionRevision: number): boolean {
   if (getAccessTokenSessionRevision() !== sessionRevision) return false;
 
   const clearRequest = clearAuthenticatedSession();
+  publishAccessTokenExpiry(null);
   notifyRefreshOutcomeUnknown();
   clearRequest.catch((error: unknown) => {
     logWarn('auth_access_token_session_clear_failed', {
@@ -225,6 +266,7 @@ async function refreshAndPersistToken(
     if (!persisted || getAccessTokenSessionRevision() !== sessionRevision) {
       return await awaitWithAbort(loadAccessTokenForRequest(signal), signal);
     }
+    publishAccessTokenExpiry(refreshedToken);
     logInfo('auth_access_token_refresh_succeeded');
     return refreshedToken;
   } catch (error) {
@@ -373,28 +415,49 @@ export async function getValidAccessToken(
   throwIfAborted(signal);
   if (Platform.OS === 'web') {
     if (!options.forceRefresh && options.rejectedAccessToken === undefined) {
+      publishAccessTokenExpiry(token);
       return token;
     }
-    return refreshWebSession(token, sessionRevision, signal);
+    const refreshedToken = await refreshWebSession(
+      token,
+      sessionRevision,
+      signal,
+    );
+    publishAccessTokenExpiry(refreshedToken);
+    return refreshedToken;
   }
-  if (!token) return token;
+  if (!token) {
+    publishAccessTokenExpiry(null);
+    return token;
+  }
 
   if (
     options.rejectedAccessToken !== undefined &&
     token.accessToken !== options.rejectedAccessToken
   ) {
+    publishAccessTokenExpiry(token);
     return token;
   }
 
   const forceRefresh =
     options.forceRefresh || token.accessToken === options.rejectedAccessToken;
-  if (!forceRefresh && !isAccessTokenExpiring(token)) return token;
+  if (!forceRefresh && !isAccessTokenExpiring(token)) {
+    publishAccessTokenExpiry(token);
+    return token;
+  }
   if (!token.refreshToken) {
     if (options.forceRefresh) {
       throw new MissingRefreshTokenError();
     }
+    publishAccessTokenExpiry(token);
     return token;
   }
 
-  return refreshStoredToken(token, sessionRevision, signal);
+  const refreshedToken = await refreshStoredToken(
+    token,
+    sessionRevision,
+    signal,
+  );
+  publishAccessTokenExpiry(refreshedToken);
+  return refreshedToken;
 }

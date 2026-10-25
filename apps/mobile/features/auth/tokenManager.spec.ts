@@ -21,8 +21,10 @@ import {
   type StoredAccessToken,
 } from './storage';
 import {
+  getAccessTokenExpiry,
   getValidAccessToken,
   MissingRefreshTokenError,
+  subscribeToAccessTokenExpiry,
   subscribeToRefreshOutcomeUnknown,
 } from './tokenManager';
 import { beginWebSessionLogout } from './webSession';
@@ -123,6 +125,15 @@ describe('access-token manager', () => {
     expect(refreshAccessToken).not.toHaveBeenCalled();
   });
 
+  it('reads the current expiry from token storage without refreshing', async () => {
+    const token = makeToken();
+    storedToken = token;
+
+    await expect(getAccessTokenExpiry()).resolves.toBe(token.expiresAt);
+    expect(loadAccessToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
   it('refreshes a token near expiry and persists the replacement', async () => {
     const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
     const refreshed = makeToken({
@@ -131,8 +142,15 @@ describe('access-token manager', () => {
     });
     storedToken = expiredSoon;
     jest.mocked(refreshAccessToken).mockResolvedValue(refreshed);
+    const expiryListener = jest.fn();
+    const unsubscribe = subscribeToAccessTokenExpiry(expiryListener);
 
-    await expect(getValidAccessToken()).resolves.toEqual(refreshed);
+    try {
+      await expect(getValidAccessToken()).resolves.toEqual(refreshed);
+      expect(expiryListener).toHaveBeenCalledWith(refreshed.expiresAt);
+    } finally {
+      unsubscribe();
+    }
 
     const networkSignal = jest.mocked(fetchIdentityProviderDiscovery).mock
       .calls[0][1];
