@@ -7,6 +7,16 @@ export class ApiRequestTimeoutError extends Error {
   }
 }
 
+export class AuthenticatedRequestError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AuthenticatedRequestError';
+  }
+}
+
 export class DefinitiveOAuthRejectionError extends Error {
   constructor(
     readonly oauthErrorCode: string,

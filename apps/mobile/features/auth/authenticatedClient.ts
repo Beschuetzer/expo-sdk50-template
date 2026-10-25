@@ -1,13 +1,17 @@
 import { Platform } from 'react-native';
 
 import { awaitWithAbort, throwIfAborted } from './abort';
-import { ApiRequestTimeoutError, AUTH_REQUEST_TIMEOUT_MS } from './errors';
+import {
+  ApiRequestTimeoutError,
+  AuthenticatedRequestError,
+  AUTH_REQUEST_TIMEOUT_MS,
+} from './errors';
 import { getValidAccessToken } from './tokenManager';
 
 import { getBackendUrl } from '@/utils/helpers';
 import { logDebug, logWarn } from '@/utils/logging';
 
-export { ApiRequestTimeoutError };
+export { ApiRequestTimeoutError, AuthenticatedRequestError };
 
 type ApiError = { message?: string };
 type RequestOptions = {
@@ -122,7 +126,8 @@ export async function requestAuthenticatedJson<T>(
     const text = await awaitWithAbort(response.text(), signal);
     const result = text ? (JSON.parse(text) as T & ApiError) : undefined;
     if (!response.ok) {
-      throw new Error(
+      throw new AuthenticatedRequestError(
+        response.status,
         result && typeof result.message === 'string'
           ? result.message
           : options.fallbackErrorMessage?.(response.status) ??

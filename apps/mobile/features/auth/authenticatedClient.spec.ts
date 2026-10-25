@@ -208,9 +208,11 @@ describe('authenticated request client', () => {
       makeResponse(401, { message: 'Token expired' }),
     );
 
-    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toThrow(
-      'Token expired',
-    );
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toMatchObject({
+      message: 'Token expired',
+      name: 'AuthenticatedRequestError',
+      statusCode: 401,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

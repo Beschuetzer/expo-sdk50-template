@@ -19,7 +19,11 @@ import {
   revokeRefreshToken,
   normalizeIdentityProviderDiscovery,
 } from '../client';
-import { RefreshOutcomeUnknownError } from '../errors';
+import {
+  AuthenticatedRequestError,
+  DefinitiveOAuthRejectionError,
+  RefreshOutcomeUnknownError,
+} from '../errors';
 import {
   clearAuthenticatedSession,
   loadAccessToken,
@@ -411,10 +415,17 @@ export function useOAuth2AuthState() {
       try {
         authenticatedUser = await getAuthenticatedUser(storedToken.idToken);
       } catch (error) {
-        sessionGenerationRef.current += 1;
-        setIsAuthenticated(false);
-        setUser(null);
-        await clearAuthenticatedSession();
+        const confirmedAuthenticationFailure =
+          (error instanceof AuthenticatedRequestError &&
+            error.statusCode === 401) ||
+          (error instanceof DefinitiveOAuthRejectionError &&
+            error.oauthErrorCode === 'invalid_grant');
+        if (confirmedAuthenticationFailure) {
+          sessionGenerationRef.current += 1;
+          setIsAuthenticated(false);
+          setUser(null);
+          await clearAuthenticatedSession();
+        }
         throw error;
       }
 

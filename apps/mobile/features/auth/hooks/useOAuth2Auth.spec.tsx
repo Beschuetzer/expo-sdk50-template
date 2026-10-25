@@ -3,7 +3,12 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { useOAuth2AuthState } from './useOAuth2Auth';
-import { RefreshOutcomeUnknownError } from '../errors';
+import {
+  ApiRequestTimeoutError,
+  AuthenticatedRequestError,
+  DefinitiveOAuthRejectionError,
+  RefreshOutcomeUnknownError,
+} from '../errors';
 
 const storedToken = {
   accessToken: 'stored-access-token',
@@ -661,7 +666,9 @@ describe('useOAuth2AuthState', () => {
     mockLoadAccessToken
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(storedToken);
-    mockGetAuthenticatedUser.mockRejectedValueOnce(new Error('expired token'));
+    mockGetAuthenticatedUser.mockRejectedValueOnce(
+      new AuthenticatedRequestError(401, 'expired token'),
+    );
     const auth = await renderAuth();
 
     await act(async () => {
@@ -674,6 +681,54 @@ describe('useOAuth2AuthState', () => {
     expect(auth().state).toBe('error');
   });
 
+  it.each([
+    ['times out', new ApiRequestTimeoutError()],
+    ['fails in transport', new TypeError('Network request failed.')],
+    [
+      'returns a server error',
+      new AuthenticatedRequestError(503, 'Service unavailable.'),
+    ],
+  ])(
+    'preserves the session when the profile request %s',
+    async (_case, error) => {
+      mockLoadAccessToken
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(storedToken);
+      mockGetAuthenticatedUser.mockRejectedValueOnce(error);
+      const auth = await renderAuth();
+
+      await act(async () => {
+        await auth().callAuthenticatedEndpoint();
+        await flushPromises();
+      });
+
+      expect(mockClearAuthenticatedSession).not.toHaveBeenCalled();
+      expect(auth().state).toBe('error');
+      expect(auth().isAuthenticated).toBe(true);
+    },
+  );
+
+  it('clears the session after a definitive refresh-token rejection', async () => {
+    mockLoadAccessToken
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(storedToken);
+    mockGetAuthenticatedUser.mockRejectedValueOnce(
+      new DefinitiveOAuthRejectionError(
+        'invalid_grant',
+        'The refresh token is invalid.',
+      ),
+    );
+    const auth = await renderAuth();
+
+    await act(async () => {
+      await auth().callAuthenticatedEndpoint();
+      await flushPromises();
+    });
+
+    expect(mockClearAuthenticatedSession).toHaveBeenCalled();
+    expect(auth().isAuthenticated).toBe(false);
+  });
+
   it('clears an invalid stored session when refresh is unavailable', async () => {
     setPlatformOs('web');
     mockDiscovery = null;
@@ -682,7 +737,9 @@ describe('useOAuth2AuthState', () => {
 
     expect(auth().isAuthenticated).toBe(true);
     expect(auth().user).toEqual(authenticatedUser);
-    mockGetAuthenticatedUser.mockRejectedValue(new Error('request failed'));
+    mockGetAuthenticatedUser.mockRejectedValue(
+      new AuthenticatedRequestError(401, 'request failed'),
+    );
 
     await act(async () => {
       await auth().callAuthenticatedEndpoint();
