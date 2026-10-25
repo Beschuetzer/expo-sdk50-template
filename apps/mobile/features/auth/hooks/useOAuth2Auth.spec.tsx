@@ -809,6 +809,22 @@ describe('useOAuth2AuthState', () => {
     expect(auth().user).toEqual(authenticatedUser);
   });
 
+  it('rejects a session refresh when the refreshed token is missing', async () => {
+    const auth = await renderAuth();
+    mockLoadAccessToken.mockResolvedValueOnce(storedToken);
+    mockGetValidAccessToken.mockResolvedValueOnce(null);
+
+    await act(async () => {
+      await expect(auth().refreshAuthenticatedSession()).rejects.toThrow(
+        'No authenticated session is available to refresh.',
+      );
+    });
+
+    expect(auth().state).toBe('error');
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
+  });
+
   it('rejects a session refresh while discovery is unavailable', async () => {
     mockDiscovery = null;
     const auth = await renderAuth();

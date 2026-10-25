@@ -446,6 +446,98 @@ describe('access-token manager', () => {
     }
   });
 
+  it('skips invalidation notification after a newer session is stored', async () => {
+    const onRefreshOutcomeUnknown = jest.fn();
+    const unsubscribe = subscribeToRefreshOutcomeUnknown(
+      onRefreshOutcomeUnknown,
+    );
+    let finishClear!: () => void;
+    storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
+    jest.mocked(clearAuthenticatedSession).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishClear = resolve;
+        }),
+    );
+    jest
+      .mocked(refreshAccessToken)
+      .mockRejectedValueOnce(new TypeError('Network request failed.'));
+
+    try {
+      await expect(getValidAccessToken()).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      storedToken = makeToken({ accessToken: 'replacement-access-token' });
+      sessionRevision += 1;
+      finishClear();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(storedToken?.accessToken).toBe('replacement-access-token');
+      expect(onRefreshOutcomeUnknown).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('continues notifying listeners when another listener throws', async () => {
+    const nonErrorFailure: unknown = 'Listener failed.';
+    const errorListener = jest.fn(() => {
+      throw new Error('Listener failed.');
+    });
+    const nonErrorListener = jest.fn(() => {
+      throw nonErrorFailure;
+    });
+    const finalListener = jest.fn();
+    const unsubscribeError = subscribeToRefreshOutcomeUnknown(errorListener);
+    const unsubscribeNonError =
+      subscribeToRefreshOutcomeUnknown(nonErrorListener);
+    const unsubscribeFinal = subscribeToRefreshOutcomeUnknown(finalListener);
+    storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
+    jest
+      .mocked(refreshAccessToken)
+      .mockRejectedValueOnce(new TypeError('Network request failed.'));
+
+    try {
+      await expect(getValidAccessToken()).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(errorListener).toHaveBeenCalledTimes(1);
+      expect(nonErrorListener).toHaveBeenCalledTimes(1);
+      expect(finalListener).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribeError();
+      unsubscribeNonError();
+      unsubscribeFinal();
+    }
+  });
+
+  it('does not notify auth state when clearing the uncertain session fails', async () => {
+    const onRefreshOutcomeUnknown = jest.fn();
+    const unsubscribe = subscribeToRefreshOutcomeUnknown(
+      onRefreshOutcomeUnknown,
+    );
+    storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
+    jest
+      .mocked(clearAuthenticatedSession)
+      .mockRejectedValueOnce(new Error('Session clear failed.'));
+    jest
+      .mocked(refreshAccessToken)
+      .mockRejectedValueOnce(new TypeError('Network request failed.'));
+
+    try {
+      await expect(getValidAccessToken()).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(onRefreshOutcomeUnknown).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('clears the current session after a native refresh transport failure', async () => {
     const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
     storedToken = expiredSoon;
