@@ -262,6 +262,35 @@ describe('authenticated request client', () => {
     );
   });
 
+  it('preserves the status and uses the fallback for an unsuccessful non-JSON response', async () => {
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(currentToken)
+      .mockResolvedValueOnce(null);
+    fetchMock.mockResolvedValueOnce({
+      ...makeResponse(401, null),
+      text: async () => '<html>Unauthorized</html>',
+    } as Response);
+
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toMatchObject({
+      message: 'Request failed with HTTP 401',
+      name: 'AuthenticatedRequestError',
+      statusCode: 401,
+    });
+  });
+
+  it('rejects a successful response with a non-JSON body', async () => {
+    jest.mocked(getValidAccessToken).mockResolvedValueOnce(currentToken);
+    fetchMock.mockResolvedValueOnce({
+      ...makeResponse(200, null),
+      text: async () => '<html>Unexpected response</html>',
+    } as Response);
+
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toBeInstanceOf(
+      SyntaxError,
+    );
+  });
+
   it('preserves non-Error token lookup failures', async () => {
     jest.mocked(getValidAccessToken).mockRejectedValueOnce('lookup failure');
 

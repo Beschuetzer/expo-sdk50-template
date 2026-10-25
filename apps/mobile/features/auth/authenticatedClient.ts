@@ -133,7 +133,16 @@ export async function requestAuthenticatedJson<T>(
     }
 
     const text = await awaitWithAbort(response.text(), signal);
-    const result = text ? (JSON.parse(text) as T & ApiError) : undefined;
+    let result: (T & ApiError) | undefined;
+    if (text) {
+      try {
+        result = JSON.parse(text) as T & ApiError;
+      } catch (error) {
+        if (response.ok) {
+          throw error;
+        }
+      }
+    }
     if (!response.ok) {
       throw new AuthenticatedRequestError(
         response.status,
