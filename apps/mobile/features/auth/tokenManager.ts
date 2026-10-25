@@ -28,11 +28,15 @@ type PendingRefresh = {
 
 type PendingWebRefresh = PendingRefresh;
 
+export class MissingRefreshTokenError extends Error {
+  constructor() {
+    super();
+    this.name = 'MissingRefreshTokenError';
+  }
+}
+
 let cachedDiscovery:
-  | {
-      issuerUrl: string;
-      discovery: DiscoveryDocument;
-    }
+  | { issuerUrl: string; discovery: DiscoveryDocument }
   | undefined;
 const pendingRefreshes = new Map<string, PendingRefresh>();
 let pendingWebRefresh: PendingWebRefresh | undefined;
@@ -222,7 +226,12 @@ export async function getValidAccessToken(
   const forceRefresh =
     options.forceRefresh || token.accessToken === options.rejectedAccessToken;
   if (!forceRefresh && !isAccessTokenExpiring(token)) return token;
-  if (!token.refreshToken) return token;
+  if (!token.refreshToken) {
+    if (options.forceRefresh) {
+      throw new MissingRefreshTokenError();
+    }
+    return token;
+  }
 
   return refreshStoredToken(token, sessionRevision, signal);
 }

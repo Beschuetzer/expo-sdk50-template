@@ -43,6 +43,15 @@ describe('i18n', () => {
     );
   });
 
+  it('localizes missing refresh token errors', () => {
+    expect(getMessage('en', 'errors.noRefreshToken')).toBe(
+      'No refresh token is available.',
+    );
+    expect(getMessage('es', 'errors.noRefreshToken')).toBe(
+      'No hay un token de actualización disponible.',
+    );
+  });
+
   it('falls back to english strings for missing locale values', () => {
     expect(getMessage('es', 'tabs.missing' as never)).toBe('tabs.missing');
     expect(getMessage('es', 'settings.title')).toBe('Configuración');

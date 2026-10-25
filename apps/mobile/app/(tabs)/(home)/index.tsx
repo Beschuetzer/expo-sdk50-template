@@ -21,6 +21,7 @@ import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { ApiRequestTimeoutError } from '@/features/auth/authenticatedClient';
 import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
 import { loadAccessToken } from '@/features/auth/storage';
+import { MissingRefreshTokenError } from '@/features/auth/tokenManager';
 import { formatAccessTokenTtl } from '@/features/auth/tokenTtl';
 import { createRandomExample } from '@/features/backend/api';
 import {
@@ -231,6 +232,8 @@ export default function HomeScreen() {
           message:
             error instanceof ApiRequestTimeoutError
               ? t('errors.apiRequestTimedOut')
+              : error instanceof MissingRefreshTokenError
+                ? t('errors.noRefreshToken')
               : error instanceof Error
                 ? error.message
                 : t('errors.tokenRefreshFailed'),

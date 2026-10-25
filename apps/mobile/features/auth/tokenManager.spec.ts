@@ -12,7 +12,7 @@ import {
   persistRefreshedAccessTokenIfCurrent,
   type StoredAccessToken,
 } from './storage';
-import { getValidAccessToken } from './tokenManager';
+import { getValidAccessToken, MissingRefreshTokenError } from './tokenManager';
 
 import { getIdentityProviderUrl } from '@/utils/platform';
 
@@ -313,6 +313,15 @@ describe('access-token manager', () => {
     storedToken = expiredToken;
 
     await expect(getValidAccessToken()).resolves.toEqual(expiredToken);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('rejects a forced refresh when no refresh credential is available', async () => {
+    storedToken = makeToken({ refreshToken: undefined });
+
+    await expect(getValidAccessToken({ forceRefresh: true })).rejects.toThrow(
+      MissingRefreshTokenError,
+    );
     expect(refreshAccessToken).not.toHaveBeenCalled();
   });
 
