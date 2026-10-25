@@ -22,6 +22,11 @@ import {
   persistRefreshedAccessTokenIfCurrent,
   type StoredAccessToken,
 } from './storage';
+import {
+  isWebSessionLogoutPending,
+  registerPendingWebRefresh,
+  throwIfWebSessionLogoutPending,
+} from './webSession';
 
 import { logInfo, logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
@@ -285,6 +290,7 @@ function refreshWebSession(
   sessionRevision: number,
   signal?: AbortSignal,
 ) {
+  throwIfWebSessionLogoutPending();
   if (
     pendingWebRefresh?.sessionRevision === sessionRevision &&
     !pendingWebRefresh.controller.signal.aborted
@@ -307,6 +313,7 @@ function refreshWebSession(
       throwIfAborted(controller.signal);
       refreshState.tokenExchangeCompleted = true;
       if (getAccessTokenSessionRevision() !== sessionRevision) {
+        if (isWebSessionLogoutPending()) return null;
         return await awaitWithAbort(
           loadAccessTokenForRequest(controller.signal),
           controller.signal,
@@ -339,9 +346,13 @@ function refreshWebSession(
     waiters: 0,
   };
   pendingWebRefresh = pending;
+  const unregister = registerPendingWebRefresh(promise, () =>
+    controller.abort(),
+  );
   const clearPending = () => {
     pending.settled = true;
     if (pendingWebRefresh === pending) pendingWebRefresh = undefined;
+    unregister();
   };
   promise.then(clearPending, clearPending);
   return waitForPendingRefresh(pending, signal);

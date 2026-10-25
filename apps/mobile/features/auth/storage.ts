@@ -561,12 +561,12 @@ export function clearAccessToken() {
   const webSessionLogout =
     Platform.OS === 'web' ? beginWebSessionLogout() : undefined;
   const isCurrent = () =>
-    revision === tokenSessionRevision &&
-    isCurrentTokenStorageIntent(intent);
+    revision === tokenSessionRevision && isCurrentTokenStorageIntent(intent);
 
   const clearRequest = serializeAccessTokenOperation(async (signal) => {
     if (!isCurrent() || signal.aborted) return;
-    await webSessionLogout?.waitForPendingRefreshes(signal);
+    const pendingRefreshes = webSessionLogout?.waitForPendingRefreshes(signal);
+    if (pendingRefreshes) await pendingRefreshes;
     if (!isCurrent() || signal.aborted) return;
     await clearAccessTokenUnlocked(isCurrent, signal);
     if (isCurrent() && !signal.aborted) completeTokenStorageIntent(intent);

@@ -25,6 +25,7 @@ import {
   MissingRefreshTokenError,
   subscribeToRefreshOutcomeUnknown,
 } from './tokenManager';
+import { beginWebSessionLogout } from './webSession';
 
 import { logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
@@ -965,5 +966,46 @@ describe('access-token manager', () => {
     resolveRefresh(staleRefreshToken);
 
     await expect(pendingRefresh).resolves.toEqual(replacementToken);
+  });
+
+  it('cancels a pending web refresh without probing cookies during logout', async () => {
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: 'web',
+    });
+    storedToken = null;
+    let resolveRefresh!: (token: StoredAccessToken) => void;
+    jest.mocked(refreshAccessToken).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+
+    const pendingRefresh = getValidAccessToken({ forceRefresh: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+
+    sessionRevision += 1;
+    const webLogout = beginWebSessionLogout();
+    const rejectedRefresh = expect(pendingRefresh).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    try {
+      await webLogout.waitForPendingRefreshes();
+      await rejectedRefresh;
+
+      expect(loadAccessToken).toHaveBeenCalledTimes(1);
+      expect(clearAuthenticatedSession).not.toHaveBeenCalled();
+    } finally {
+      webLogout.release();
+      resolveRefresh(
+        makeToken({
+          accessToken: '',
+          expiresAt: Number.MAX_SAFE_INTEGER,
+          refreshToken: undefined,
+        }),
+      );
+    }
   });
 });

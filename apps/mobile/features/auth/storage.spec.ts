@@ -205,9 +205,7 @@ describe('access-token storage', () => {
     let cookie = 'original-refresh-cookie';
     let resolveRefresh!: (response: Response) => void;
     const requestOrder: string[] = [];
-    const fetchSpy = jest
-      .spyOn(global, 'fetch')
-      .mockImplementation((input) => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input) => {
         const url = String(input);
         if (url.endsWith('/auth/refresh')) {
           requestOrder.push('refresh-started');

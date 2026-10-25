@@ -1,8 +1,13 @@
 import type { DiscoveryDocument } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
+import { throwIfAborted } from './abort';
 import { DefinitiveOAuthRejectionError } from './errors';
 import type { StoredAccessToken } from './storage';
+import {
+  registerPendingWebRefresh,
+  throwIfWebSessionLogoutPending,
+} from './webSession';
 
 import { getBackendUrl } from '@/utils/helpers';
 
@@ -346,24 +351,37 @@ export async function refreshAccessToken(
   signal?: AbortSignal,
 ): Promise<StoredAccessToken> {
   if (Platform.OS === 'web') {
-    const response = await fetch(`${getBackendUrl()}/auth/refresh`, {
-      credentials: 'include',
-      method: 'POST',
-      ...(signal ? { signal } : {}),
-    });
-    const result: unknown = await response.json();
-    if (!response.ok || !hasValidTokenMetadata(result)) {
-      throw createTokenRefreshError(response, result);
+    throwIfWebSessionLogoutPending();
+    const refreshRequest = (async () => {
+      const response = await fetch(`${getBackendUrl()}/auth/refresh`, {
+        credentials: 'include',
+        method: 'POST',
+        ...(signal ? { signal } : {}),
+      });
+      throwIfAborted(signal);
+      const result: unknown = await response.json();
+      throwIfAborted(signal);
+      if (!response.ok || !hasValidTokenMetadata(result)) {
+        throw createTokenRefreshError(response, result);
+      }
+      return {
+        accessToken: '',
+        expiresAt: Date.now() + result.expires_in * 1000,
+        idToken:
+          typeof result.id_token === 'string'
+            ? result.id_token
+            : token?.idToken,
+        scope:
+          typeof result.scope === 'string' ? result.scope : token?.scope ?? '',
+        tokenType: 'Bearer' as const,
+      };
+    })();
+    const unregister = registerPendingWebRefresh(refreshRequest);
+    try {
+      return await refreshRequest;
+    } finally {
+      unregister();
     }
-    return {
-      accessToken: '',
-      expiresAt: Date.now() + result.expires_in * 1000,
-      idToken:
-        typeof result.id_token === 'string' ? result.id_token : token?.idToken,
-      scope:
-        typeof result.scope === 'string' ? result.scope : token?.scope ?? '',
-      tokenType: 'Bearer',
-    };
   }
 
   if (!token?.refreshToken || !discovery.tokenEndpoint) {
