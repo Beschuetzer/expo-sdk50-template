@@ -906,8 +906,10 @@ describe('useOAuth2AuthState', () => {
   });
 
   it('rejects a session refresh when the refreshed token is missing', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
     const auth = await renderAuth();
-    mockLoadAccessToken.mockResolvedValueOnce(storedToken);
+    expect(auth().isAuthenticated).toBe(true);
+    expect(auth().user).toEqual(authenticatedUser);
     mockGetValidAccessToken.mockResolvedValueOnce(null);
 
     await act(async () => {

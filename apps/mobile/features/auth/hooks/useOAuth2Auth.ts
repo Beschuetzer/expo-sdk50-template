@@ -480,6 +480,8 @@ export function useOAuth2AuthState() {
 
       const refreshedToken = await getValidAccessToken({ forceRefresh: true });
       if (!refreshedToken) {
+        setIsAuthenticated(false);
+        setUser(null);
         throw new Error('No authenticated session is available to refresh.');
       }
       setIsAuthenticated(true);
