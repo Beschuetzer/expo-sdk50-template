@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
+import { ApiRequestTimeoutError, AUTH_REQUEST_TIMEOUT_MS } from './errors';
 import {
   clearAccessToken,
   getAccessTokenSessionRevision,
@@ -184,6 +185,96 @@ describe('access-token storage', () => {
     await expect(loadAccessToken()).resolves.toBeNull();
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it('skips a queued web logout when a newer session is saved', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: true } as Response);
+
+    const clearing = clearAccessToken();
+    const saving = saveAccessToken(token);
+
+    try {
+      await expect(clearing).resolves.toBeUndefined();
+      await expect(saving).resolves.toBeUndefined();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('aborts an in-flight web logout before saving a newer session', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    let logoutSignal: AbortSignal | null | undefined;
+    let resolveLogout!: (response: Response) => void;
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation((input, init) => {
+        if (String(input).endsWith('/auth/logout')) {
+          logoutSignal = init?.signal;
+          return new Promise((resolve) => {
+            resolveLogout = resolve;
+          });
+        }
+        return Promise.resolve({ ok: true } as Response);
+      });
+
+    try {
+      const clearing = clearAccessToken();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(logoutSignal).toBeDefined();
+
+      const saving = saveAccessToken(token);
+      await expect(saving).resolves.toBeUndefined();
+      await expect(clearing).resolves.toBeUndefined();
+      expect(logoutSignal?.aborted).toBe(true);
+      resolveLogout({ ok: true } as Response);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('times out a stalled web logout and releases queued saves', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest.useFakeTimers();
+    let logoutSignal: AbortSignal | null | undefined;
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation((input, init) => {
+        if (String(input).endsWith('/auth/logout')) {
+          logoutSignal = init?.signal;
+          return new Promise(() => undefined);
+        }
+        return Promise.resolve({ ok: true } as Response);
+      });
+
+    try {
+      const clearing = clearAccessToken();
+      const timedOut = expect(clearing).rejects.toBeInstanceOf(
+        ApiRequestTimeoutError,
+      );
+      await Promise.resolve();
+      expect(logoutSignal).toBeDefined();
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+      await timedOut;
+
+      expect(logoutSignal?.aborted).toBe(true);
+      await expect(saveAccessToken(token)).resolves.toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+      fetchSpy.mockRestore();
+    }
   });
 
   it('does not block web reads or clearing behind a stalled session probe', async () => {

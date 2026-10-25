@@ -1,7 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import { throwIfAborted } from './abort';
+import { awaitWithAbort, throwIfAborted } from './abort';
+import { ApiRequestTimeoutError, AUTH_REQUEST_TIMEOUT_MS } from './errors';
 
 import { clearPersistedQueryCache } from '@/state/queryClient';
 import { getBackendUrl } from '@/utils/helpers';
@@ -29,6 +30,7 @@ const webSessionToken: StoredAccessToken = {
 
 let tokenSessionRevision = 0;
 let tokenStorageQueue: Promise<void> = Promise.resolve();
+let pendingWebLogout: { controller: AbortController } | undefined;
 
 function serializeAccessTokenOperation<T>(operation: () => Promise<T>) {
   const result = tokenStorageQueue.then(operation, operation);
@@ -37,6 +39,12 @@ function serializeAccessTokenOperation<T>(operation: () => Promise<T>) {
     () => undefined,
   );
   return result;
+}
+
+function advanceTokenSessionRevision() {
+  tokenSessionRevision += 1;
+  pendingWebLogout?.controller.abort();
+  return tokenSessionRevision;
 }
 
 function isStoredAccessToken(value: unknown): value is StoredAccessToken {
@@ -80,12 +88,12 @@ async function loadAccessTokenUnlocked(signal?: AbortSignal) {
   try {
     const parsedToken: unknown = JSON.parse(serializedToken);
     if (!isStoredAccessToken(parsedToken)) {
-      tokenSessionRevision += 1;
+      advanceTokenSessionRevision();
       await clearAccessTokenUnlocked();
       return null;
     }
     if (isAccessTokenExpiring(parsedToken) && !parsedToken.refreshToken) {
-      tokenSessionRevision += 1;
+      advanceTokenSessionRevision();
       await clearAccessTokenUnlocked();
       return null;
     }
@@ -101,7 +109,7 @@ async function loadAccessTokenUnlocked(signal?: AbortSignal) {
     return parsedToken;
   } catch {
     if (signal?.aborted) throwIfAborted(signal);
-    tokenSessionRevision += 1;
+    advanceTokenSessionRevision();
     await clearAccessTokenUnlocked();
     return null;
   }
@@ -138,12 +146,37 @@ async function saveAccessTokenUnlocked(
   return isCurrent();
 }
 
-async function clearAccessTokenUnlocked() {
+async function clearAccessTokenUnlocked(isCurrent: () => boolean = () => true) {
   if (Platform.OS === 'web') {
-    await fetch(`${getBackendUrl()}/auth/logout`, {
-      credentials: 'include',
-      method: 'POST',
-    });
+    if (!isCurrent()) return;
+
+    const pendingLogout = { controller: new AbortController() };
+    pendingWebLogout = pendingLogout;
+    const timeoutId = setTimeout(
+      () => pendingLogout.controller.abort(),
+      AUTH_REQUEST_TIMEOUT_MS,
+    );
+    try {
+      await awaitWithAbort(
+        fetch(`${getBackendUrl()}/auth/logout`, {
+          credentials: 'include',
+          method: 'POST',
+          signal: pendingLogout.controller.signal,
+        }),
+        pendingLogout.controller.signal,
+      );
+    } catch (error) {
+      if (!isCurrent()) return;
+      if (pendingLogout.controller.signal.aborted) {
+        throw new ApiRequestTimeoutError();
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      if (pendingWebLogout === pendingLogout) {
+        pendingWebLogout = undefined;
+      }
+    }
     return;
   }
 
@@ -167,7 +200,7 @@ export function loadAccessToken(options: { signal?: AbortSignal } = {}) {
 }
 
 export function saveAccessToken(token: StoredAccessToken) {
-  tokenSessionRevision += 1;
+  advanceTokenSessionRevision();
   return serializeAccessTokenOperation(async () => {
     await saveAccessTokenUnlocked(token);
   });
@@ -202,8 +235,10 @@ export function persistRefreshedAccessTokenIfCurrent(
 }
 
 export function clearAccessToken() {
-  tokenSessionRevision += 1;
-  return serializeAccessTokenOperation(clearAccessTokenUnlocked);
+  const revision = advanceTokenSessionRevision();
+  return serializeAccessTokenOperation(async () => {
+    await clearAccessTokenUnlocked(() => revision === tokenSessionRevision);
+  });
 }
 
 export async function clearAuthenticatedSession() {
