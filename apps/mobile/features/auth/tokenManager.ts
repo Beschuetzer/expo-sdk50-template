@@ -27,6 +27,7 @@ let cachedDiscovery:
     }
   | undefined;
 const pendingRefreshes = new Map<string, PendingRefresh>();
+let pendingWebRefresh: Promise<StoredAccessToken | null> | undefined;
 
 function getIdentityProviderDiscovery() {
   const issuerUrl = getIdentityProviderUrl();
@@ -87,22 +88,44 @@ function refreshStoredToken(token: StoredAccessToken) {
   return promise;
 }
 
+function refreshWebSession(token: StoredAccessToken | null) {
+  if (pendingWebRefresh) return pendingWebRefresh;
+
+  const promise = getIdentityProviderDiscovery().then((discovery) =>
+    refreshAccessToken(token ?? undefined, discovery),
+  );
+  pendingWebRefresh = promise;
+  const clearPending = () => {
+    if (pendingWebRefresh === promise) pendingWebRefresh = undefined;
+  };
+  promise.then(clearPending, clearPending);
+  return promise;
+}
+
 export async function getValidAccessToken(
   options: {
     rejectedAccessToken?: string;
+    forceRefresh?: boolean;
   } = {},
 ): Promise<StoredAccessToken | null> {
   const token = await loadAccessToken();
-  if (Platform.OS === 'web' || !token) return token;
+  if (Platform.OS === 'web') {
+    if (!options.forceRefresh && options.rejectedAccessToken === undefined) {
+      return token;
+    }
+    return refreshWebSession(token);
+  }
+  if (!token) return token;
 
   if (
-    options.rejectedAccessToken &&
+    options.rejectedAccessToken !== undefined &&
     token.accessToken !== options.rejectedAccessToken
   ) {
     return token;
   }
 
-  const forceRefresh = token.accessToken === options.rejectedAccessToken;
+  const forceRefresh =
+    options.forceRefresh || token.accessToken === options.rejectedAccessToken;
   if (!forceRefresh && !isAccessTokenExpiring(token)) return token;
   if (!token.refreshToken) return token;
 

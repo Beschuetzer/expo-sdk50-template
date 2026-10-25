@@ -5,17 +5,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import {
+  getAuthenticatedUser,
+  type AuthenticatedUser,
+} from '../authenticatedUser';
+import {
   createProviderLogoutUrl,
   exchangeAuthorizationCodeForCurrentPlatform,
-  getAuthenticatedUser,
   MOBILE_OAUTH_AUDIENCE,
   MOBILE_OAUTH_CLIENT_ID,
   MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI,
   MOBILE_OAUTH_SCHEME,
   MOBILE_OAUTH_SCOPES,
   revokeRefreshToken,
-  refreshAccessToken,
-  type AuthenticatedUser,
   normalizeIdentityProviderDiscovery,
 } from '../client';
 import {
@@ -24,7 +25,9 @@ import {
   saveAccessToken,
   type StoredAccessToken,
 } from '../storage';
+import { getValidAccessToken } from '../tokenManager';
 
+import { logDebug, logError, logInfo, logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -37,6 +40,8 @@ export type OAuth2AuthState =
   | 'cancelled'
   | 'error';
 
+const AUTH_REQUEST_PREPARATION_TIMEOUT_MS = 15_000;
+
 export function useOAuth2AuthState() {
   if (!MOBILE_OAUTH_CLIENT_ID) {
     throw new Error(
@@ -45,7 +50,45 @@ export function useOAuth2AuthState() {
   }
 
   const issuerUrl = getIdentityProviderUrl();
-  const providerDiscovery = AuthSession.useAutoDiscovery(issuerUrl);
+  const [discoveryAttempt, setDiscoveryAttempt] = useState(0);
+  const [providerDiscovery, setProviderDiscovery] =
+    useState<AuthSession.DiscoveryDocument | null>(null);
+  const [hasDiscoveryError, setHasDiscoveryError] = useState(false);
+  const [hasRequestPreparationError, setHasRequestPreparationError] =
+    useState(false);
+  useEffect(() => {
+    let isCurrent = true;
+    setProviderDiscovery(null);
+    setHasDiscoveryError(false);
+    logDebug('oauth_discovery_started', {
+      attempt: discoveryAttempt,
+      issuerUrl,
+    });
+
+    AuthSession.fetchDiscoveryAsync(issuerUrl)
+      .then((result) => {
+        if (isCurrent) {
+          setProviderDiscovery(result);
+          logDebug('oauth_discovery_succeeded', {
+            attempt: discoveryAttempt,
+            issuerUrl,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return;
+        logWarn('oauth_discovery_failed', {
+          attempt: discoveryAttempt,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          issuerUrl,
+        });
+        setHasDiscoveryError(true);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [discoveryAttempt, issuerUrl]);
   const discovery = useMemo(
     () =>
       providerDiscovery
@@ -95,6 +138,21 @@ export function useOAuth2AuthState() {
     },
     discovery,
   );
+  useEffect(() => {
+    if (!discovery || request) {
+      setHasRequestPreparationError(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      logWarn('oauth_request_preparation_timed_out', {
+        timeoutMs: AUTH_REQUEST_PREPARATION_TIMEOUT_MS,
+      });
+      setHasRequestPreparationError(true);
+    }, AUTH_REQUEST_PREPARATION_TIMEOUT_MS);
+
+    return () => clearTimeout(timeout);
+  }, [discovery, nonce, request]);
   const [state, setState] = useState<OAuth2AuthState>('idle');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -108,16 +166,20 @@ export function useOAuth2AuthState() {
       isCurrent && sessionGenerationRef.current === sessionGeneration;
     signInAttemptInFlightRef.current = true;
     setState('loading');
+    logDebug('auth_session_restore_started');
 
     loadAccessToken()
       .then(async (storedToken) => {
         if (!isCurrentSession()) return;
+        logDebug('auth_session_restore_token_loaded', {
+          hasStoredToken: Boolean(storedToken),
+        });
 
         let sessionToken = storedToken;
         if (!sessionToken && Platform.OS === 'web' && discovery) {
-          sessionToken = await refreshAccessToken(undefined, discovery);
+          sessionToken = await getValidAccessToken({ forceRefresh: true });
           if (!isCurrentSession()) return;
-          await saveAccessToken(sessionToken);
+          if (sessionToken) await saveAccessToken(sessionToken);
           if (!isCurrentSession()) return;
         }
         if (!sessionToken || !isCurrentSession()) {
@@ -126,36 +188,20 @@ export function useOAuth2AuthState() {
         }
 
         try {
-          let authenticatedUser: AuthenticatedUser;
-          try {
-            if (!isCurrentSession()) return;
-            authenticatedUser = await getAuthenticatedUser(
-              sessionToken.accessToken,
-              sessionToken.idToken,
-            );
-          } catch (error) {
-            if (!isCurrentSession()) return;
-            if (!discovery) throw error;
-
-            const refreshedToken = await refreshAccessToken(
-              sessionToken,
-              discovery,
-            );
-            if (!isCurrentSession()) return;
-            await saveAccessToken(refreshedToken);
-            if (!isCurrentSession()) return;
-            authenticatedUser = await getAuthenticatedUser(
-              refreshedToken.accessToken,
-              refreshedToken.idToken,
-            );
-          }
-
+          if (!isCurrentSession()) return;
+          const authenticatedUser = await getAuthenticatedUser(
+            sessionToken.idToken,
+          );
           if (isCurrentSession()) {
             setIsAuthenticated(true);
             setUser(authenticatedUser);
             setState('success');
+            logInfo('auth_session_restored');
           }
-        } catch {
+        } catch (error) {
+          logWarn('auth_session_user_load_failed', {
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+          });
           if (isCurrentSession()) {
             setIsAuthenticated(false);
             setUser(null);
@@ -163,7 +209,10 @@ export function useOAuth2AuthState() {
           }
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        logError('auth_session_restore_failed', {
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
         if (isCurrentSession()) setState('error');
       })
       .finally(() => {
@@ -190,11 +239,15 @@ export function useOAuth2AuthState() {
     promptAttemptRef.current = promptKey;
     setShouldPrompt(false);
     handledResponseRef.current = null;
-    promptAsync().catch(() => {
+    logInfo('oauth_sign_in_prompt_started', { redirectUri });
+    promptAsync().catch((error: unknown) => {
+      logWarn('oauth_sign_in_prompt_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
       signInAttemptInFlightRef.current = false;
       setState('error');
     });
-  }, [nonce, promptAsync, request, shouldPrompt]);
+  }, [nonce, promptAsync, redirectUri, request, shouldPrompt]);
 
   useEffect(() => {
     if (!response || !discovery) return;
@@ -216,6 +269,12 @@ export function useOAuth2AuthState() {
     if (response.type !== 'success') {
       pendingAuthenticatedActionRef.current = null;
       signInAttemptInFlightRef.current = false;
+      logInfo('oauth_sign_in_ended', {
+        result: response.type,
+        ...(response.type === 'error'
+          ? { providerError: response.params?.error ?? response.error?.code }
+          : {}),
+      });
       setState(response.type === 'cancel' ? 'cancelled' : 'error');
       return;
     }
@@ -227,6 +286,7 @@ export function useOAuth2AuthState() {
       !response.params.state ||
       response.params.state !== request.state
     ) {
+      logWarn('oauth_sign_in_response_invalid');
       pendingAuthenticatedActionRef.current = null;
       signInAttemptInFlightRef.current = false;
       setState('error');
@@ -235,6 +295,7 @@ export function useOAuth2AuthState() {
 
     let isCurrent = true;
     setState('loading');
+    logInfo('oauth_authorization_code_exchange_started');
     exchangeAuthorizationCodeForCurrentPlatform({
       code,
       codeVerifier: request.codeVerifier,
@@ -243,15 +304,16 @@ export function useOAuth2AuthState() {
     })
       .then(async (token) => {
         await saveAccessToken(token);
+        logInfo('oauth_authorization_code_exchange_succeeded');
         setIsAuthenticated(true);
         if (!isCurrent) return;
         try {
-          const authenticatedUser = await getAuthenticatedUser(
-            token.accessToken,
-            token.idToken,
-          );
+          const authenticatedUser = await getAuthenticatedUser(token.idToken);
           if (isCurrent) setUser(authenticatedUser);
-        } catch {
+        } catch (error) {
+          logWarn('authenticated_user_load_failed', {
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+          });
           setUser(null);
         }
         setState('success');
@@ -259,13 +321,20 @@ export function useOAuth2AuthState() {
         pendingAuthenticatedActionRef.current = null;
         if (pendingAction) {
           try {
-            await pendingAction(token.accessToken);
-          } catch {
+            const latestToken = await getValidAccessToken();
+            await pendingAction(latestToken?.accessToken ?? token.accessToken);
+          } catch (error) {
+            logError('authenticated_action_failed', {
+              errorName: error instanceof Error ? error.name : 'UnknownError',
+            });
             setState('error');
           }
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        logWarn('oauth_authorization_code_exchange_failed', {
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
         pendingAuthenticatedActionRef.current = null;
         if (isCurrent) setState('error');
       })
@@ -285,16 +354,18 @@ export function useOAuth2AuthState() {
     signInAttemptInFlightRef.current = true;
     let waitingForCallback = false;
 
+    logDebug('authenticated_action_started');
     setState('loading');
     try {
       let storedToken = await loadAccessToken();
       if (!storedToken && Platform.OS === 'web' && discovery) {
-        storedToken = await refreshAccessToken(undefined, discovery).catch(
+        storedToken = await getValidAccessToken({ forceRefresh: true }).catch(
           () => null,
         );
         if (storedToken) await saveAccessToken(storedToken);
       }
       if (!storedToken) {
+        logInfo('auth_sign_in_required');
         if (!request) {
           throw new Error('The OAuth2 request is still being prepared.');
         }
@@ -307,45 +378,30 @@ export function useOAuth2AuthState() {
       }
       setIsAuthenticated(true);
 
-      let accessToken = storedToken.accessToken;
       let authenticatedUser: AuthenticatedUser;
       try {
-        authenticatedUser = await getAuthenticatedUser(
-          storedToken.accessToken,
-          storedToken.idToken,
-        );
+        authenticatedUser = await getAuthenticatedUser(storedToken.idToken);
       } catch (error) {
-        try {
-          if (!discovery) {
-            throw new Error('The OAuth2 discovery document is still loading.');
-          }
-          const refreshedToken = await refreshAccessToken(
-            storedToken,
-            discovery,
-          );
-          await saveAccessToken(refreshedToken);
-          accessToken = refreshedToken.accessToken;
-          setIsAuthenticated(true);
-          authenticatedUser = await getAuthenticatedUser(
-            refreshedToken.accessToken,
-            refreshedToken.idToken,
-          );
-        } catch {
-          sessionGenerationRef.current += 1;
-          setIsAuthenticated(false);
-          setUser(null);
-          await clearAuthenticatedSession();
-          throw error;
-        }
+        sessionGenerationRef.current += 1;
+        setIsAuthenticated(false);
+        setUser(null);
+        await clearAuthenticatedSession();
+        throw error;
       }
 
+      const currentToken = await getValidAccessToken();
+      const accessToken = currentToken?.accessToken ?? storedToken.accessToken;
       setUser(authenticatedUser);
       setState('success');
       if (authenticatedAction) {
         await authenticatedAction(accessToken);
       }
+      logInfo('authenticated_action_succeeded');
       return true;
     } catch (error) {
+      logWarn('authenticated_action_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
       setState('error');
       if (authenticatedAction) throw error;
       return false;
@@ -357,6 +413,7 @@ export function useOAuth2AuthState() {
   }
 
   async function refreshAuthenticatedSession() {
+    logInfo('auth_session_refresh_started');
     setState('loading');
     try {
       if (!discovery) {
@@ -367,22 +424,28 @@ export function useOAuth2AuthState() {
         throw new Error('No authenticated session is available to refresh.');
       }
 
-      const refreshedToken = await refreshAccessToken(storedToken, discovery);
-      await saveAccessToken(refreshedToken);
+      const refreshedToken = await getValidAccessToken({ forceRefresh: true });
+      if (!refreshedToken) {
+        throw new Error('No authenticated session is available to refresh.');
+      }
       setIsAuthenticated(true);
       const authenticatedUser = await getAuthenticatedUser(
-        refreshedToken.accessToken,
         refreshedToken.idToken,
       );
       setUser(authenticatedUser);
       setState('success');
+      logInfo('auth_session_refresh_succeeded');
     } catch (error) {
+      logWarn('auth_session_refresh_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
       setState('error');
       throw error;
     }
   }
 
   async function signOut() {
+    logInfo('auth_sign_out_started');
     sessionGenerationRef.current += 1;
     signInAttemptInFlightRef.current = false;
     setState('loading');
@@ -391,12 +454,28 @@ export function useOAuth2AuthState() {
       if (storedToken?.refreshToken && discovery) {
         await revokeRefreshToken(storedToken.refreshToken, discovery);
       }
+    } catch (error) {
+      logWarn('auth_sign_out_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+      throw error;
     } finally {
       await clearAuthenticatedSession();
       setIsAuthenticated(false);
       setUser(null);
       setState('idle');
+      logInfo('auth_sign_out_completed');
     }
+  }
+
+  function retryAuthenticationSetup() {
+    logInfo('oauth_setup_retry_requested', {
+      attempt: discoveryAttempt + 1,
+    });
+    setHasDiscoveryError(false);
+    setHasRequestPreparationError(false);
+    setNonce(Crypto.randomUUID());
+    setDiscoveryAttempt((attempt) => attempt + 1);
   }
 
   async function resetAuthentication() {
@@ -405,8 +484,11 @@ export function useOAuth2AuthState() {
     let storedToken: StoredAccessToken | null = null;
     try {
       storedToken = await loadAccessToken();
-    } catch {
+    } catch (error) {
       // Continue clearing local state even when storage is unavailable.
+      logWarn('auth_reset_token_lookup_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
     }
     const postLogoutRedirectUri =
       MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI || logoutRedirectUri;
@@ -450,9 +532,11 @@ export function useOAuth2AuthState() {
 
   return {
     callAuthenticatedEndpoint,
-    isReady: Boolean(request),
+    hasSetupError: hasDiscoveryError || hasRequestPreparationError,
+    isReady: Boolean(discovery && request),
     isAuthenticated,
     refreshAuthenticatedSession,
+    retryAuthenticationSetup,
     resetAuthentication,
     redirectUri,
     signOut,

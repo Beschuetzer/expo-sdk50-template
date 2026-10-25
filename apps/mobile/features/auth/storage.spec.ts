@@ -77,6 +77,15 @@ describe('access-token storage', () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
   });
 
+  it('clears stored values that parse to a non-token value', async () => {
+    jest.mocked(SecureStore.getItemAsync).mockResolvedValue('null');
+
+    await expect(loadAccessToken()).resolves.toBeNull();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'expo50sdktemplate.oauth.access-token',
+    );
+  });
+
   it('retains an expired access token when a refresh token is available', async () => {
     jest.mocked(SecureStore.getItemAsync).mockResolvedValue(
       JSON.stringify({
@@ -114,6 +123,15 @@ describe('access-token storage', () => {
       'id-token',
       { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
     );
+  });
+
+  it('loads versioned tokens when the separate ID token is absent', async () => {
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockResolvedValueOnce(JSON.stringify({ ...token, storageVersion: 2 }))
+      .mockResolvedValueOnce(null);
+
+    await expect(loadAccessToken()).resolves.toEqual(token);
   });
 
   it('returns null for expired web tokens and clears them', async () => {

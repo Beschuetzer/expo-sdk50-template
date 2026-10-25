@@ -183,4 +183,34 @@ describe('access-token manager', () => {
     await expect(getValidAccessToken()).resolves.toEqual(token);
     expect(refreshAccessToken).not.toHaveBeenCalled();
   });
+
+  it('coalesces forced web session refreshes', async () => {
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: 'web',
+    });
+    storedToken = null;
+    const refreshed = makeToken({
+      accessToken: '',
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      refreshToken: undefined,
+    });
+    jest.mocked(refreshAccessToken).mockResolvedValue(refreshed);
+
+    const firstRefresh = getValidAccessToken({ forceRefresh: true });
+    const secondRefresh = getValidAccessToken({ forceRefresh: true });
+
+    await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([
+      refreshed,
+      refreshed,
+    ]);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        tokenEndpoint: 'https://identity.example.com/token',
+      }),
+    );
+    expect(saveAccessToken).not.toHaveBeenCalled();
+  });
 });
