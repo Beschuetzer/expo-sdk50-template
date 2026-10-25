@@ -34,6 +34,15 @@ describe('i18n', () => {
     expect(getMessage('en', 'tabs.home')).toBe('Home');
   });
 
+  it('localizes authenticated API timeout errors', () => {
+    expect(getMessage('en', 'errors.apiRequestTimedOut')).toBe(
+      'The API request timed out. Check the API connection.',
+    );
+    expect(getMessage('es', 'errors.apiRequestTimedOut')).toBe(
+      'La solicitud a la API superó el tiempo de espera. Comprueba la conexión con la API.',
+    );
+  });
+
   it('falls back to english strings for missing locale values', () => {
     expect(getMessage('es', 'tabs.missing' as never)).toBe('tabs.missing');
     expect(getMessage('es', 'settings.title')).toBe('Configuración');

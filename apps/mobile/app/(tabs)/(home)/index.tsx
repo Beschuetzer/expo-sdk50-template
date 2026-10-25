@@ -18,6 +18,7 @@ import {
   ThemeAwareText,
 } from '@/components/ui/ThemeAwareText';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
+import { ApiRequestTimeoutError } from '@/features/auth/authenticatedClient';
 import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
 import { loadAccessToken } from '@/features/auth/storage';
 import { formatAccessTokenTtl } from '@/features/auth/tokenTtl';
@@ -186,12 +187,15 @@ export default function HomeScreen() {
 
   const reportExampleCreationError = (error: unknown) => {
     setExampleStatus('errors.exampleCreationFailed');
+    const message =
+      error instanceof ApiRequestTimeoutError
+        ? t('errors.apiRequestTimedOut')
+        : error instanceof Error
+          ? error.message
+          : t('errors.exampleCreationFailed');
     dispatch(
       setError({
-        message:
-          error instanceof Error
-            ? error.message
-            : t('errors.exampleCreationFailed'),
+        message,
         name: 'ExampleCreationError',
       }),
     );

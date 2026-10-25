@@ -1,4 +1,7 @@
-import { requestAuthenticatedJson } from './authenticatedClient';
+import {
+  ApiRequestTimeoutError,
+  requestAuthenticatedJson,
+} from './authenticatedClient';
 import { getValidAccessToken } from './tokenManager';
 
 jest.mock('./tokenManager', () => ({
@@ -141,8 +144,8 @@ describe('authenticated request client', () => {
       });
 
     const pendingRequest = requestAuthenticatedJson('/api/v1/me');
-    const timedOut = expect(pendingRequest).rejects.toThrow(
-      'The API request timed out. Check the API connection.',
+    const timedOut = expect(pendingRequest).rejects.toBeInstanceOf(
+      ApiRequestTimeoutError,
     );
     await jest.advanceTimersByTimeAsync(15_000);
 

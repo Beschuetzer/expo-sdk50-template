@@ -165,6 +165,8 @@ const messages = {
       anonymousRequestAccepted:
         'Security check failed: the endpoint accepted an anonymous request.',
       anonymousRequestFailed: 'Anonymous endpoint security check failed.',
+      apiRequestTimedOut:
+        'The API request timed out. Check the API connection.',
       backendRequestFailed: 'Backend request failed',
       backendUnavailable: 'Backend connection failed. Is the API running?',
       authenticationFailed: 'Sign-in or authenticated request failed.',
@@ -411,6 +413,8 @@ const messages = {
         'Comprobación de seguridad fallida: el endpoint aceptó una solicitud anónima.',
       anonymousRequestFailed:
         'Falló la comprobación de seguridad del endpoint anónimo.',
+      apiRequestTimedOut:
+        'La solicitud a la API superó el tiempo de espera. Comprueba la conexión con la API.',
       backendRequestFailed: 'La solicitud al backend falló',
       backendUnavailable:
         'La conexión con el backend falló. ¿Está ejecutándose la API?',

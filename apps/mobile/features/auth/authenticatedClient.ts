@@ -13,6 +13,13 @@ type RequestOptions = {
 
 const API_REQUEST_TIMEOUT_MS = 15_000;
 
+export class ApiRequestTimeoutError extends Error {
+  constructor() {
+    super();
+    this.name = 'ApiRequestTimeoutError';
+  }
+}
+
 export async function requestAuthenticatedJson<T>(
   path: string,
   init: RequestInit = {},
@@ -144,7 +151,7 @@ export async function requestAuthenticatedJson<T>(
       ...(statusCode ? { statusCode } : {}),
     });
     if (requestTimedOut) {
-      throw new Error('The API request timed out. Check the API connection.');
+      throw new ApiRequestTimeoutError();
     }
     throw error;
   } finally {
