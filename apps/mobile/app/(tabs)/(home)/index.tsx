@@ -234,9 +234,9 @@ export default function HomeScreen() {
               ? t('errors.apiRequestTimedOut')
               : error instanceof MissingRefreshTokenError
                 ? t('errors.noRefreshToken')
-              : error instanceof Error
-                ? error.message
-                : t('errors.tokenRefreshFailed'),
+                : error instanceof Error
+                  ? error.message
+                  : t('errors.tokenRefreshFailed'),
           name: 'TokenRefreshError',
         }),
       );
