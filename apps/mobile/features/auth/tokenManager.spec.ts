@@ -300,6 +300,49 @@ describe('access-token manager', () => {
     expect(refreshAccessToken).not.toHaveBeenCalled();
   });
 
+  it('skips refresh when there is no session or refresh credential', async () => {
+    storedToken = null;
+    await expect(
+      getValidAccessToken({ forceRefresh: true }),
+    ).resolves.toBeNull();
+
+    const expiredToken = makeToken({
+      expiresAt: Date.now() - 1,
+      refreshToken: undefined,
+    });
+    storedToken = expiredToken;
+
+    await expect(getValidAccessToken()).resolves.toEqual(expiredToken);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('reuses identity-provider discovery for the same issuer', async () => {
+    const firstToken = makeToken({
+      accessToken: 'first-refreshed-token',
+      refreshToken: 'first-refresh-token',
+    });
+    const secondToken = makeToken({
+      accessToken: 'second-refreshed-token',
+      refreshToken: 'second-refresh-token',
+    });
+    jest
+      .mocked(getIdentityProviderUrl)
+      .mockReturnValue('https://identity.example.com/stable-issuer');
+    jest
+      .mocked(refreshAccessToken)
+      .mockResolvedValueOnce(firstToken)
+      .mockResolvedValueOnce(secondToken);
+
+    await expect(getValidAccessToken({ forceRefresh: true })).resolves.toEqual(
+      firstToken,
+    );
+    await expect(getValidAccessToken({ forceRefresh: true })).resolves.toEqual(
+      secondToken,
+    );
+
+    expect(fetchIdentityProviderDiscovery).toHaveBeenCalledTimes(1);
+  });
+
   it('does not refresh web cookie sessions', async () => {
     Object.defineProperty(Platform, 'OS', {
       configurable: true,
@@ -343,5 +386,37 @@ describe('access-token manager', () => {
       networkSignal,
     );
     expect(persistRefreshedAccessTokenIfCurrent).not.toHaveBeenCalled();
+  });
+
+  it('returns the replacement session when a web refresh becomes stale', async () => {
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: 'web',
+    });
+    storedToken = null;
+    const replacementToken = makeToken({
+      accessToken: 'replacement-access-token',
+      refreshToken: 'replacement-refresh-token',
+    });
+    const staleRefreshToken = makeToken({
+      accessToken: '',
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      refreshToken: undefined,
+    });
+    let resolveRefresh!: (token: StoredAccessToken) => void;
+    jest.mocked(refreshAccessToken).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+
+    const pendingRefresh = getValidAccessToken({ forceRefresh: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    storedToken = replacementToken;
+    sessionRevision += 1;
+    resolveRefresh(staleRefreshToken);
+
+    await expect(pendingRefresh).resolves.toEqual(replacementToken);
   });
 });

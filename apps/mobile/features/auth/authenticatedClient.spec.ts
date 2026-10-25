@@ -133,6 +133,109 @@ describe('authenticated request client', () => {
     }
   });
 
+  it('sends JSON bodies to non-API endpoints with an external signal', async () => {
+    setPlatformOs('web');
+    jest.mocked(getValidAccessToken).mockResolvedValueOnce(webSessionToken);
+    fetchMock.mockResolvedValueOnce(makeResponse(200, { accepted: true }));
+    const controller = new AbortController();
+
+    await expect(
+      requestAuthenticatedJson('/health', {
+        method: 'POST',
+        body: JSON.stringify({ ping: true }),
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:4200/health',
+      expect.objectContaining({
+        credentials: 'include',
+        method: 'POST',
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(
+      new Headers(fetchMock.mock.calls[0][1]?.headers).get('content-type'),
+    ).toBe('application/json');
+  });
+
+  it('aborts before token lookup when the caller signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      requestAuthenticatedJson('/api/v1/me', { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+
+    expect(getValidAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('requires a native access token before making the request', async () => {
+    jest.mocked(getValidAccessToken).mockResolvedValueOnce(null);
+
+    await expect(
+      requestAuthenticatedJson('/api/v1/me'),
+    ).rejects.toThrow('Authentication is required.');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a web request when session refresh returns no token', async () => {
+    setPlatformOs('web');
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(webSessionToken)
+      .mockResolvedValueOnce(null);
+    fetchMock.mockResolvedValueOnce(
+      makeResponse(401, { message: 'Session expired' }),
+    );
+
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toThrow(
+      'Session expired',
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a native request with the same rejected token', async () => {
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(currentToken)
+      .mockResolvedValueOnce(currentToken);
+    fetchMock.mockResolvedValueOnce(
+      makeResponse(401, { message: 'Token expired' }),
+    );
+
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toThrow(
+      'Token expired',
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the fallback message for an unsuccessful empty response', async () => {
+    jest.mocked(getValidAccessToken).mockResolvedValueOnce(currentToken);
+    fetchMock.mockResolvedValueOnce({
+      ...makeResponse(503, null),
+      text: async () => '',
+    } as Response);
+
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toThrow(
+      'Request failed with HTTP 503',
+    );
+  });
+
+  it('preserves non-Error token lookup failures', async () => {
+    jest.mocked(getValidAccessToken).mockRejectedValueOnce('lookup failure');
+
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toBe(
+      'lookup failure',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('applies the timeout to credential lookup and aborts it', async () => {
     jest.useFakeTimers();
     let requestSignal: AbortSignal | undefined;

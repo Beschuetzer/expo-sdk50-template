@@ -1,21 +1,18 @@
+import { logError } from './logging';
 import {
   reportDiagnostic,
   setCrashReporter,
   type CrashReporter,
 } from './diagnostics';
 
-describe('diagnostics', () => {
-  const consoleError = jest
-    .spyOn(console, 'error')
-    .mockImplementation(() => undefined);
+jest.mock('./logging', () => ({
+  logError: jest.fn(),
+}));
 
+describe('diagnostics', () => {
   afterEach(() => {
     setCrashReporter(undefined);
-    consoleError.mockClear();
-  });
-
-  afterAll(() => {
-    consoleError.mockRestore();
+    jest.mocked(logError).mockClear();
   });
 
   it('forwards errors and context to the configured crash reporter', () => {
@@ -27,7 +24,10 @@ describe('diagnostics', () => {
     reportDiagnostic(error, context);
 
     expect(reporter).toHaveBeenCalledWith(error, context);
-    expect(consoleError).toHaveBeenCalled();
+    expect(logError).toHaveBeenCalledWith(
+      'mobile_diagnostic',
+      expect.objectContaining({ context }),
+    );
   });
 
   it('keeps diagnostics from throwing when the crash reporter fails', () => {
@@ -38,10 +38,9 @@ describe('diagnostics', () => {
     expect(() =>
       reportDiagnostic(new Error('original failure'), {}),
     ).not.toThrow();
-    expect(consoleError).toHaveBeenCalledWith(
-      'Crash reporter failed:',
-      expect.any(Error),
-    );
+    expect(logError).toHaveBeenCalledWith('crash_reporter_failed', {
+      error: expect.any(Error),
+    });
   });
 
   it('omits the raw error from production diagnostic logs', () => {
@@ -53,12 +52,11 @@ describe('diagnostics', () => {
     try {
       reportDiagnostic(error, context);
 
-      expect(consoleError).toHaveBeenCalledWith('Mobile diagnostic:', context);
-      expect(consoleError).not.toHaveBeenCalledWith(
-        'Mobile diagnostic:',
+      expect(logError).toHaveBeenCalledWith('mobile_diagnostic', { context });
+      expect(logError).not.toHaveBeenCalledWith('mobile_diagnostic', {
         context,
         error,
-      );
+      });
     } finally {
       if (previousEnvironment === undefined) {
         delete process.env.EXPO_PUBLIC_ENV;
@@ -78,11 +76,10 @@ describe('diagnostics', () => {
       setCrashReporter(undefined);
       reportDiagnostic(error, context);
 
-      expect(consoleError).toHaveBeenCalledWith(
-        'Mobile diagnostic:',
+      expect(logError).toHaveBeenCalledWith('mobile_diagnostic', {
         context,
         error,
-      );
+      });
     } finally {
       if (previousEnvironment === undefined) {
         delete process.env.EXPO_PUBLIC_ENV;
