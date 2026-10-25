@@ -229,9 +229,11 @@ export default function HomeScreen() {
       dispatch(
         setError({
           message:
-            error instanceof Error
-              ? error.message
-              : t('errors.tokenRefreshFailed'),
+            error instanceof ApiRequestTimeoutError
+              ? t('errors.apiRequestTimedOut')
+              : error instanceof Error
+                ? error.message
+                : t('errors.tokenRefreshFailed'),
           name: 'TokenRefreshError',
         }),
       );
