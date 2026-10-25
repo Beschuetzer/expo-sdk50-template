@@ -53,6 +53,7 @@ function ensureEasProject() {
   const result = spawnSync(command, ['--yes', 'eas-cli@latest', 'init'], {
     cwd: mobileRoot,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
   });
 
   if (result.error) {

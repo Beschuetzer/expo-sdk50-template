@@ -59,10 +59,7 @@
       "router": {
         "origin": false
       },
-      "eas": {
-        "projectId": "82884bb4-1db8-410e-9dfc-6b7ab77bd30c"
-      }
-    },
-    "owner": "beschuetzer"
+      "eas": {}
+    }
   }
 }
