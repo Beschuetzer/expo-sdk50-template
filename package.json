@@ -52,6 +52,7 @@
       }
     },
     "moduleNameMapper": {
+      "^@expo-50sdk-template/logging$": "<rootDir>/../../libs/logging/src/index.ts",
       "^@/(.*)$": "<rootDir>/$1"
     },
     "setupFiles": [
