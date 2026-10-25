@@ -107,16 +107,18 @@ function clearSessionAfterUncertainRefresh(sessionRevision: number): boolean {
 
   const clearRequest = clearAuthenticatedSession();
   const clearedSessionRevision = getAccessTokenSessionRevision();
+  const notifyIfSessionIsCurrent = () => {
+    if (getAccessTokenSessionRevision() === clearedSessionRevision) {
+      notifyRefreshOutcomeUnknown();
+    }
+  };
   clearRequest
-    .then(() => {
-      if (getAccessTokenSessionRevision() === clearedSessionRevision) {
-        notifyRefreshOutcomeUnknown();
-      }
-    })
+    .then(notifyIfSessionIsCurrent)
     .catch((error: unknown) => {
       logWarn('auth_access_token_session_clear_failed', {
         errorName: error instanceof Error ? error.name : 'UnknownError',
       });
+      notifyIfSessionIsCurrent();
     });
   return true;
 }

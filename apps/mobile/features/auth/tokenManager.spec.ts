@@ -514,7 +514,7 @@ describe('access-token manager', () => {
     }
   });
 
-  it('does not notify auth state when clearing the uncertain session fails', async () => {
+  it('notifies auth state when cache clearing fails after session invalidation', async () => {
     const onRefreshOutcomeUnknown = jest.fn();
     const unsubscribe = subscribeToRefreshOutcomeUnknown(
       onRefreshOutcomeUnknown,
@@ -522,7 +522,11 @@ describe('access-token manager', () => {
     storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
     jest
       .mocked(clearAuthenticatedSession)
-      .mockRejectedValueOnce(new Error('Session clear failed.'));
+      .mockImplementationOnce(async () => {
+        storedToken = null;
+        sessionRevision += 1;
+        throw new Error('Persisted query cache clear failed.');
+      });
     jest
       .mocked(refreshAccessToken)
       .mockRejectedValueOnce(new TypeError('Network request failed.'));
@@ -531,6 +535,43 @@ describe('access-token manager', () => {
       await expect(getValidAccessToken()).rejects.toBeInstanceOf(
         RefreshOutcomeUnknownError,
       );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
+      expect(storedToken).toBeNull();
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('does not notify after failed cleanup if a newer session is stored', async () => {
+    const onRefreshOutcomeUnknown = jest.fn();
+    const unsubscribe = subscribeToRefreshOutcomeUnknown(
+      onRefreshOutcomeUnknown,
+    );
+    let rejectClear!: (error: Error) => void;
+    storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
+    jest
+      .mocked(clearAuthenticatedSession)
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            storedToken = null;
+            sessionRevision += 1;
+            rejectClear = reject;
+          }),
+      );
+    jest
+      .mocked(refreshAccessToken)
+      .mockRejectedValueOnce(new TypeError('Network request failed.'));
+
+    try {
+      await expect(getValidAccessToken()).rejects.toBeInstanceOf(
+        RefreshOutcomeUnknownError,
+      );
+      storedToken = makeToken({ accessToken: 'replacement-access-token' });
+      sessionRevision += 1;
+      rejectClear(new Error('Persisted query cache clear failed.'));
       await new Promise<void>((resolve) => setImmediate(resolve));
 
       expect(onRefreshOutcomeUnknown).not.toHaveBeenCalled();
