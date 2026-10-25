@@ -14,9 +14,7 @@ import { logDebug, logWarn } from '@/utils/logging';
 export { ApiRequestTimeoutError, AuthenticatedRequestError };
 
 type ApiError = { message?: string };
-type RequestOptions = {
-  fallbackErrorMessage?: (statusCode: number) => string;
-};
+type RequestOptions = { fallbackErrorMessage?: (statusCode: number) => string };
 type RequestToken = Awaited<ReturnType<typeof getValidAccessToken>>;
 type RequestTokenMetadata = Pick<NonNullable<RequestToken>, 'idToken'>;
 
@@ -70,7 +68,7 @@ export async function requestAuthenticatedJson<T>(
     }
 
     const headers = new Headers(init.headers);
-    if (init.body !== undefined) {
+    if (init.body !== undefined && !headers.has('content-type')) {
       headers.set('content-type', 'application/json');
     }
     if (Platform.OS !== 'web') {
@@ -141,8 +139,8 @@ export async function requestAuthenticatedJson<T>(
         response.status,
         result && typeof result.message === 'string'
           ? result.message
-          : options.fallbackErrorMessage?.(response.status) ??
-            `Request failed with HTTP ${response.status}`,
+          : (options.fallbackErrorMessage?.(response.status) ??
+              `Request failed with HTTP ${response.status}`),
       );
     }
     logDebug('api_request_completed', {

@@ -164,6 +164,23 @@ describe('authenticated request client', () => {
     ).toBe('application/json');
   });
 
+  it('preserves an explicit content type when sending a request body', async () => {
+    setPlatformOs('web');
+    fetchMock.mockResolvedValueOnce(makeResponse(200, { accepted: true }));
+
+    await expect(
+      requestAuthenticatedJson('/health', {
+        method: 'POST',
+        body: 'ping=true',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      }),
+    ).resolves.toEqual({ data: { accepted: true }, token: null });
+
+    expect(
+      new Headers(fetchMock.mock.calls[0][1]?.headers).get('content-type'),
+    ).toBe('application/x-www-form-urlencoded');
+  });
+
   it('aborts before token lookup when the caller signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
