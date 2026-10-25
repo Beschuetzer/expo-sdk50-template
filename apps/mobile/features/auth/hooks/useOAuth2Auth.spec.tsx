@@ -520,25 +520,23 @@ describe('useOAuth2AuthState', () => {
     ['missing verifier', 'auth-code', 'test-state', undefined],
     ['missing state', 'auth-code', undefined, 'test-code-verifier'],
     ['mismatched state', 'auth-code', 'other-state', 'test-code-verifier'],
-  ])('rejects a callback with %s', async (
-    _caseName,
-    code,
-    state,
-    codeVerifier,
-  ) => {
-    mockCodeVerifier = codeVerifier;
-    mockPromptResponse = {
-      type: 'success',
-      url: `oauth-test-scheme://oauth/callback?${String(code)}&${String(state)}`,
-      params: { code, state },
-    };
-    const auth = await renderAuth();
+  ])(
+    'rejects a callback with %s',
+    async (_caseName, code, state, codeVerifier) => {
+      mockCodeVerifier = codeVerifier;
+      mockPromptResponse = {
+        type: 'success',
+        url: `oauth-test-scheme://oauth/callback?${String(code)}&${String(state)}`,
+        params: { code, state },
+      };
+      const auth = await renderAuth();
 
-    await completePrompt(auth);
+      await completePrompt(auth);
 
-    expect(auth().state).toBe('error');
-    expect(mockExchangeAuthorizationCode).not.toHaveBeenCalled();
-  });
+      expect(auth().state).toBe('error');
+      expect(mockExchangeAuthorizationCode).not.toHaveBeenCalled();
+    },
+  );
 
   it('sets an error when authorization-code exchange fails', async () => {
     mockExchangeAuthorizationCode.mockRejectedValue(

@@ -1,6 +1,9 @@
 {
   "name": "api",
   "private": true,
+  "dependencies": {
+    "@expo-50sdk-template/logging": "1.0.0"
+  },
   "scripts": {
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema=./prisma/schema.prisma",

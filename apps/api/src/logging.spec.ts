@@ -4,11 +4,13 @@ import test from 'node:test';
 import { logInfo } from './logging';
 
 test('redacts authorization data from structured logs', () => {
-  const originalLog = console.log;
+  const originalInfo = console.info;
+  const originalLogLevel = process.env.LOG_LEVEL;
   let output = '';
-  console.log = ((value?: unknown) => {
+  process.env.LOG_LEVEL = 'debug';
+  console.info = ((value?: unknown) => {
     output = String(value);
-  }) as typeof console.log;
+  }) as typeof console.info;
 
   try {
     logInfo('auth_test', {
@@ -19,7 +21,12 @@ test('redacts authorization data from structured logs', () => {
         'Bearer inline-secret access_token=query-secret code=oauth-secret',
     });
   } finally {
-    console.log = originalLog;
+    console.info = originalInfo;
+    if (originalLogLevel === undefined) {
+      delete process.env.LOG_LEVEL;
+    } else {
+      process.env.LOG_LEVEL = originalLogLevel;
+    }
   }
 
   assert.doesNotMatch(output, /access-secret|cookie-secret|refresh-secret/);

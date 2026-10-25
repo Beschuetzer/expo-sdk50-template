@@ -2,6 +2,9 @@
   "name": "mobile",
   "private": true,
   "main": "expo-router/entry",
+  "dependencies": {
+    "@expo-50sdk-template/logging": "1.0.0"
+  },
   "scripts": {
     "dev": "node setup.mjs && node ../../scripts/start-expo.mjs start",
     "dev:clear": "node setup.mjs && node ../../scripts/start-expo.mjs start --clear",

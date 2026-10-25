@@ -1,8 +1,9 @@
+import { PrismaClient } from '@prisma/client';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PrismaClient } from '@prisma/client';
+import { logError, logInfo } from '../src/logging';
 
 const apiEnvironmentFile = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -24,9 +25,9 @@ async function seedDevelopmentData() {
   }
 
   if (process.env.SEED_DEVELOPMENT_DATA !== 'true') {
-    console.log(
-      '[dev-seed] Skipped. Set SEED_DEVELOPMENT_DATA=true to enable it.',
-    );
+    logInfo('development_seed_skipped', {
+      reason: 'SEED_DEVELOPMENT_DATA is not true',
+    });
     return;
   }
 
@@ -34,7 +35,7 @@ async function seedDevelopmentData() {
     { name: 'Ada Lovelace', email: 'ada@example.com' },
     { name: 'Grace Hopper', email: 'grace@example.com' },
   ];
-  console.log(`[dev-seed] Starting: ${examples.length} examples.`);
+  logInfo('development_seed_started', { exampleCount: examples.length });
   const db = new PrismaClient();
 
   try {
@@ -46,13 +47,15 @@ async function seedDevelopmentData() {
       });
     }
 
-    console.log(`[dev-seed] Complete: ${examples.length} examples upserted.`);
+    logInfo('development_seed_completed', {
+      exampleCount: examples.length,
+    });
   } finally {
     await db.$disconnect();
   }
 }
 
 seedDevelopmentData().catch((error: unknown) => {
-  console.error('[dev-seed] Failed:', error);
+  logError('development_seed_failed', { error });
   process.exitCode = 1;
 });

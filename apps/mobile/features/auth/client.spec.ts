@@ -59,7 +59,9 @@ describe('auth client', () => {
       getProfilePictureFromClaims({ picture: 'ftp://example.com/tom.jpg' }),
     ).toBe(undefined);
     expect(getProfilePictureFromClaims({})).toBeUndefined();
-    expect(getProfilePictureFromClaims({ picture: 'not a URL' })).toBeUndefined();
+    expect(
+      getProfilePictureFromClaims({ picture: 'not a URL' }),
+    ).toBeUndefined();
   });
 
   it.each([
@@ -187,17 +189,22 @@ describe('auth client', () => {
       'https://identity.example.com',
       'http://other.example.com/token',
     ],
-  ])('does not rewrite discovery URLs for %s', (_caseName, issuerUrl, endpoint) => {
-    expect(
-      normalizeIdentityProviderDiscovery(
-        { tokenEndpoint: endpoint },
-        issuerUrl,
-      ).tokenEndpoint,
-    ).toBe(endpoint);
-  });
+  ])(
+    'does not rewrite discovery URLs for %s',
+    (_caseName, issuerUrl, endpoint) => {
+      expect(
+        normalizeIdentityProviderDiscovery(
+          { tokenEndpoint: endpoint },
+          issuerUrl,
+        ).tokenEndpoint,
+      ).toBe(endpoint);
+    },
+  );
 
   it('builds a provider logout URL with the registered redirect', () => {
-    expect(createProviderLogoutUrl({}, 'expo50sdktemplate://logout')).toBeNull();
+    expect(
+      createProviderLogoutUrl({}, 'expo50sdktemplate://logout'),
+    ).toBeNull();
     expect(
       createProviderLogoutUrl(
         {
@@ -321,9 +328,7 @@ describe('auth client', () => {
     });
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        makeResponse({ claims: { sub: 'api-user' } }, 200),
-      );
+      .mockResolvedValue(makeResponse({ claims: { sub: 'api-user' } }, 200));
 
     try {
       const payload = Buffer.from(
@@ -556,12 +561,14 @@ describe('auth client', () => {
       configurable: true,
       value: { OS: 'web' },
     });
-    jest.spyOn(global, 'fetch').mockResolvedValue(
-      makeResponse(
-        { expires_in: 3600, scope: 'openid api:read', token_type: 'Bearer' },
-        200,
-      ),
-    );
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        makeResponse(
+          { expires_in: 3600, scope: 'openid api:read', token_type: 'Bearer' },
+          200,
+        ),
+      );
 
     await expect(
       refreshAccessToken(undefined, {

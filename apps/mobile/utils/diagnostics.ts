@@ -1,4 +1,5 @@
 import { getIsDevelopmentMode } from './environment';
+import { logError } from './logging';
 
 export type CrashReporter = (
   error: unknown,
@@ -18,12 +19,12 @@ export function reportDiagnostic(
   try {
     crashReporter?.(error, context);
   } catch (reporterError) {
-    console.error('Crash reporter failed:', reporterError);
+    logError('crash_reporter_failed', { error: reporterError });
   }
 
   if (getIsDevelopmentMode()) {
-    console.error('Mobile diagnostic:', context, error);
+    logError('mobile_diagnostic', { context, error });
   } else {
-    console.error('Mobile diagnostic:', context);
+    logError('mobile_diagnostic', { context });
   }
 }

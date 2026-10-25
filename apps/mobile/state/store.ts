@@ -5,6 +5,7 @@ import devToolsEnhancer from 'redux-devtools-expo-dev-plugin';
 import { persistStore, persistReducer } from 'redux-persist';
 
 import generalReducer, { generalSlice } from '@/state/slices/generalSlice';
+import { logWarn } from '@/utils/logging';
 
 const persistConfig = {
   key: 'root',
@@ -13,7 +14,7 @@ const persistConfig = {
   whitelist: [generalSlice.name],
   serialize: true,
   writeFailHandler: (error: Error) => {
-    console.warn('Redux persist write failed:', error);
+    logWarn('redux_persist_write_failed', { error });
   },
   debug: false,
   throttle: 200,
