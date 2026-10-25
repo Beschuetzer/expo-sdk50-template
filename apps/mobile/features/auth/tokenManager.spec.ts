@@ -26,12 +26,18 @@ import {
   subscribeToRefreshOutcomeUnknown,
 } from './tokenManager';
 
+import { logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
 
 jest.mock('./client', () => ({
   fetchIdentityProviderDiscovery: jest.fn(),
   normalizeIdentityProviderDiscovery: jest.fn((discovery) => discovery),
   refreshAccessToken: jest.fn(),
+}));
+
+jest.mock('@/utils/logging', () => ({
+  logInfo: jest.fn(),
+  logWarn: jest.fn(),
 }));
 
 jest.mock('./storage', () => ({
@@ -447,19 +453,20 @@ describe('access-token manager', () => {
     }
   });
 
-  it('skips invalidation notification after a newer session is stored', async () => {
+  it('notifies auth state while session cleanup is pending', async () => {
     const onRefreshOutcomeUnknown = jest.fn();
     const unsubscribe = subscribeToRefreshOutcomeUnknown(
       onRefreshOutcomeUnknown,
     );
     let finishClear!: () => void;
     storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
-    jest.mocked(clearAuthenticatedSession).mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishClear = resolve;
-        }),
-    );
+    jest.mocked(clearAuthenticatedSession).mockImplementationOnce(() => {
+      storedToken = null;
+      sessionRevision += 1;
+      return new Promise<void>((resolve) => {
+        finishClear = resolve;
+      });
+    });
     jest
       .mocked(refreshAccessToken)
       .mockRejectedValueOnce(new TypeError('Network request failed.'));
@@ -468,13 +475,15 @@ describe('access-token manager', () => {
       await expect(getValidAccessToken()).rejects.toBeInstanceOf(
         RefreshOutcomeUnknownError,
       );
+      expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
+
       storedToken = makeToken({ accessToken: 'replacement-access-token' });
       sessionRevision += 1;
       finishClear();
       await new Promise<void>((resolve) => setImmediate(resolve));
 
       expect(storedToken?.accessToken).toBe('replacement-access-token');
-      expect(onRefreshOutcomeUnknown).not.toHaveBeenCalled();
+      expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
     } finally {
       unsubscribe();
     }
@@ -514,19 +523,17 @@ describe('access-token manager', () => {
     }
   });
 
-  it('notifies auth state when cache clearing fails after session invalidation', async () => {
+  it('notifies auth state immediately when session cleanup fails', async () => {
     const onRefreshOutcomeUnknown = jest.fn();
     const unsubscribe = subscribeToRefreshOutcomeUnknown(
       onRefreshOutcomeUnknown,
     );
     storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
-    jest
-      .mocked(clearAuthenticatedSession)
-      .mockImplementationOnce(async () => {
-        storedToken = null;
-        sessionRevision += 1;
-        throw new Error('Persisted query cache clear failed.');
-      });
+    jest.mocked(clearAuthenticatedSession).mockImplementationOnce(async () => {
+      storedToken = null;
+      sessionRevision += 1;
+      throw new Error('Persisted query cache clear failed.');
+    });
     jest
       .mocked(refreshAccessToken)
       .mockRejectedValueOnce(new TypeError('Network request failed.'));
@@ -539,28 +546,30 @@ describe('access-token manager', () => {
 
       expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
       expect(storedToken).toBeNull();
+      expect(logWarn).toHaveBeenCalledWith(
+        'auth_access_token_session_clear_failed',
+        { errorName: 'Error' },
+      );
     } finally {
       unsubscribe();
     }
   });
 
-  it('does not notify after failed cleanup if a newer session is stored', async () => {
+  it('reports failed cleanup after notifying when a newer session is stored', async () => {
     const onRefreshOutcomeUnknown = jest.fn();
     const unsubscribe = subscribeToRefreshOutcomeUnknown(
       onRefreshOutcomeUnknown,
     );
     let rejectClear!: (error: Error) => void;
     storedToken = makeToken({ expiresAt: Date.now() + 10_000 });
-    jest
-      .mocked(clearAuthenticatedSession)
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((_resolve, reject) => {
-            storedToken = null;
-            sessionRevision += 1;
-            rejectClear = reject;
-          }),
-      );
+    jest.mocked(clearAuthenticatedSession).mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          storedToken = null;
+          sessionRevision += 1;
+          rejectClear = reject;
+        }),
+    );
     jest
       .mocked(refreshAccessToken)
       .mockRejectedValueOnce(new TypeError('Network request failed.'));
@@ -569,12 +578,22 @@ describe('access-token manager', () => {
       await expect(getValidAccessToken()).rejects.toBeInstanceOf(
         RefreshOutcomeUnknownError,
       );
+      expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
+      expect(logWarn).not.toHaveBeenCalledWith(
+        'auth_access_token_session_clear_failed',
+        { errorName: 'Error' },
+      );
+
       storedToken = makeToken({ accessToken: 'replacement-access-token' });
       sessionRevision += 1;
       rejectClear(new Error('Persisted query cache clear failed.'));
       await new Promise<void>((resolve) => setImmediate(resolve));
 
-      expect(onRefreshOutcomeUnknown).not.toHaveBeenCalled();
+      expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
+      expect(logWarn).toHaveBeenCalledWith(
+        'auth_access_token_session_clear_failed',
+        { errorName: 'Error' },
+      );
     } finally {
       unsubscribe();
     }
