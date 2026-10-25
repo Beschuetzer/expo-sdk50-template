@@ -1,9 +1,9 @@
-import { logError } from './logging';
 import {
   reportDiagnostic,
   setCrashReporter,
   type CrashReporter,
 } from './diagnostics';
+import { logError } from './logging';
 
 jest.mock('./logging', () => ({
   logError: jest.fn(),

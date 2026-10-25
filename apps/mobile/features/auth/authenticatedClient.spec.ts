@@ -175,9 +175,9 @@ describe('authenticated request client', () => {
   it('requires a native access token before making the request', async () => {
     jest.mocked(getValidAccessToken).mockResolvedValueOnce(null);
 
-    await expect(
-      requestAuthenticatedJson('/api/v1/me'),
-    ).rejects.toThrow('Authentication is required.');
+    await expect(requestAuthenticatedJson('/api/v1/me')).rejects.toThrow(
+      'Authentication is required.',
+    );
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
