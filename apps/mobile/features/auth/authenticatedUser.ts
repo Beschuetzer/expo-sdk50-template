@@ -57,20 +57,21 @@ function decodeIdTokenClaims(idToken: string | undefined) {
 }
 
 export async function getAuthenticatedUser(idToken?: string) {
-  const result = await requestAuthenticatedJson<AuthenticatedUserResponse>(
-    '/api/v1/me',
-    {},
-    {
-      fallbackErrorMessage: (statusCode) =>
-        `Authenticated request failed with HTTP ${statusCode}`,
-    },
-  );
+  const { data, token } =
+    await requestAuthenticatedJson<AuthenticatedUserResponse>(
+      '/api/v1/me',
+      {},
+      {
+        fallbackErrorMessage: (statusCode) =>
+          `Authenticated request failed with HTTP ${statusCode}`,
+      },
+    );
 
   return {
     claims: {
-      ...decodeIdTokenClaims(idToken),
-      ...(result.claims ?? {}),
+      ...decodeIdTokenClaims(token?.idToken ?? idToken),
+      ...(data.claims ?? {}),
     },
-    subject: result.subject ?? null,
+    subject: data.subject ?? null,
   } satisfies AuthenticatedUser;
 }

@@ -17,12 +17,19 @@ type ApiError = { message?: string };
 type RequestOptions = {
   fallbackErrorMessage?: (statusCode: number) => string;
 };
+type RequestToken = Awaited<ReturnType<typeof getValidAccessToken>>;
+type RequestTokenMetadata = Pick<NonNullable<RequestToken>, 'idToken'>;
+
+export type AuthenticatedRequestResult<T> = {
+  data: T;
+  token: RequestTokenMetadata | null;
+};
 
 export async function requestAuthenticatedJson<T>(
   path: string,
   init: RequestInit = {},
   options: RequestOptions = {},
-): Promise<T> {
+): Promise<AuthenticatedRequestResult<T>> {
   const method = init.method ?? 'GET';
   const endpoint = path.startsWith('/api/v1/') ? 'api_v1' : 'other';
   const startedAt = Date.now();
@@ -48,7 +55,7 @@ export async function requestAuthenticatedJson<T>(
 
   try {
     throwIfAborted(signal);
-    let token: Awaited<ReturnType<typeof getValidAccessToken>> = null;
+    let token: RequestToken = null;
     if (Platform.OS !== 'web') {
       try {
         token = await awaitWithAbort(getValidAccessToken({ signal }), signal);
@@ -97,6 +104,7 @@ export async function requestAuthenticatedJson<T>(
           signal,
         );
         if (refreshedToken) {
+          token = refreshedToken;
           response = await awaitWithAbort(
             fetch(`${getBackendUrl()}${path}`, requestInit()),
             signal,
@@ -115,6 +123,7 @@ export async function requestAuthenticatedJson<T>(
           refreshedToken?.accessToken &&
           refreshedToken.accessToken !== token.accessToken
         ) {
+          token = refreshedToken;
           headers.set('authorization', `Bearer ${refreshedToken.accessToken}`);
           response = await awaitWithAbort(
             fetch(`${getBackendUrl()}${path}`, requestInit()),
@@ -142,7 +151,10 @@ export async function requestAuthenticatedJson<T>(
       method,
       statusCode,
     });
-    return result as T;
+    return {
+      data: result as T,
+      token: token ? { idToken: token.idToken } : null,
+    };
   } catch (error) {
     logWarn('api_request_failed', {
       durationMs: Date.now() - startedAt,

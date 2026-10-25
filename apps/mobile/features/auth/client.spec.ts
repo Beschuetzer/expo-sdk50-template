@@ -365,6 +365,58 @@ describe('auth client', () => {
     });
   });
 
+  it('uses the ID token from the refreshed request when merging claims', async () => {
+    const initialIdToken = `header.${Buffer.from(
+      JSON.stringify({
+        name: 'Old Name',
+        picture: 'https://example.com/old.jpg',
+        sub: 'token-user',
+      }),
+    ).toString('base64url')}.signature`;
+    const refreshedIdToken = `header.${Buffer.from(
+      JSON.stringify({
+        name: 'Updated Name',
+        picture: 'https://example.com/new.jpg',
+        preferred_username: 'updated-user',
+        sub: 'refreshed-token-user',
+      }),
+    ).toString('base64url')}.signature`;
+    const initialToken = {
+      accessToken: 'expired-access-token',
+      expiresAt: Date.now() - 1,
+      idToken: initialIdToken,
+      refreshToken: 'refresh-token',
+      scope: 'openid',
+      tokenType: 'Bearer' as const,
+    };
+    const refreshedToken = {
+      ...initialToken,
+      accessToken: 'refreshed-access-token',
+      expiresAt: Date.now() + 60_000,
+      idToken: refreshedIdToken,
+    };
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(initialToken)
+      .mockResolvedValueOnce(refreshedToken);
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(makeResponse({ message: 'Token expired' }, 401))
+      .mockResolvedValueOnce(
+        makeResponse({ claims: { sub: 'api-user' }, subject: 'api-user' }, 200),
+      );
+
+    await expect(getAuthenticatedUser(initialIdToken)).resolves.toEqual({
+      claims: {
+        name: 'Updated Name',
+        picture: 'https://example.com/new.jpg',
+        preferred_username: 'updated-user',
+        sub: 'api-user',
+      },
+      subject: 'api-user',
+    });
+  });
+
   it('uses the base64url fallback when the runtime has no atob', async () => {
     const originalAtob = globalThis.atob;
     Object.defineProperty(globalThis, 'atob', {

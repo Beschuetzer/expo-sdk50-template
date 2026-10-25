@@ -20,6 +20,7 @@ jest.mock('@/utils/logging', () => ({
 const currentToken = {
   accessToken: 'expired-access-token',
   expiresAt: Date.now() - 1,
+  idToken: 'current-id-token',
   refreshToken: 'refresh-token',
   scope: 'api:read',
   tokenType: 'Bearer' as const,
@@ -28,10 +29,12 @@ const refreshedToken = {
   ...currentToken,
   accessToken: 'refreshed-access-token',
   expiresAt: Date.now() + 60_000,
+  idToken: 'refreshed-id-token',
 };
 const webSessionToken = {
   accessToken: '',
   expiresAt: Number.MAX_SAFE_INTEGER,
+  idToken: 'web-refreshed-id-token',
   scope: '',
   tokenType: 'Bearer' as const,
 };
@@ -78,7 +81,10 @@ describe('authenticated request client', () => {
 
     await expect(
       requestAuthenticatedJson<{ subject: string }>('/api/v1/me'),
-    ).resolves.toEqual({ subject: 'user-1' });
+    ).resolves.toEqual({
+      data: { subject: 'user-1' },
+      token: { idToken: 'refreshed-id-token' },
+    });
 
     const requestSignal =
       jest.mocked(getValidAccessToken).mock.calls[0][0]?.signal;
@@ -110,7 +116,10 @@ describe('authenticated request client', () => {
 
     await expect(
       requestAuthenticatedJson<{ subject: string }>('/api/v1/me'),
-    ).resolves.toEqual({ subject: 'web-user' });
+    ).resolves.toEqual({
+      data: { subject: 'web-user' },
+      token: { idToken: 'web-refreshed-id-token' },
+    });
 
     const requestSignal =
       jest.mocked(getValidAccessToken).mock.calls[0][0]?.signal;
@@ -139,7 +148,7 @@ describe('authenticated request client', () => {
         body: JSON.stringify({ ping: true }),
         signal: controller.signal,
       }),
-    ).resolves.toEqual({ accepted: true });
+    ).resolves.toEqual({ data: { accepted: true }, token: null });
 
     expect(getValidAccessToken).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
