@@ -1,24 +1,23 @@
-import * as AuthSession from 'expo-auth-session';
+import type { DiscoveryDocument } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
 import {
+  fetchIdentityProviderDiscovery,
   normalizeIdentityProviderDiscovery,
   refreshAccessToken,
 } from './client';
 import {
+  getAccessTokenSessionRevision,
   loadAccessToken,
-  saveAccessToken,
+  persistRefreshedAccessTokenIfCurrent,
   type StoredAccessToken,
 } from './storage';
 import { getValidAccessToken } from './tokenManager';
 
 import { getIdentityProviderUrl } from '@/utils/platform';
 
-jest.mock('expo-auth-session', () => ({
-  fetchDiscoveryAsync: jest.fn(),
-}));
-
 jest.mock('./client', () => ({
+  fetchIdentityProviderDiscovery: jest.fn(),
   normalizeIdentityProviderDiscovery: jest.fn((discovery) => discovery),
   refreshAccessToken: jest.fn(),
 }));
@@ -27,8 +26,9 @@ jest.mock('./storage', () => ({
   isAccessTokenExpiring: jest.fn(
     (token: { expiresAt: number }) => token.expiresAt <= Date.now() + 30_000,
   ),
+  getAccessTokenSessionRevision: jest.fn(),
   loadAccessToken: jest.fn(),
-  saveAccessToken: jest.fn(),
+  persistRefreshedAccessTokenIfCurrent: jest.fn(),
 }));
 
 jest.mock('@/utils/platform', () => ({
@@ -37,6 +37,7 @@ jest.mock('@/utils/platform', () => ({
 
 describe('access-token manager', () => {
   let storedToken: StoredAccessToken | null;
+  let sessionRevision: number;
 
   const makeToken = (
     overrides: Partial<StoredAccessToken> = {},
@@ -56,16 +57,30 @@ describe('access-token manager', () => {
       value: { OS: 'android' },
     });
     storedToken = makeToken();
+    sessionRevision = 0;
+    jest
+      .mocked(getAccessTokenSessionRevision)
+      .mockImplementation(() => sessionRevision);
     jest.mocked(loadAccessToken).mockImplementation(async () => storedToken);
-    jest.mocked(saveAccessToken).mockImplementation(async (token) => {
-      storedToken = token;
-    });
-    jest.mocked(AuthSession.fetchDiscoveryAsync).mockResolvedValue({
+    jest
+      .mocked(persistRefreshedAccessTokenIfCurrent)
+      .mockImplementation(async (refreshedToken, originalToken, revision) => {
+        if (revision !== sessionRevision || !storedToken) return false;
+        if (
+          storedToken.accessToken !== originalToken.accessToken ||
+          storedToken.refreshToken !== originalToken.refreshToken
+        ) {
+          return false;
+        }
+        storedToken = refreshedToken;
+        return true;
+      });
+    jest.mocked(fetchIdentityProviderDiscovery).mockResolvedValue({
       tokenEndpoint: 'https://identity.example.com/token',
-    } as AuthSession.DiscoveryDocument);
+    } as DiscoveryDocument);
     jest
       .mocked(getIdentityProviderUrl)
-      .mockReturnValue(`https://identity.example.com/${Date.now()}`);
+      .mockReturnValue(`https://identity.example.com/${Math.random()}`);
     jest
       .mocked(normalizeIdentityProviderDiscovery)
       .mockImplementation((discovery) => discovery);
@@ -95,14 +110,121 @@ describe('access-token manager', () => {
 
     await expect(getValidAccessToken()).resolves.toEqual(refreshed);
 
+    const networkSignal = jest.mocked(fetchIdentityProviderDiscovery).mock
+      .calls[0][1];
+    expect(networkSignal).toBeDefined();
     expect(refreshAccessToken).toHaveBeenCalledWith(
       expiredSoon,
       expect.objectContaining({
         tokenEndpoint: 'https://identity.example.com/token',
       }),
+      networkSignal,
     );
-    expect(saveAccessToken).toHaveBeenCalledWith(refreshed);
+    expect(persistRefreshedAccessTokenIfCurrent).toHaveBeenCalledWith(
+      refreshed,
+      expiredSoon,
+      0,
+      networkSignal,
+    );
     expect(storedToken).toEqual(refreshed);
+  });
+
+  it('passes request cancellation through discovery, refresh, and persistence', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const refreshed = makeToken({ accessToken: 'refreshed-access-token' });
+    const controller = new AbortController();
+    storedToken = expiredSoon;
+    jest.mocked(refreshAccessToken).mockResolvedValue(refreshed);
+
+    await expect(
+      getValidAccessToken({ signal: controller.signal }),
+    ).resolves.toEqual(refreshed);
+
+    const networkSignal = jest.mocked(fetchIdentityProviderDiscovery).mock
+      .calls[0][1];
+    expect(networkSignal).toBeDefined();
+    expect(networkSignal).not.toBe(controller.signal);
+    expect(refreshAccessToken).toHaveBeenCalledWith(
+      expiredSoon,
+      expect.objectContaining({
+        tokenEndpoint: 'https://identity.example.com/token',
+      }),
+      networkSignal,
+    );
+    expect(persistRefreshedAccessTokenIfCurrent).toHaveBeenCalledWith(
+      refreshed,
+      expiredSoon,
+      0,
+      networkSignal,
+    );
+  });
+
+  it('rejects when discovery is cancelled while pending', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const controller = new AbortController();
+    storedToken = expiredSoon;
+    let networkSignal: AbortSignal | undefined;
+    jest
+      .mocked(fetchIdentityProviderDiscovery)
+      .mockImplementationOnce((_issuerUrl, signal) => {
+        networkSignal = signal;
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('aborted');
+              error.name = 'AbortError';
+              reject(error);
+            },
+            { once: true },
+          );
+        });
+      });
+
+    const pendingRequest = getValidAccessToken({ signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+
+    await expect(pendingRequest).rejects.toMatchObject({ name: 'AbortError' });
+    expect(networkSignal?.aborted).toBe(true);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('keeps a shared refresh alive while another caller is waiting', async () => {
+    const expiredSoon = makeToken({ expiresAt: Date.now() + 10_000 });
+    const refreshed = makeToken({ accessToken: 'refreshed-access-token' });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    let resolveDiscovery!: (discovery: DiscoveryDocument) => void;
+    let networkSignal: AbortSignal | undefined;
+    storedToken = expiredSoon;
+    jest
+      .mocked(fetchIdentityProviderDiscovery)
+      .mockImplementationOnce((_issuerUrl, signal) => {
+        networkSignal = signal;
+        return new Promise((resolve) => {
+          resolveDiscovery = resolve;
+        });
+      });
+    jest.mocked(refreshAccessToken).mockResolvedValue(refreshed);
+
+    const firstRequest = getValidAccessToken({
+      signal: firstController.signal,
+    });
+    const secondRequest = getValidAccessToken({
+      signal: secondController.signal,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchIdentityProviderDiscovery).toHaveBeenCalledTimes(1);
+
+    firstController.abort();
+    await expect(firstRequest).rejects.toMatchObject({ name: 'AbortError' });
+    expect(networkSignal?.aborted).toBe(false);
+
+    resolveDiscovery({
+      tokenEndpoint: 'https://identity.example.com/token',
+    } as DiscoveryDocument);
+    await expect(secondRequest).resolves.toEqual(refreshed);
   });
 
   it('coalesces concurrent refreshes for the same access token', async () => {
@@ -144,10 +266,16 @@ describe('access-token manager', () => {
     const pendingRequest = getValidAccessToken();
     await new Promise((resolve) => setTimeout(resolve, 0));
     storedToken = null;
+    sessionRevision += 1;
     resolveRefresh(refreshed);
 
     await expect(pendingRequest).resolves.toBeNull();
-    expect(saveAccessToken).not.toHaveBeenCalled();
+    expect(persistRefreshedAccessTokenIfCurrent).toHaveBeenCalledWith(
+      refreshed,
+      expiredSoon,
+      0,
+      expect.any(AbortSignal),
+    );
   });
 
   it('forces refresh when the API rejects the current access token', async () => {
@@ -205,12 +333,15 @@ describe('access-token manager', () => {
       refreshed,
     ]);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    const networkSignal = jest.mocked(fetchIdentityProviderDiscovery).mock
+      .calls[0][1];
     expect(refreshAccessToken).toHaveBeenCalledWith(
       undefined,
       expect.objectContaining({
         tokenEndpoint: 'https://identity.example.com/token',
       }),
+      networkSignal,
     );
-    expect(saveAccessToken).not.toHaveBeenCalled();
+    expect(persistRefreshedAccessTokenIfCurrent).not.toHaveBeenCalled();
   });
 });

@@ -110,6 +110,39 @@ export function normalizeIdentityProviderDiscovery(
   };
 }
 
+export async function fetchIdentityProviderDiscovery(
+  issuerUrl: string,
+  signal?: AbortSignal,
+): Promise<DiscoveryDocument> {
+  const normalizedIssuerUrl = issuerUrl.replace(/\/+$/, '');
+  const response = await fetch(
+    `${normalizedIssuerUrl}/.well-known/openid-configuration`,
+    {
+      mode: 'cors',
+      headers: { Accept: 'application/json, text/javascript; q=0.01' },
+      ...(signal ? { signal } : {}),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Identity provider discovery failed with HTTP ${response.status}`,
+    );
+  }
+
+  const discoveryDocument = (await response.json()) as NonNullable<
+    DiscoveryDocument['discoveryDocument']
+  >;
+  return {
+    discoveryDocument,
+    authorizationEndpoint: discoveryDocument.authorization_endpoint,
+    tokenEndpoint: discoveryDocument.token_endpoint,
+    revocationEndpoint: discoveryDocument.revocation_endpoint,
+    userInfoEndpoint: discoveryDocument.userinfo_endpoint,
+    endSessionEndpoint: discoveryDocument.end_session_endpoint,
+    registrationEndpoint: discoveryDocument.registration_endpoint,
+  };
+}
+
 export function createProviderLogoutUrl(
   discovery: DiscoveryDocument,
   redirectUri: string,
@@ -249,11 +282,13 @@ export async function exchangeAuthorizationCodeForCurrentPlatform(input: {
 export async function refreshAccessToken(
   token: StoredAccessToken | undefined,
   discovery: DiscoveryDocument,
+  signal?: AbortSignal,
 ): Promise<StoredAccessToken> {
   if (Platform.OS === 'web') {
     const response = await fetch(`${getBackendUrl()}/auth/refresh`, {
       credentials: 'include',
       method: 'POST',
+      ...(signal ? { signal } : {}),
     });
     const result = (await response.json()) as TokenResponse;
     if (!response.ok || !hasValidTokenMetadata(result)) {
@@ -285,6 +320,7 @@ export async function refreshAccessToken(
     }).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     method: 'POST',
+    ...(signal ? { signal } : {}),
   });
   const result = (await response.json()) as TokenResponse;
   if (

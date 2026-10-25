@@ -4,6 +4,7 @@ import {
   exchangeAuthorizationCodeForCurrentPlatform,
   createInvitationUrl,
   createProviderLogoutUrl,
+  fetchIdentityProviderDiscovery,
   getAccountProviderFromClaims,
   getDisplayNameFromClaims,
   getProfilePictureFromClaims,
@@ -50,6 +51,31 @@ describe('auth client', () => {
       configurable: true,
       value: { OS: 'android' },
     });
+  });
+
+  it('passes cancellation to the identity-provider discovery fetch', async () => {
+    const signal = new AbortController().signal;
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          authorization_endpoint: 'https://identity.example.com/authorize',
+          issuer: 'https://identity.example.com',
+          token_endpoint: 'https://identity.example.com/token',
+        },
+        200,
+      ),
+    );
+
+    await expect(
+      fetchIdentityProviderDiscovery('https://identity.example.com/', signal),
+    ).resolves.toMatchObject({
+      authorizationEndpoint: 'https://identity.example.com/authorize',
+      tokenEndpoint: 'https://identity.example.com/token',
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://identity.example.com/.well-known/openid-configuration',
+      expect.objectContaining({ signal }),
+    );
   });
 
   it('always requests offline access for refresh-token support', () => {
@@ -594,10 +620,15 @@ describe('auth client', () => {
       ),
     );
 
+    const signal = new AbortController().signal;
     await expect(
-      refreshAccessToken(undefined, {
-        authorizationEndpoint: 'http://localhost:4300/authorize',
-      }),
+      refreshAccessToken(
+        undefined,
+        {
+          authorizationEndpoint: 'http://localhost:4300/authorize',
+        },
+        signal,
+      ),
     ).resolves.toMatchObject({
       accessToken: '',
       scope: 'openid api:read',
@@ -606,6 +637,7 @@ describe('auth client', () => {
     expect(fetch).toHaveBeenCalledWith('http://localhost:4200/auth/refresh', {
       credentials: 'include',
       method: 'POST',
+      signal,
     });
   });
 
@@ -665,6 +697,7 @@ describe('auth client', () => {
         200,
       ),
     );
+    const signal = new AbortController().signal;
 
     await expect(
       refreshAccessToken(
@@ -679,6 +712,7 @@ describe('auth client', () => {
           authorizationEndpoint: 'http://localhost:4300/authorize',
           tokenEndpoint: 'http://localhost:4300/token',
         },
+        signal,
       ),
     ).resolves.toEqual({
       accessToken: 'refreshed-access-token',
@@ -692,6 +726,7 @@ describe('auth client', () => {
       body: expect.stringContaining('grant_type=refresh_token'),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       method: 'POST',
+      signal,
     });
   });
 

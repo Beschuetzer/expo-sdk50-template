@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 
+import { awaitWithAbort, throwIfAborted } from './abort';
 import { getValidAccessToken } from './tokenManager';
 
 import { getBackendUrl } from '@/utils/helpers';
@@ -21,72 +22,103 @@ export async function requestAuthenticatedJson<T>(
   const endpoint = path.startsWith('/api/v1/') ? 'api_v1' : 'other';
   const startedAt = Date.now();
   let statusCode: number | undefined;
+  let requestTimedOut = false;
   logDebug('api_request_started', { endpoint, method });
 
-  const token = await getValidAccessToken().catch((error: unknown) => {
-    logWarn('api_request_token_resolution_failed', {
-      endpoint,
-      errorName: error instanceof Error ? error.name : 'UnknownError',
-      method,
-    });
-    throw error;
-  });
-  const headers = new Headers(init.headers);
-  if (init.body !== undefined) {
-    headers.set('content-type', 'application/json');
-  }
-  if (Platform.OS !== 'web') {
-    if (!token?.accessToken) {
-      logWarn('api_request_blocked', {
-        endpoint,
-        method,
-        reason: 'missing_authentication',
-      });
-      throw new Error('Authentication is required.');
-    }
-    headers.set('authorization', `Bearer ${token.accessToken}`);
-  }
-
   const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    API_REQUEST_TIMEOUT_MS,
-  );
+  const signal = controller.signal;
+  const externalSignal = init.signal ?? undefined;
+  const abortFromExternalSignal = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternalSignal, {
+      once: true,
+    });
+  }
+  const timeoutId = setTimeout(() => {
+    requestTimedOut = true;
+    controller.abort();
+  }, API_REQUEST_TIMEOUT_MS);
+
   try {
+    throwIfAborted(signal);
+    let token;
+    try {
+      token = await awaitWithAbort(getValidAccessToken({ signal }), signal);
+    } catch (error) {
+      logWarn('api_request_token_resolution_failed', {
+        endpoint,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        method,
+      });
+      throw error;
+    }
+
+    const headers = new Headers(init.headers);
+    if (init.body !== undefined) {
+      headers.set('content-type', 'application/json');
+    }
+    if (Platform.OS !== 'web') {
+      if (!token?.accessToken) {
+        logWarn('api_request_blocked', {
+          endpoint,
+          method,
+          reason: 'missing_authentication',
+        });
+        throw new Error('Authentication is required.');
+      }
+      headers.set('authorization', `Bearer ${token.accessToken}`);
+    }
+
     const requestInit = (): RequestInit => ({
       ...init,
       credentials: Platform.OS === 'web' ? 'include' : undefined,
       headers: new Headers(headers),
-      signal: controller.signal,
+      signal,
     });
-    let response = await fetch(`${getBackendUrl()}${path}`, requestInit());
+    let response = await awaitWithAbort(
+      fetch(`${getBackendUrl()}${path}`, requestInit()),
+      signal,
+    );
     statusCode = response.status;
 
     if (response.status === 401) {
       if (Platform.OS === 'web') {
-        const refreshedToken = await getValidAccessToken({
-          forceRefresh: true,
-        });
+        const refreshedToken = await awaitWithAbort(
+          getValidAccessToken({ forceRefresh: true, signal }),
+          signal,
+        );
         if (refreshedToken) {
-          response = await fetch(`${getBackendUrl()}${path}`, requestInit());
+          response = await awaitWithAbort(
+            fetch(`${getBackendUrl()}${path}`, requestInit()),
+            signal,
+          );
           statusCode = response.status;
         }
       } else if (token?.accessToken) {
-        const refreshedToken = await getValidAccessToken({
-          rejectedAccessToken: token.accessToken,
-        });
+        const refreshedToken = await awaitWithAbort(
+          getValidAccessToken({
+            rejectedAccessToken: token.accessToken,
+            signal,
+          }),
+          signal,
+        );
         if (
           refreshedToken?.accessToken &&
           refreshedToken.accessToken !== token.accessToken
         ) {
           headers.set('authorization', `Bearer ${refreshedToken.accessToken}`);
-          response = await fetch(`${getBackendUrl()}${path}`, requestInit());
+          response = await awaitWithAbort(
+            fetch(`${getBackendUrl()}${path}`, requestInit()),
+            signal,
+          );
           statusCode = response.status;
         }
       }
     }
 
-    const text = await response.text();
+    const text = await awaitWithAbort(response.text(), signal);
     const result = text ? (JSON.parse(text) as T & ApiError) : undefined;
     if (!response.ok) {
       throw new Error(
@@ -111,11 +143,12 @@ export async function requestAuthenticatedJson<T>(
       method,
       ...(statusCode ? { statusCode } : {}),
     });
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (requestTimedOut) {
       throw new Error('The API request timed out. Check the API connection.');
     }
     throw error;
   } finally {
     clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', abortFromExternalSignal);
   }
 }

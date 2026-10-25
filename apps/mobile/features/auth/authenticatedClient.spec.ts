@@ -59,6 +59,7 @@ describe('authenticated request client', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     fetchMock.mockRestore();
     setPlatformOs('android');
   });
@@ -76,11 +77,19 @@ describe('authenticated request client', () => {
       requestAuthenticatedJson<{ subject: string }>('/api/v1/me'),
     ).resolves.toEqual({ subject: 'user-1' });
 
-    expect(getValidAccessToken).toHaveBeenNthCalledWith(1);
+    const requestSignal =
+      jest.mocked(getValidAccessToken).mock.calls[0][0]?.signal;
+    expect(requestSignal).toBeDefined();
+    expect(getValidAccessToken).toHaveBeenNthCalledWith(1, {
+      signal: requestSignal,
+    });
     expect(getValidAccessToken).toHaveBeenNthCalledWith(2, {
       rejectedAccessToken: currentToken.accessToken,
+      signal: requestSignal,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1]?.signal).toBe(requestSignal);
+    expect(fetchMock.mock.calls[1][1]?.signal).toBe(requestSignal);
     expect(
       new Headers(fetchMock.mock.calls[0][1]?.headers).get('authorization'),
     ).toBe(`Bearer ${currentToken.accessToken}`);
@@ -103,14 +112,42 @@ describe('authenticated request client', () => {
       requestAuthenticatedJson<{ subject: string }>('/api/v1/me'),
     ).resolves.toEqual({ subject: 'web-user' });
 
-    expect(getValidAccessToken).toHaveBeenNthCalledWith(1);
+    const requestSignal =
+      jest.mocked(getValidAccessToken).mock.calls[0][0]?.signal;
+    expect(requestSignal).toBeDefined();
+    expect(getValidAccessToken).toHaveBeenNthCalledWith(1, {
+      signal: requestSignal,
+    });
     expect(getValidAccessToken).toHaveBeenNthCalledWith(2, {
       forceRefresh: true,
+      signal: requestSignal,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const [, request] of fetchMock.mock.calls) {
       expect(request?.credentials).toBe('include');
+      expect(request?.signal).toBe(requestSignal);
       expect(new Headers(request?.headers).has('authorization')).toBe(false);
     }
+  });
+
+  it('applies the timeout to credential lookup and aborts it', async () => {
+    jest.useFakeTimers();
+    let requestSignal: AbortSignal | undefined;
+    jest
+      .mocked(getValidAccessToken)
+      .mockImplementation((requestOptions = {}) => {
+        requestSignal = requestOptions.signal;
+        return new Promise(() => undefined);
+      });
+
+    const pendingRequest = requestAuthenticatedJson('/api/v1/me');
+    const timedOut = expect(pendingRequest).rejects.toThrow(
+      'The API request timed out. Check the API connection.',
+    );
+    await jest.advanceTimersByTimeAsync(15_000);
+
+    await timedOut;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

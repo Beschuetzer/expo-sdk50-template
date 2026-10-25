@@ -2,7 +2,9 @@ import * as SecureStore from 'expo-secure-store';
 
 import {
   clearAccessToken,
+  getAccessTokenSessionRevision,
   loadAccessToken,
+  persistRefreshedAccessTokenIfCurrent,
   saveAccessToken,
   type StoredAccessToken,
 } from './storage';
@@ -26,12 +28,25 @@ describe('access-token storage', () => {
     scope: 'api:read',
     tokenType: 'Bearer',
   };
+  const secureStoreValues = new Map<string, string>();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    secureStoreValues.clear();
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
       value: { OS: 'android' },
+    });
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockImplementation(async (key) => secureStoreValues.get(key) ?? null);
+    jest
+      .mocked(SecureStore.setItemAsync)
+      .mockImplementation(async (key, value) => {
+        secureStoreValues.set(key, value);
+      });
+    jest.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key) => {
+      secureStoreValues.delete(key);
     });
     jest.mocked(SecureStore.isAvailableAsync).mockResolvedValue(true);
   });
@@ -180,5 +195,89 @@ describe('access-token storage', () => {
     await expect(saveAccessToken(token)).rejects.toThrow(
       'Secure storage is unavailable on this device.',
     );
+  });
+
+  it('skips a paused refresh commit when the session is cleared', async () => {
+    const originalToken = { ...token, refreshToken: 'refresh-token' };
+    const refreshedToken = {
+      ...originalToken,
+      accessToken: 'refreshed-access-token',
+    };
+    secureStoreValues.set(
+      'expo50sdktemplate.oauth.access-token',
+      JSON.stringify({ ...originalToken, storageVersion: 2 }),
+    );
+    const expectedRevision = getAccessTokenSessionRevision();
+    let resolveAvailability!: (available: boolean) => void;
+    jest
+      .mocked(SecureStore.isAvailableAsync)
+      .mockResolvedValueOnce(true)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAvailability = resolve;
+          }),
+      );
+
+    const commit = persistRefreshedAccessTokenIfCurrent(
+      refreshedToken,
+      originalToken,
+      expectedRevision,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(SecureStore.isAvailableAsync).toHaveBeenCalledTimes(2);
+
+    const clearing = clearAccessToken();
+    resolveAvailability(true);
+
+    await expect(commit).resolves.toBe(false);
+    await clearing;
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    expect(secureStoreValues.has('expo50sdktemplate.oauth.access-token')).toBe(
+      false,
+    );
+  });
+
+  it('does not overwrite a replacement session with a paused refresh commit', async () => {
+    const originalToken = { ...token, refreshToken: 'refresh-token' };
+    const refreshedToken = {
+      ...originalToken,
+      accessToken: 'refreshed-access-token',
+    };
+    const replacementToken = {
+      ...originalToken,
+      accessToken: 'replacement-access-token',
+      refreshToken: 'replacement-refresh-token',
+    };
+    secureStoreValues.set(
+      'expo50sdktemplate.oauth.access-token',
+      JSON.stringify({ ...originalToken, storageVersion: 2 }),
+    );
+    const expectedRevision = getAccessTokenSessionRevision();
+    let resolveAvailability!: (available: boolean) => void;
+    jest
+      .mocked(SecureStore.isAvailableAsync)
+      .mockResolvedValueOnce(true)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAvailability = resolve;
+          }),
+      );
+
+    const commit = persistRefreshedAccessTokenIfCurrent(
+      refreshedToken,
+      originalToken,
+      expectedRevision,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(SecureStore.isAvailableAsync).toHaveBeenCalledTimes(2);
+
+    const replacement = saveAccessToken(replacementToken);
+    resolveAvailability(true);
+
+    await expect(commit).resolves.toBe(false);
+    await replacement;
+    await expect(loadAccessToken()).resolves.toEqual(replacementToken);
   });
 });

@@ -1,14 +1,17 @@
-import * as AuthSession from 'expo-auth-session';
+import type { DiscoveryDocument } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
+import { awaitWithAbort, throwIfAborted } from './abort';
 import {
+  fetchIdentityProviderDiscovery,
   normalizeIdentityProviderDiscovery,
   refreshAccessToken,
 } from './client';
 import {
+  getAccessTokenSessionRevision,
   isAccessTokenExpiring,
   loadAccessToken,
-  saveAccessToken,
+  persistRefreshedAccessTokenIfCurrent,
   type StoredAccessToken,
 } from './storage';
 
@@ -16,52 +19,90 @@ import { logInfo, logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
 
 type PendingRefresh = {
-  accessToken: string;
+  controller: AbortController;
+  sessionRevision: number;
   promise: Promise<StoredAccessToken | null>;
+  settled: boolean;
+  waiters: number;
 };
+
+type PendingWebRefresh = PendingRefresh;
 
 let cachedDiscovery:
   | {
       issuerUrl: string;
-      promise: Promise<AuthSession.DiscoveryDocument>;
+      discovery: DiscoveryDocument;
     }
   | undefined;
 const pendingRefreshes = new Map<string, PendingRefresh>();
-let pendingWebRefresh: Promise<StoredAccessToken | null> | undefined;
+let pendingWebRefresh: PendingWebRefresh | undefined;
 
-function getIdentityProviderDiscovery() {
-  const issuerUrl = getIdentityProviderUrl();
-  if (cachedDiscovery?.issuerUrl === issuerUrl) {
-    return cachedDiscovery.promise;
-  }
-
-  const promise = AuthSession.fetchDiscoveryAsync(issuerUrl).then((discovery) =>
-    normalizeIdentityProviderDiscovery(discovery, issuerUrl),
-  );
-  const cacheEntry = { issuerUrl, promise };
-  cachedDiscovery = cacheEntry;
-  promise.catch(() => {
-    if (cachedDiscovery === cacheEntry) cachedDiscovery = undefined;
-  });
-  return promise;
+function loadAccessTokenForRequest(signal?: AbortSignal) {
+  return signal ? loadAccessToken({ signal }) : loadAccessToken();
 }
 
-async function refreshAndPersistToken(token: StoredAccessToken) {
+function waitForPendingRefresh(pending: PendingRefresh, signal?: AbortSignal) {
+  pending.waiters += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    pending.waiters -= 1;
+    if (pending.waiters === 0 && !pending.settled) {
+      pending.controller.abort();
+    }
+  };
+
+  return awaitWithAbort(pending.promise, signal).finally(release);
+}
+
+function getIdentityProviderDiscovery(signal?: AbortSignal) {
+  throwIfAborted(signal);
+  const issuerUrl = getIdentityProviderUrl();
+  if (cachedDiscovery?.issuerUrl === issuerUrl) {
+    return Promise.resolve(cachedDiscovery.discovery);
+  }
+
+  const discoveryRequest = signal
+    ? fetchIdentityProviderDiscovery(issuerUrl, signal)
+    : fetchIdentityProviderDiscovery(issuerUrl);
+  return awaitWithAbort(discoveryRequest, signal).then((result) => {
+    throwIfAborted(signal);
+    const discovery = normalizeIdentityProviderDiscovery(result, issuerUrl);
+    cachedDiscovery = { issuerUrl, discovery };
+    return discovery;
+  });
+}
+
+async function refreshAndPersistToken(
+  token: StoredAccessToken,
+  sessionRevision: number,
+  signal?: AbortSignal,
+) {
   logInfo('auth_access_token_refresh_started');
   try {
-    const discovery = await getIdentityProviderDiscovery();
-    const refreshedToken = await refreshAccessToken(token, discovery);
-    const currentToken = await loadAccessToken();
-
-    if (!currentToken) return null;
-    if (
-      currentToken.accessToken !== token.accessToken ||
-      currentToken.refreshToken !== token.refreshToken
-    ) {
-      return currentToken;
+    const discovery = await getIdentityProviderDiscovery(signal);
+    const refreshRequest = signal
+      ? refreshAccessToken(token, discovery, signal)
+      : refreshAccessToken(token, discovery);
+    const refreshedToken = await awaitWithAbort(refreshRequest, signal);
+    throwIfAborted(signal);
+    const persistRequest = signal
+      ? persistRefreshedAccessTokenIfCurrent(
+          refreshedToken,
+          token,
+          sessionRevision,
+          signal,
+        )
+      : persistRefreshedAccessTokenIfCurrent(
+          refreshedToken,
+          token,
+          sessionRevision,
+        );
+    const persisted = await awaitWithAbort(persistRequest, signal);
+    if (!persisted || getAccessTokenSessionRevision() !== sessionRevision) {
+      return await awaitWithAbort(loadAccessTokenForRequest(signal), signal);
     }
-
-    await saveAccessToken(refreshedToken);
     logInfo('auth_access_token_refresh_succeeded');
     return refreshedToken;
   } catch (error) {
@@ -72,48 +113,102 @@ async function refreshAndPersistToken(token: StoredAccessToken) {
   }
 }
 
-function refreshStoredToken(token: StoredAccessToken) {
+function refreshStoredToken(
+  token: StoredAccessToken,
+  sessionRevision: number,
+  signal?: AbortSignal,
+) {
   const existing = pendingRefreshes.get(token.accessToken);
-  if (existing) return existing.promise;
+  if (
+    existing?.sessionRevision === sessionRevision &&
+    !existing.controller.signal.aborted
+  ) {
+    return waitForPendingRefresh(existing, signal);
+  }
 
-  const promise = refreshAndPersistToken(token);
-  const pending = { accessToken: token.accessToken, promise };
+  const controller = new AbortController();
+  const promise = refreshAndPersistToken(
+    token,
+    sessionRevision,
+    controller.signal,
+  );
+  const pending = {
+    controller,
+    sessionRevision,
+    promise,
+    settled: false,
+    waiters: 0,
+  };
   pendingRefreshes.set(token.accessToken, pending);
   const clearPending = () => {
+    pending.settled = true;
     if (pendingRefreshes.get(token.accessToken) === pending) {
       pendingRefreshes.delete(token.accessToken);
     }
   };
   promise.then(clearPending, clearPending);
-  return promise;
+  return waitForPendingRefresh(pending, signal);
 }
 
-function refreshWebSession(token: StoredAccessToken | null) {
-  if (pendingWebRefresh) return pendingWebRefresh;
+function refreshWebSession(
+  token: StoredAccessToken | null,
+  sessionRevision: number,
+  signal?: AbortSignal,
+) {
+  if (
+    pendingWebRefresh?.sessionRevision === sessionRevision &&
+    !pendingWebRefresh.controller.signal.aborted
+  ) {
+    return waitForPendingRefresh(pendingWebRefresh, signal);
+  }
 
-  const promise = getIdentityProviderDiscovery().then((discovery) =>
-    refreshAccessToken(token ?? undefined, discovery),
-  );
-  pendingWebRefresh = promise;
+  const controller = new AbortController();
+  const promise = (async () => {
+    const discovery = await getIdentityProviderDiscovery(controller.signal);
+    const refreshedToken = await refreshAccessToken(
+      token ?? undefined,
+      discovery,
+      controller.signal,
+    );
+    if (getAccessTokenSessionRevision() !== sessionRevision) {
+      return loadAccessTokenForRequest(controller.signal);
+    }
+    return refreshedToken;
+  })();
+  const pending = {
+    controller,
+    sessionRevision,
+    promise,
+    settled: false,
+    waiters: 0,
+  };
+  pendingWebRefresh = pending;
   const clearPending = () => {
-    if (pendingWebRefresh === promise) pendingWebRefresh = undefined;
+    pending.settled = true;
+    if (pendingWebRefresh === pending) pendingWebRefresh = undefined;
   };
   promise.then(clearPending, clearPending);
-  return promise;
+  return waitForPendingRefresh(pending, signal);
 }
 
 export async function getValidAccessToken(
   options: {
     rejectedAccessToken?: string;
     forceRefresh?: boolean;
+    signal?: AbortSignal;
   } = {},
 ): Promise<StoredAccessToken | null> {
-  const token = await loadAccessToken();
+  const { signal } = options;
+  throwIfAborted(signal);
+  const sessionRevision = getAccessTokenSessionRevision();
+  const loadRequest = loadAccessTokenForRequest(signal);
+  const token = await awaitWithAbort(loadRequest, signal);
+  throwIfAborted(signal);
   if (Platform.OS === 'web') {
     if (!options.forceRefresh && options.rejectedAccessToken === undefined) {
       return token;
     }
-    return refreshWebSession(token);
+    return refreshWebSession(token, sessionRevision, signal);
   }
   if (!token) return token;
 
@@ -129,5 +224,5 @@ export async function getValidAccessToken(
   if (!forceRefresh && !isAccessTokenExpiring(token)) return token;
   if (!token.refreshToken) return token;
 
-  return refreshStoredToken(token);
+  return refreshStoredToken(token, sessionRevision, signal);
 }

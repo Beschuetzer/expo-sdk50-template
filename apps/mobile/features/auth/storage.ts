@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+import { throwIfAborted } from './abort';
+
 import { clearPersistedQueryCache } from '@/state/queryClient';
 import { getBackendUrl } from '@/utils/helpers';
 
@@ -25,6 +27,18 @@ const webSessionToken: StoredAccessToken = {
   tokenType: 'Bearer',
 };
 
+let tokenSessionRevision = 0;
+let tokenStorageQueue: Promise<void> = Promise.resolve();
+
+function serializeAccessTokenOperation<T>(operation: () => Promise<T>) {
+  const result = tokenStorageQueue.then(operation, operation);
+  tokenStorageQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
 function isStoredAccessToken(value: unknown): value is StoredAccessToken {
   if (!value || typeof value !== 'object') return false;
 
@@ -41,31 +55,38 @@ export function isAccessTokenExpiring(token: StoredAccessToken) {
   return token.expiresAt <= Date.now() + EXPIRY_SAFETY_WINDOW_MS;
 }
 
-export async function loadAccessToken() {
+async function loadAccessTokenUnlocked(signal?: AbortSignal) {
+  throwIfAborted(signal);
   if (Platform.OS === 'web') {
     const response = await fetch(`${getBackendUrl()}/auth/session`, {
       credentials: 'include',
+      ...(signal ? { signal } : {}),
     });
+    throwIfAborted(signal);
     return response.ok ? webSessionToken : null;
   }
 
   if (!(await SecureStore.isAvailableAsync())) {
     throw new Error('Secure storage is unavailable on this device.');
   }
+  throwIfAborted(signal);
 
   const serializedToken = await SecureStore.getItemAsync(
     ACCESS_TOKEN_STORAGE_KEY,
   );
+  throwIfAborted(signal);
   if (!serializedToken) return null;
 
   try {
     const parsedToken: unknown = JSON.parse(serializedToken);
     if (!isStoredAccessToken(parsedToken)) {
-      await clearAccessToken();
+      tokenSessionRevision += 1;
+      await clearAccessTokenUnlocked();
       return null;
     }
     if (isAccessTokenExpiring(parsedToken) && !parsedToken.refreshToken) {
-      await clearAccessToken();
+      tokenSessionRevision += 1;
+      await clearAccessTokenUnlocked();
       return null;
     }
     if (
@@ -73,24 +94,32 @@ export async function loadAccessToken() {
       parsedToken.storageVersion === STORAGE_VERSION
     ) {
       const idToken = await SecureStore.getItemAsync(ID_TOKEN_STORAGE_KEY);
+      throwIfAborted(signal);
       const { storageVersion: _storageVersion, ...storedToken } = parsedToken;
       return idToken ? { ...storedToken, idToken } : storedToken;
     }
     return parsedToken;
   } catch {
-    await clearAccessToken();
+    if (signal?.aborted) throwIfAborted(signal);
+    tokenSessionRevision += 1;
+    await clearAccessTokenUnlocked();
     return null;
   }
 }
 
-export async function saveAccessToken(token: StoredAccessToken) {
+async function saveAccessTokenUnlocked(
+  token: StoredAccessToken,
+  isCurrent: () => boolean = () => true,
+  signal?: AbortSignal,
+) {
   if (Platform.OS === 'web') {
-    return;
+    return isCurrent();
   }
 
   if (!(await SecureStore.isAvailableAsync())) {
     throw new Error('Secure storage is unavailable on this device.');
   }
+  if (!isCurrent() || signal?.aborted) return false;
 
   const { idToken, ...tokenWithoutIdToken } = token;
   await SecureStore.setItemAsync(
@@ -98,6 +127,7 @@ export async function saveAccessToken(token: StoredAccessToken) {
     JSON.stringify({ ...tokenWithoutIdToken, storageVersion: STORAGE_VERSION }),
     { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
   );
+  if (!isCurrent()) return false;
   if (idToken) {
     await SecureStore.setItemAsync(ID_TOKEN_STORAGE_KEY, idToken, {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
@@ -105,9 +135,10 @@ export async function saveAccessToken(token: StoredAccessToken) {
   } else {
     await SecureStore.deleteItemAsync(ID_TOKEN_STORAGE_KEY);
   }
+  return isCurrent();
 }
 
-export async function clearAccessToken() {
+async function clearAccessTokenUnlocked() {
   if (Platform.OS === 'web') {
     await fetch(`${getBackendUrl()}/auth/logout`, {
       credentials: 'include',
@@ -118,6 +149,59 @@ export async function clearAccessToken() {
 
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_STORAGE_KEY);
   await SecureStore.deleteItemAsync(ID_TOKEN_STORAGE_KEY);
+}
+
+export function getAccessTokenSessionRevision() {
+  return tokenSessionRevision;
+}
+
+export function loadAccessToken(options: { signal?: AbortSignal } = {}) {
+  const requestedRevision = tokenSessionRevision;
+  return serializeAccessTokenOperation(async () => {
+    throwIfAborted(options.signal);
+    const token = await loadAccessTokenUnlocked(options.signal);
+    return requestedRevision === tokenSessionRevision ? token : null;
+  });
+}
+
+export function saveAccessToken(token: StoredAccessToken) {
+  tokenSessionRevision += 1;
+  return serializeAccessTokenOperation(async () => {
+    await saveAccessTokenUnlocked(token);
+  });
+}
+
+export function persistRefreshedAccessTokenIfCurrent(
+  refreshedToken: StoredAccessToken,
+  originalToken: StoredAccessToken,
+  expectedRevision: number,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  return serializeAccessTokenOperation(async () => {
+    throwIfAborted(signal);
+    const currentToken = await loadAccessTokenUnlocked(signal);
+    if (!currentToken) return false;
+    if (
+      currentToken.accessToken !== originalToken.accessToken ||
+      currentToken.refreshToken !== originalToken.refreshToken
+    ) {
+      return false;
+    }
+    if (tokenSessionRevision !== expectedRevision || signal?.aborted) {
+      return false;
+    }
+
+    return saveAccessTokenUnlocked(
+      refreshedToken,
+      () => tokenSessionRevision === expectedRevision,
+      signal,
+    );
+  });
+}
+
+export function clearAccessToken() {
+  tokenSessionRevision += 1;
+  return serializeAccessTokenOperation(clearAccessTokenUnlocked);
 }
 
 export async function clearAuthenticatedSession() {
