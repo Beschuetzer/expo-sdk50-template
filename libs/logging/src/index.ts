@@ -98,7 +98,9 @@ function sanitizeValue(
   }
   if (depth >= MAX_DEPTH) return '[Max depth reached]';
   if (seen.has(value)) return '[Circular]';
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toISOString();
+  }
 
   seen.add(value);
   if (value instanceof Error) {

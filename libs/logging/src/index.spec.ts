@@ -66,6 +66,24 @@ test('handles circular values and errors without throwing', () => {
   assert.doesNotMatch(JSON.stringify(entries[0]), /user@example\.com/);
 });
 
+test('serializes invalid dates without interrupting logging', () => {
+  const entries: LogEntry[] = [];
+  const logger = createLogger({
+    level: 'info',
+    service: 'test',
+    sink: (entry) => entries.push(entry),
+  });
+
+  logger.info('date_event', {
+    createdAt: new Date('2025-01-01T00:00:00.000Z'),
+    invalidAt: new Date(Number.NaN),
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].createdAt, '2025-01-01T00:00:00.000Z');
+  assert.equal(entries[0].invalidAt, 'Invalid Date');
+});
+
 test('supports silent mode and validates environment values', () => {
   const entries: LogEntry[] = [];
   const logger = createLogger({
