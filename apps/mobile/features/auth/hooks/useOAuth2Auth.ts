@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
+import { awaitWithAbort } from '../abort';
 import {
   getAuthenticatedUser,
   type AuthenticatedUser,
@@ -17,9 +18,10 @@ import {
   MOBILE_OAUTH_SCHEME,
   MOBILE_OAUTH_SCOPES,
   revokeRefreshToken,
-  normalizeIdentityProviderDiscovery,
 } from '../client';
 import {
+  ApiRequestTimeoutError,
+  AUTH_REQUEST_TIMEOUT_MS,
   AuthenticatedRequestError,
   DefinitiveOAuthRejectionError,
   RefreshOutcomeUnknownError,
@@ -31,6 +33,7 @@ import {
   type StoredAccessToken,
 } from '../storage';
 import {
+  getIdentityProviderDiscovery,
   getValidAccessToken,
   subscribeToRefreshOutcomeUnknown,
 } from '../tokenManager';
@@ -72,8 +75,17 @@ export function useOAuth2AuthState() {
       attempt: discoveryAttempt,
       issuerUrl,
     });
+    const controller = new AbortController();
+    let requestTimedOut = false;
+    const timeoutId = setTimeout(() => {
+      requestTimedOut = true;
+      controller.abort();
+    }, AUTH_REQUEST_TIMEOUT_MS);
 
-    AuthSession.fetchDiscoveryAsync(issuerUrl)
+    awaitWithAbort(
+      getIdentityProviderDiscovery(controller.signal),
+      controller.signal,
+    )
       .then((result) => {
         if (isCurrent) {
           setProviderDiscovery(result);
@@ -85,25 +97,30 @@ export function useOAuth2AuthState() {
       })
       .catch((error: unknown) => {
         if (!isCurrent) return;
+        const discoveryError = requestTimedOut
+          ? new ApiRequestTimeoutError()
+          : error;
         logWarn('oauth_discovery_failed', {
           attempt: discoveryAttempt,
-          errorName: error instanceof Error ? error.name : 'UnknownError',
+          errorName:
+            discoveryError instanceof Error
+              ? discoveryError.name
+              : 'UnknownError',
           issuerUrl,
         });
         setHasDiscoveryError(true);
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
       });
 
     return () => {
       isCurrent = false;
+      clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [discoveryAttempt, issuerUrl]);
-  const discovery = useMemo(
-    () =>
-      providerDiscovery
-        ? normalizeIdentityProviderDiscovery(providerDiscovery, issuerUrl)
-        : null,
-    [issuerUrl, providerDiscovery],
-  );
+  const discovery = providerDiscovery;
   const [nonce, setNonce] = useState(() => Crypto.randomUUID());
   const [shouldPrompt, setShouldPrompt] = useState(false);
   const signInAttemptInFlightRef = useRef(false);

@@ -211,7 +211,7 @@ function waitForPendingRefresh(pending: PendingRefresh, signal?: AbortSignal) {
   return awaitWithAbort(pending.promise, signal).finally(release);
 }
 
-function getIdentityProviderDiscovery(signal?: AbortSignal) {
+export function getIdentityProviderDiscovery(signal?: AbortSignal) {
   throwIfAborted(signal);
   const issuerUrl = getIdentityProviderUrl();
   if (cachedDiscovery?.issuerUrl === issuerUrl) {

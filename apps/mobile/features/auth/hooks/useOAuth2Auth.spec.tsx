@@ -5,6 +5,7 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { useOAuth2AuthState } from './useOAuth2Auth';
 import {
   ApiRequestTimeoutError,
+  AUTH_REQUEST_TIMEOUT_MS,
   AuthenticatedRequestError,
   DefinitiveOAuthRejectionError,
   RefreshOutcomeUnknownError,
@@ -47,6 +48,7 @@ const mockLoadAccessToken = jest.fn<Promise<typeof storedToken | null>, []>(
 const mockExchangeAuthorizationCode = jest.fn();
 const mockGetAuthenticatedUser = jest.fn();
 const mockGetValidAccessToken = jest.fn();
+const mockGetIdentityProviderDiscovery = jest.fn();
 const mockSaveAccessToken = jest.fn();
 const mockClearAuthenticatedSession = jest.fn();
 const mockCreateProviderLogoutUrl = jest.fn();
@@ -126,10 +128,6 @@ jest.mock('expo-auth-session', () => {
       ({ path }: { path: string }) => `oauth-test-scheme://${path}`,
     ),
     dismiss: jest.fn(),
-    fetchDiscoveryAsync: () =>
-      mockDiscoveryError
-        ? Promise.reject(mockDiscoveryError)
-        : Promise.resolve(mockDiscovery),
     useAuthRequest: (config: { extraParams: { nonce: string } }) => {
       const [response, setResponse] = React.useState<unknown>(null);
       mockSetAuthResponse = setResponse;
@@ -173,7 +171,6 @@ jest.mock('../client', () => ({
   MOBILE_OAUTH_POST_LOGOUT_REDIRECT_URI: '',
   MOBILE_OAUTH_SCHEME: 'oauth-test-scheme',
   MOBILE_OAUTH_SCOPES: ['openid'],
-  normalizeIdentityProviderDiscovery: (discovery: unknown) => discovery,
   revokeRefreshToken: (...args: unknown[]) => mockRevokeRefreshToken(...args),
 }));
 
@@ -183,6 +180,8 @@ jest.mock('../authenticatedUser', () => ({
 }));
 
 jest.mock('../tokenManager', () => ({
+  getIdentityProviderDiscovery: (...args: unknown[]) =>
+    mockGetIdentityProviderDiscovery(...args),
   getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
   subscribeToRefreshOutcomeUnknown: (listener: () => void) =>
     mockSubscribeToRefreshOutcomeUnknown(listener),
@@ -231,6 +230,11 @@ describe('useOAuth2AuthState', () => {
     mockCreateProviderLogoutUrl.mockReturnValue(null);
     mockRevokeRefreshToken.mockResolvedValue(undefined);
     mockOpenAuthSessionAsync.mockResolvedValue({ type: 'success' });
+    mockGetIdentityProviderDiscovery.mockImplementation(() =>
+      mockDiscoveryError
+        ? Promise.reject(mockDiscoveryError)
+        : Promise.resolve(mockDiscovery),
+    );
     setPlatformOs('android');
   });
 
@@ -239,6 +243,7 @@ describe('useOAuth2AuthState', () => {
       act(() => mountedRenderer?.unmount());
       mountedRenderer = null;
     }
+    jest.useRealTimers();
     setPlatformOs('android');
   });
 
@@ -747,6 +752,39 @@ describe('useOAuth2AuthState', () => {
       'oauth_discovery_failed',
       expect.objectContaining({ errorName: 'UnknownError' }),
     );
+  });
+
+  it('times out discovery and allows setup to be retried', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+    mockGetIdentityProviderDiscovery.mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+    const auth = await renderAuth();
+
+    expect(auth().isReady).toBe(false);
+    expect(auth().hasSetupError).toBe(false);
+    expect(mockGetIdentityProviderDiscovery).toHaveBeenCalledWith(
+      expect.any(AbortSignal),
+    );
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+      await flushPromises();
+    });
+
+    expect(auth().hasSetupError).toBe(true);
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      'oauth_discovery_failed',
+      expect.objectContaining({ errorName: 'ApiRequestTimeoutError' }),
+    );
+
+    await act(async () => {
+      auth().retryAuthenticationSetup();
+      await flushPromises();
+    });
+
+    expect(auth().isReady).toBe(true);
+    expect(auth().hasSetupError).toBe(false);
   });
 
   it('uses a stored access token to load the authenticated user', async () => {
