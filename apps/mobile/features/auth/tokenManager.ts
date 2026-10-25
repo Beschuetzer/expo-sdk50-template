@@ -42,6 +42,8 @@ type PendingRefresh = {
 
 type PendingWebRefresh = PendingRefresh;
 
+const refreshOutcomeUnknownListeners = new Set<() => void>();
+
 export class MissingRefreshTokenError extends Error {
   constructor() {
     super();
@@ -50,9 +52,29 @@ export class MissingRefreshTokenError extends Error {
 }
 
 let cachedDiscovery:
-  { issuerUrl: string; discovery: DiscoveryDocument } | undefined;
+  | { issuerUrl: string; discovery: DiscoveryDocument }
+  | undefined;
 const pendingRefreshes = new Map<string, PendingRefresh>();
 let pendingWebRefresh: PendingWebRefresh | undefined;
+
+export function subscribeToRefreshOutcomeUnknown(listener: () => void) {
+  refreshOutcomeUnknownListeners.add(listener);
+  return () => {
+    refreshOutcomeUnknownListeners.delete(listener);
+  };
+}
+
+function notifyRefreshOutcomeUnknown() {
+  for (const listener of refreshOutcomeUnknownListeners) {
+    try {
+      listener();
+    } catch (error) {
+      logWarn('auth_refresh_outcome_listener_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+    }
+  }
+}
 
 function createRefreshState(): RefreshState {
   return {
@@ -82,11 +104,19 @@ function startRefreshDeadline(
 function clearSessionAfterUncertainRefresh(sessionRevision: number): boolean {
   if (getAccessTokenSessionRevision() !== sessionRevision) return false;
 
-  void clearAuthenticatedSession().catch((error: unknown) => {
-    logWarn('auth_access_token_session_clear_failed', {
-      errorName: error instanceof Error ? error.name : 'UnknownError',
+  const clearRequest = clearAuthenticatedSession();
+  const clearedSessionRevision = getAccessTokenSessionRevision();
+  clearRequest
+    .then(() => {
+      if (getAccessTokenSessionRevision() === clearedSessionRevision) {
+        notifyRefreshOutcomeUnknown();
+      }
+    })
+    .catch((error: unknown) => {
+      logWarn('auth_access_token_session_clear_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
     });
-  });
   return true;
 }
 

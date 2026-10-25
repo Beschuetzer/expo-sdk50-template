@@ -49,6 +49,15 @@ const mockRevokeRefreshToken = jest.fn();
 const mockOpenAuthSessionAsync = jest.fn();
 const mockLogWarn = jest.fn();
 let mockSetAuthResponse: ((response: unknown) => void) | null = null;
+let mockRefreshOutcomeUnknownListener: (() => void) | null = null;
+const mockSubscribeToRefreshOutcomeUnknown = jest.fn((listener: () => void) => {
+  mockRefreshOutcomeUnknownListener = listener;
+  return () => {
+    if (mockRefreshOutcomeUnknownListener === listener) {
+      mockRefreshOutcomeUnknownListener = null;
+    }
+  };
+});
 let mountedRenderer: ReactTestRenderer | null = null;
 
 function setPlatformOs(os: string) {
@@ -170,6 +179,8 @@ jest.mock('../authenticatedUser', () => ({
 
 jest.mock('../tokenManager', () => ({
   getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
+  subscribeToRefreshOutcomeUnknown: (listener: () => void) =>
+    mockSubscribeToRefreshOutcomeUnknown(listener),
 }));
 
 jest.mock('../storage', () => ({
@@ -204,6 +215,7 @@ describe('useOAuth2AuthState', () => {
     mockRequestState = 'test-state';
     mockCodeVerifier = 'test-code-verifier';
     mockRequestNonce = undefined;
+    mockRefreshOutcomeUnknownListener = null;
     mockPromptAsync.mockImplementation(async () => mockPromptResponse);
     mockLoadAccessToken.mockResolvedValue(null);
     mockExchangeAuthorizationCode.mockResolvedValue(refreshedToken);
@@ -234,6 +246,24 @@ describe('useOAuth2AuthState', () => {
     expect(auth().isAuthenticated).toBe(true);
     expect(auth().user).toEqual(authenticatedUser);
     expect(mockGetAuthenticatedUser).toHaveBeenCalledWith(storedToken.idToken);
+  });
+
+  it('clears auth state when a refresh invalidation is reported', async () => {
+    mockLoadAccessToken.mockResolvedValue(storedToken);
+    const auth = await renderAuth();
+    expect(auth().isAuthenticated).toBe(true);
+
+    await act(async () => {
+      if (!mockRefreshOutcomeUnknownListener) {
+        throw new Error('Refresh invalidation listener was not registered.');
+      }
+      mockRefreshOutcomeUnknownListener();
+      await flushPromises();
+    });
+
+    expect(auth().state).toBe('error');
+    expect(auth().isAuthenticated).toBe(false);
+    expect(auth().user).toBeNull();
   });
 
   it('does not restore the user when sign-out beats the startup profile request', async () => {

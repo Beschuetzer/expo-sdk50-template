@@ -19,7 +19,11 @@ import {
   persistRefreshedAccessTokenIfCurrent,
   type StoredAccessToken,
 } from './storage';
-import { getValidAccessToken, MissingRefreshTokenError } from './tokenManager';
+import {
+  getValidAccessToken,
+  MissingRefreshTokenError,
+  subscribeToRefreshOutcomeUnknown,
+} from './tokenManager';
 
 import { getIdentityProviderUrl } from '@/utils/platform';
 
@@ -394,6 +398,50 @@ describe('access-token manager', () => {
       await expect(getValidAccessToken()).resolves.toBeNull();
       expect(refreshAccessToken).toHaveBeenCalledTimes(1);
     } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('notifies auth state after a refresh becomes unknown despite waiter abort', async () => {
+    jest.useFakeTimers();
+    const token = makeToken({ expiresAt: Date.now() + 10_000 });
+    const waiterController = new AbortController();
+    const onRefreshOutcomeUnknown = jest.fn();
+    const unsubscribe = subscribeToRefreshOutcomeUnknown(
+      onRefreshOutcomeUnknown,
+    );
+    let refreshSignal: AbortSignal | undefined;
+    storedToken = token;
+    jest
+      .mocked(refreshAccessToken)
+      .mockImplementationOnce((_token, _discovery, signal) => {
+        refreshSignal = signal;
+        return new Promise(() => undefined);
+      });
+
+    try {
+      const request = getValidAccessToken({
+        signal: waiterController.signal,
+      });
+      const requestOutcome = expect(request).rejects.toMatchObject({
+        name: 'AbortError',
+      });
+      await jest.advanceTimersByTimeAsync(0);
+      expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+
+      waiterController.abort();
+      await requestOutcome;
+      await jest.advanceTimersByTimeAsync(0);
+      expect(refreshSignal?.aborted).toBe(false);
+      expect(clearAuthenticatedSession).not.toHaveBeenCalled();
+      expect(onRefreshOutcomeUnknown).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+      expect(refreshSignal?.aborted).toBe(true);
+      expect(clearAuthenticatedSession).toHaveBeenCalledTimes(1);
+      expect(onRefreshOutcomeUnknown).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
       jest.useRealTimers();
     }
   });

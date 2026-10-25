@@ -26,7 +26,10 @@ import {
   saveAccessToken,
   type StoredAccessToken,
 } from '../storage';
-import { getValidAccessToken } from '../tokenManager';
+import {
+  getValidAccessToken,
+  subscribeToRefreshOutcomeUnknown,
+} from '../tokenManager';
 
 import { logDebug, logError, logInfo, logWarn } from '@/utils/logging';
 import { getIdentityProviderUrl } from '@/utils/platform';
@@ -162,6 +165,15 @@ export function useOAuth2AuthState() {
     setIsAuthenticated(false);
     setUser(null);
   };
+  useEffect(
+    () =>
+      subscribeToRefreshOutcomeUnknown(() => {
+        setIsAuthenticated(false);
+        setUser(null);
+        setState('error');
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (Platform.OS !== 'web' && !discovery) return;
