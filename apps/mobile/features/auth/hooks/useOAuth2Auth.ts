@@ -481,6 +481,38 @@ export function useOAuth2AuthState() {
     }
   }
 
+  async function signOut() {
+    logInfo('auth_sign_out_started');
+    sessionGenerationRef.current += 1;
+    signInAttemptInFlightRef.current = false;
+    setState('loading');
+    try {
+      const storedToken = await loadAccessToken();
+      if (storedToken?.refreshToken && discovery) {
+        await revokeRefreshToken(storedToken.refreshToken, discovery);
+      }
+    } catch (error) {
+      logWarn('auth_sign_out_failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+      throw error;
+    } finally {
+      try {
+        await clearAuthenticatedSession();
+        logInfo('auth_sign_out_completed');
+      } catch (error) {
+        logWarn('auth_sign_out_failed', {
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
+        throw error;
+      } finally {
+        setIsAuthenticated(false);
+        setUser(null);
+        setState('idle');
+      }
+    }
+  }
+
   async function refreshAuthenticatedSession() {
     logInfo('auth_session_refresh_started');
     setState('loading');
@@ -515,38 +547,6 @@ export function useOAuth2AuthState() {
       clearAuthStateAfterUnknownRefresh(error);
       setState('error');
       throw error;
-    }
-  }
-
-  async function signOut() {
-    logInfo('auth_sign_out_started');
-    sessionGenerationRef.current += 1;
-    signInAttemptInFlightRef.current = false;
-    setState('loading');
-    try {
-      const storedToken = await loadAccessToken();
-      if (storedToken?.refreshToken && discovery) {
-        await revokeRefreshToken(storedToken.refreshToken, discovery);
-      }
-    } catch (error) {
-      logWarn('auth_sign_out_failed', {
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-      });
-      throw error;
-    } finally {
-      try {
-        await clearAuthenticatedSession();
-        logInfo('auth_sign_out_completed');
-      } catch (error) {
-        logWarn('auth_sign_out_failed', {
-          errorName: error instanceof Error ? error.name : 'UnknownError',
-        });
-        throw error;
-      } finally {
-        setIsAuthenticated(false);
-        setUser(null);
-        setState('idle');
-      }
     }
   }
 

@@ -28,28 +28,12 @@ describe('query persistence policy', () => {
     jest.restoreAllMocks();
   });
 
-  it('persists only successful backend health data', () => {
-    const shouldDehydrateQuery =
-      queryPersistOptions.dehydrateOptions.shouldDehydrateQuery;
-
-    expect(
-      shouldDehydrateQuery({
-        queryKey: ['backend', 'health'],
-        state: { status: 'success' },
-      }),
-    ).toBe(true);
-    expect(
-      shouldDehydrateQuery({
-        queryKey: ['account', 'profile'],
-        state: { status: 'success' },
-      }),
-    ).toBe(false);
-    expect(
-      shouldDehydrateQuery({
-        queryKey: ['backend', 'health'],
-        state: { status: 'error' },
-      }),
-    ).toBe(false);
+  it('uses the generic app query cache without a demo-only filter', () => {
+    expect(queryPersistOptions).toMatchObject({
+      buster: 'mobile-query-cache-v1',
+      maxAge: 1000 * 60 * 60 * 24,
+    });
+    expect(queryPersistOptions).not.toHaveProperty('dehydrateOptions');
   });
 
   it('clears memory and persisted query data', async () => {

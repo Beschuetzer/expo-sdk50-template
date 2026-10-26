@@ -9,14 +9,12 @@ import {
   exchangeBffCode,
   refreshBffSession,
 } from './routes/bffAuth';
-import { createExampleRoute, type ExampleDatabase } from './routes/example';
 import { createHealthRoute, type DatabaseHealth } from './routes/health';
 import { meRoute } from './routes/me';
 
 export type CreateAppOptions = {
   authMiddleware?: AuthMiddleware;
   databaseHealth?: DatabaseHealth;
-  exampleDatabase?: ExampleDatabase;
 };
 
 export function createApp(
@@ -66,11 +64,6 @@ export function createApp(
   });
   app.use(express.json());
   app.get('/health', createHealthRoute(config, options.databaseHealth));
-  app.post(
-    '/api/v1/examples/random',
-    authMiddleware,
-    createExampleRoute(options.exampleDatabase),
-  );
   app.post('/auth/token', (request, response, next) => {
     exchangeBffCode(request, response, config).catch(next);
   });

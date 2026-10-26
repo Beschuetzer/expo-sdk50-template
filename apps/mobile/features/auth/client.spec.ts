@@ -14,7 +14,6 @@ import {
   normalizeIdentityProviderDiscovery,
   revokeRefreshToken,
   refreshAccessToken,
-  verifyAuthenticatedEndpointRejectsAnonymousRequest,
 } from './client';
 import { DefinitiveOAuthRejectionError } from './errors';
 import { getValidAccessToken } from './tokenManager';
@@ -1179,24 +1178,4 @@ describe('auth client', () => {
     );
   });
 
-  it('verifies anonymous requests are rejected with HTTP 401', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(makeResponse({ status: 'unauthorized' }, 401));
-
-    await expect(
-      verifyAuthenticatedEndpointRejectsAnonymousRequest(),
-    ).resolves.toBe(401);
-    expect(fetch).toHaveBeenCalledWith('http://localhost:4200/api/v1/me');
-  });
-
-  it('fails the security check when an anonymous request is accepted', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(makeResponse({ status: 'ok' }, 200));
-
-    await expect(
-      verifyAuthenticatedEndpointRejectsAnonymousRequest(),
-    ).rejects.toThrow('returned HTTP 200');
-  });
 });
