@@ -1,7 +1,8 @@
 import type { HealthResponse } from '@expo-50sdk-template/shared-types';
 import { HStack, VStack } from '@gluestack-ui/themed';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 import {
   BarcodeScanner,
@@ -17,7 +18,18 @@ import {
   ThemeAwareText,
 } from '@/components/ui/ThemeAwareText';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
+import { ApiRequestTimeoutError } from '@/features/auth/authenticatedClient';
 import { verifyAuthenticatedEndpointRejectsAnonymousRequest } from '@/features/auth/client';
+import {
+  MissingTokenEndpointError,
+  RefreshOutcomeUnknownError,
+} from '@/features/auth/errors';
+import {
+  getAccessTokenExpiry,
+  MissingRefreshTokenError,
+  subscribeToAccessTokenExpiry,
+} from '@/features/auth/tokenManager';
+import { formatAccessTokenTtl } from '@/features/auth/tokenTtl';
 import { createRandomExample } from '@/features/backend/api';
 import {
   backendHealthQueryKey,
@@ -30,6 +42,65 @@ import {
 } from '@/state/slices/generalSlice';
 import { useAppDispatch } from '@/state/store';
 import { useI18n, type TranslationKey } from '@/utils/i18n';
+
+function AccessTokenTtl({ authState }: { authState: string }) {
+  const { t } = useI18n();
+  const [expiresAt, setExpiresAt] = useState<number | null | undefined>(
+    undefined,
+  );
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      setExpiresAt(null);
+      return undefined;
+    }
+
+    let isCurrent = true;
+    setExpiresAt(undefined);
+    const unsubscribe = subscribeToAccessTokenExpiry((nextExpiresAt) => {
+      if (!isCurrent) return;
+      setExpiresAt(nextExpiresAt);
+      setNow(Date.now());
+    });
+    getAccessTokenExpiry()
+      .then((nextExpiresAt) => {
+        if (!isCurrent) return;
+        setExpiresAt(nextExpiresAt);
+        setNow(Date.now());
+      })
+      .catch(() => {
+        if (isCurrent) setExpiresAt(null);
+      });
+
+    return () => {
+      isCurrent = false;
+      unsubscribe();
+    };
+  }, [authState]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const ttl =
+    Platform.OS === 'web'
+      ? t('home.accessTokenTtlWebUnavailable')
+      : expiresAt === undefined
+        ? t('common.loading')
+        : expiresAt === null
+          ? t('home.accessTokenTtlUnavailable')
+          : formatAccessTokenTtl(expiresAt, now, t);
+
+  return (
+    <ThemeAwareText>
+      {t('home.accessTokenTtl')}: {ttl}
+    </ThemeAwareText>
+  );
+}
 
 /*
  * The home screen intentionally uses FlashList even for this small starter
@@ -130,12 +201,19 @@ export default function HomeScreen() {
 
   const reportExampleCreationError = (error: unknown) => {
     setExampleStatus('errors.exampleCreationFailed');
+    const message =
+      error instanceof RefreshOutcomeUnknownError
+        ? t('errors.refreshOutcomeUnknown')
+        : error instanceof ApiRequestTimeoutError
+          ? t('errors.apiRequestTimedOut')
+          : error instanceof MissingTokenEndpointError
+            ? t('errors.tokenEndpointUnavailable')
+            : error instanceof Error
+              ? error.message
+              : t('errors.exampleCreationFailed');
     dispatch(
       setError({
-        message:
-          error instanceof Error
-            ? error.message
-            : t('errors.exampleCreationFailed'),
+        message,
         name: 'ExampleCreationError',
       }),
     );
@@ -169,9 +247,17 @@ export default function HomeScreen() {
       dispatch(
         setError({
           message:
-            error instanceof Error
-              ? error.message
-              : t('errors.tokenRefreshFailed'),
+            error instanceof RefreshOutcomeUnknownError
+              ? t('errors.refreshOutcomeUnknown')
+              : error instanceof ApiRequestTimeoutError
+                ? t('errors.apiRequestTimedOut')
+                : error instanceof MissingRefreshTokenError
+                  ? t('errors.noRefreshToken')
+                  : error instanceof MissingTokenEndpointError
+                    ? t('errors.tokenEndpointUnavailable')
+                    : error instanceof Error
+                      ? error.message
+                      : t('errors.tokenRefreshFailed'),
           name: 'TokenRefreshError',
         }),
       );
@@ -403,6 +489,7 @@ export default function HomeScreen() {
             {authenticatedUser.subject ?? 'Authenticated user'}
           </ThemeAwareText>
         ) : null}
+        {authenticatedUser ? <AccessTokenTtl authState={authState} /> : null}
       </VStack>
     </ThemeAwareScreen>
   );

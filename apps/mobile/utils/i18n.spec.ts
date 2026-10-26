@@ -34,6 +34,42 @@ describe('i18n', () => {
     expect(getMessage('en', 'tabs.home')).toBe('Home');
   });
 
+  it('localizes authenticated API timeout errors', () => {
+    expect(getMessage('en', 'errors.apiRequestTimedOut')).toBe(
+      'The API request timed out. Check the API connection.',
+    );
+    expect(getMessage('es', 'errors.apiRequestTimedOut')).toBe(
+      'La solicitud a la API superó el tiempo de espera. Comprueba la conexión con la API.',
+    );
+  });
+
+  it('localizes missing refresh token errors', () => {
+    expect(getMessage('en', 'errors.noRefreshToken')).toBe(
+      'No refresh token is available.',
+    );
+    expect(getMessage('es', 'errors.noRefreshToken')).toBe(
+      'No hay un token de actualización disponible.',
+    );
+  });
+
+  it('localizes refreshes whose outcome is unknown', () => {
+    expect(getMessage('en', 'errors.refreshOutcomeUnknown')).toBe(
+      'The token refresh could not be completed safely. Sign in again to continue.',
+    );
+    expect(getMessage('es', 'errors.refreshOutcomeUnknown')).toBe(
+      'No se pudo completar la renovación del token de forma segura. Inicia sesión de nuevo para continuar.',
+    );
+  });
+
+  it('localizes missing token endpoint errors', () => {
+    expect(getMessage('en', 'errors.tokenEndpointUnavailable')).toBe(
+      'The identity provider configuration does not include a token endpoint.',
+    );
+    expect(getMessage('es', 'errors.tokenEndpointUnavailable')).toBe(
+      'La configuración del proveedor de identidad no incluye un endpoint de token.',
+    );
+  });
+
   it('falls back to english strings for missing locale values', () => {
     expect(getMessage('es', 'tabs.missing' as never)).toBe('tabs.missing');
     expect(getMessage('es', 'settings.title')).toBe('Configuración');

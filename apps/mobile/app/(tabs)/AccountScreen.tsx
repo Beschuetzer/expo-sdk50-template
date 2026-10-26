@@ -115,141 +115,135 @@ export default function AccountScreen() {
               : null;
 
   return (
-    <ThemeAwareScreen>
-      <VStack space="xl" p="$4">
-        <HStack space="md" alignItems="center">
-          {picture ? (
-            <Image
-              accessibilityLabel={displayName ?? t('account.title')}
-              contentFit="cover"
-              source={picture}
-              style={{ borderRadius: 28, height: 56, width: 56 }}
-            />
-          ) : (
-            <AccountIcon color={accountIconColor} size={42} />
-          )}
-          <VStack flex={1} space="xs">
-            <ThemeAwareHeading size="2xl">
-              {t('account.title')}
-            </ThemeAwareHeading>
-            {displayName ? (
-              <ThemeAwareText>{displayName}</ThemeAwareText>
-            ) : null}
-          </VStack>
-        </HStack>
-        <ThemeAwareSurface
-          darkBackground="$backgroundDark900"
-          lightBackground="$coolGray50"
-          borderRadius="$lg"
-          p="$5"
-        >
-          {isAuthenticated ? (
-            <VStack space="md">
-              <HStack space="sm" alignItems="center">
-                <FontAwesome name="check-circle" color="#27AE60" size={20} />
-                <VStack flex={1} space="xs">
-                  <ThemeAwareText fontWeight="$bold">
-                    {t('account.signedInStatus')}
-                  </ThemeAwareText>
-                  <ThemeAwareText size="sm">
-                    {t('account.signedInMessage')}
-                  </ThemeAwareText>
-                </VStack>
-              </HStack>
-              <ThemeAwareButton disabled={isBusy} onPress={onPressLogout}>
-                {t('actions.logout')}
-              </ThemeAwareButton>
-            </VStack>
-          ) : (
-            <VStack space="md">
-              <VStack space="xs">
+    <ThemeAwareScreen space="md" p="$4">
+      <HStack space="md" alignItems="center">
+        {picture ? (
+          <Image
+            accessibilityLabel={displayName ?? t('account.title')}
+            contentFit="cover"
+            source={picture}
+            style={{ borderRadius: 28, height: 56, width: 56 }}
+          />
+        ) : (
+          <AccountIcon color={accountIconColor} size={42} />
+        )}
+        <VStack flex={1} space="xs">
+          <ThemeAwareHeading size="2xl">{t('account.title')}</ThemeAwareHeading>
+          {displayName ? <ThemeAwareText>{displayName}</ThemeAwareText> : null}
+        </VStack>
+      </HStack>
+      <ThemeAwareSurface
+        darkBackground="$backgroundDark900"
+        lightBackground="$coolGray50"
+        borderRadius="$lg"
+        p="$5"
+      >
+        {isAuthenticated ? (
+          <VStack space="md">
+            <HStack space="sm" alignItems="center">
+              <FontAwesome name="check-circle" color="#27AE60" size={20} />
+              <VStack flex={1} space="xs">
                 <ThemeAwareText fontWeight="$bold">
-                  {t('account.signedOutStatus')}
+                  {t('account.signedInStatus')}
                 </ThemeAwareText>
                 <ThemeAwareText size="sm">
-                  {t('account.signedOutMessage')}
+                  {t('account.signedInMessage')}
                 </ThemeAwareText>
               </VStack>
-              <ThemeAwareButton
-                disabled={!isReady || isBusy}
-                onPress={onPressSignIn}
-              >
-                <ButtonText>{t('actions.signIn')}</ButtonText>
-              </ThemeAwareButton>
+            </HStack>
+            <ThemeAwareButton disabled={isBusy} onPress={onPressLogout}>
+              {t('actions.logout')}
+            </ThemeAwareButton>
+          </VStack>
+        ) : (
+          <VStack space="md">
+            <VStack space="xs">
+              <ThemeAwareText fontWeight="$bold">
+                {t('account.signedOutStatus')}
+              </ThemeAwareText>
+              <ThemeAwareText size="sm">
+                {t('account.signedOutMessage')}
+              </ThemeAwareText>
             </VStack>
-          )}
-        </ThemeAwareSurface>
-        {isAuthenticated && user ? (
-          <VStack space="md">
-            <ThemeAwareHeading size="lg">
-              {t('account.profileTitle')}
-            </ThemeAwareHeading>
-            <ThemeAwareSurface
-              darkBackground="$backgroundDark900"
-              lightBackground="$coolGray50"
-              borderRadius="$lg"
-              p="$5"
+            <ThemeAwareButton
+              disabled={!isReady || isBusy}
+              onPress={onPressSignIn}
             >
-              <VStack space="md">
-                <DetailRow
-                  label={t('account.displayName')}
-                  value={displayName ?? t('account.unavailable')}
-                />
-                <DetailRow
-                  label={t('account.email')}
-                  value={email ?? t('account.unavailable')}
-                />
-                <DetailRow
-                  label={t('account.username')}
-                  value={username ?? t('account.unavailable')}
-                />
-                <DetailRow
-                  label={t('account.provider')}
-                  value={
-                    accountProvider
-                      ? t(accountProviderTranslationKeys[accountProvider])
-                      : t('account.custom')
-                  }
-                />
-              </VStack>
-            </ThemeAwareSurface>
+              <ButtonText>{t('actions.signIn')}</ButtonText>
+            </ThemeAwareButton>
           </VStack>
-        ) : null}
-        {isAuthenticated && user ? (
-          <VStack space="md">
-            <ThemeAwareHeading size="lg">
-              {t('account.identityTitle')}
-            </ThemeAwareHeading>
-            <ThemeAwareSurface
-              darkBackground="$backgroundDark900"
-              lightBackground="$coolGray50"
-              borderRadius="$lg"
-              p="$5"
-            >
-              <VStack space="md">
-                <DetailRow
-                  label={t('account.accountId')}
-                  value={subject ?? t('account.unavailable')}
-                />
-                <DetailRow
-                  label={t('account.issuer')}
-                  value={issuer ?? t('account.unavailable')}
-                />
-                <DetailRow
-                  label={t('account.audience')}
-                  value={audience ?? t('account.unavailable')}
-                />
-              </VStack>
-            </ThemeAwareSurface>
-          </VStack>
-        ) : null}
-        {!isReady && authState === 'idle' ? (
-          <ThemeAwareText>{t('status.preparingAuthentication')}</ThemeAwareText>
-        ) : null}
-        {statusMessage ? (
-          <ThemeAwareText>{t(statusMessage)}</ThemeAwareText>
-        ) : null}
-      </VStack>
+        )}
+      </ThemeAwareSurface>
+      {isAuthenticated && user ? (
+        <VStack space="md">
+          <ThemeAwareHeading size="lg">
+            {t('account.profileTitle')}
+          </ThemeAwareHeading>
+          <ThemeAwareSurface
+            darkBackground="$backgroundDark900"
+            lightBackground="$coolGray50"
+            borderRadius="$lg"
+            p="$5"
+          >
+            <VStack space="md">
+              <DetailRow
+                label={t('account.displayName')}
+                value={displayName ?? t('account.unavailable')}
+              />
+              <DetailRow
+                label={t('account.email')}
+                value={email ?? t('account.unavailable')}
+              />
+              <DetailRow
+                label={t('account.username')}
+                value={username ?? t('account.unavailable')}
+              />
+              <DetailRow
+                label={t('account.provider')}
+                value={
+                  accountProvider
+                    ? t(accountProviderTranslationKeys[accountProvider])
+                    : t('account.custom')
+                }
+              />
+            </VStack>
+          </ThemeAwareSurface>
+        </VStack>
+      ) : null}
+      {isAuthenticated && user ? (
+        <VStack space="md">
+          <ThemeAwareHeading size="lg">
+            {t('account.identityTitle')}
+          </ThemeAwareHeading>
+          <ThemeAwareSurface
+            darkBackground="$backgroundDark900"
+            lightBackground="$coolGray50"
+            borderRadius="$lg"
+            p="$5"
+          >
+            <VStack space="md">
+              <DetailRow
+                label={t('account.accountId')}
+                value={subject ?? t('account.unavailable')}
+              />
+              <DetailRow
+                label={t('account.issuer')}
+                value={issuer ?? t('account.unavailable')}
+              />
+              <DetailRow
+                label={t('account.audience')}
+                value={audience ?? t('account.unavailable')}
+              />
+            </VStack>
+          </ThemeAwareSurface>
+        </VStack>
+      ) : null}
+      {!isReady && authState === 'idle' ? (
+        <ThemeAwareText>{t('status.preparingAuthentication')}</ThemeAwareText>
+      ) : null}
+      {statusMessage ? (
+        <ThemeAwareText>{t(statusMessage)}</ThemeAwareText>
+      ) : null}
     </ThemeAwareScreen>
   );
 }

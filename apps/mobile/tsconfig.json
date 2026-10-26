@@ -8,6 +8,9 @@
       "@/*": ["./*"],
       "@expo-50sdk-template/shared-types": [
         "../../libs/shared-types/src/index.ts"
+      ],
+      "@expo-50sdk-template/logging": [
+        "../../libs/logging/src/index.ts"
       ]
     }
   },

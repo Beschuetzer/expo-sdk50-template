@@ -1,0 +1,181 @@
+import { Platform } from 'react-native';
+
+import { awaitWithAbort, throwIfAborted } from './abort';
+import {
+  ApiRequestTimeoutError,
+  AuthenticatedRequestError,
+  AUTH_REQUEST_TIMEOUT_MS,
+} from './errors';
+import { getValidAccessToken } from './tokenManager';
+
+import { getBackendUrl } from '@/utils/helpers';
+import { logDebug, logWarn } from '@/utils/logging';
+
+export { ApiRequestTimeoutError, AuthenticatedRequestError };
+
+type ApiError = { message?: string };
+type RequestOptions = { fallbackErrorMessage?: (statusCode: number) => string };
+type RequestToken = Awaited<ReturnType<typeof getValidAccessToken>>;
+type RequestTokenMetadata = Pick<NonNullable<RequestToken>, 'idToken'>;
+
+export type AuthenticatedRequestResult<T> = {
+  data: T;
+  token: RequestTokenMetadata | null;
+};
+
+export async function requestAuthenticatedJson<T>(
+  path: string,
+  init: RequestInit = {},
+  options: RequestOptions = {},
+): Promise<AuthenticatedRequestResult<T>> {
+  const method = init.method ?? 'GET';
+  const endpoint = path.startsWith('/api/v1/') ? 'api_v1' : 'other';
+  const startedAt = Date.now();
+  let statusCode: number | undefined;
+  let requestTimedOut = false;
+  logDebug('api_request_started', { endpoint, method });
+
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const externalSignal = init.signal ?? undefined;
+  const abortFromExternalSignal = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternalSignal, {
+      once: true,
+    });
+  }
+  const timeoutId = setTimeout(() => {
+    requestTimedOut = true;
+    controller.abort();
+  }, AUTH_REQUEST_TIMEOUT_MS);
+
+  try {
+    throwIfAborted(signal);
+    let token: RequestToken = null;
+    if (Platform.OS !== 'web') {
+      try {
+        token = await awaitWithAbort(getValidAccessToken({ signal }), signal);
+      } catch (error) {
+        logWarn('api_request_token_resolution_failed', {
+          endpoint,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          method,
+        });
+        throw error;
+      }
+    }
+
+    const headers = new Headers(init.headers);
+    if (init.body !== undefined && !headers.has('content-type')) {
+      headers.set('content-type', 'application/json');
+    }
+    if (Platform.OS !== 'web') {
+      if (!token?.accessToken) {
+        logWarn('api_request_blocked', {
+          endpoint,
+          method,
+          reason: 'missing_authentication',
+        });
+        throw new Error('Authentication is required.');
+      }
+      headers.set('authorization', `Bearer ${token.accessToken}`);
+    }
+
+    const requestInit = (): RequestInit => ({
+      ...init,
+      credentials: Platform.OS === 'web' ? 'include' : undefined,
+      headers: new Headers(headers),
+      signal,
+    });
+    let response = await awaitWithAbort(
+      fetch(`${getBackendUrl()}${path}`, requestInit()),
+      signal,
+    );
+    statusCode = response.status;
+
+    if (response.status === 401) {
+      if (Platform.OS === 'web') {
+        const refreshedToken = await awaitWithAbort(
+          getValidAccessToken({ forceRefresh: true, signal }),
+          signal,
+        );
+        if (refreshedToken) {
+          token = refreshedToken;
+          response = await awaitWithAbort(
+            fetch(`${getBackendUrl()}${path}`, requestInit()),
+            signal,
+          );
+          statusCode = response.status;
+        }
+      } else if (token?.accessToken) {
+        const refreshedToken = await awaitWithAbort(
+          getValidAccessToken({
+            rejectedAccessToken: token.accessToken,
+            signal,
+          }),
+          signal,
+        );
+        if (
+          refreshedToken?.accessToken &&
+          refreshedToken.accessToken !== token.accessToken
+        ) {
+          token = refreshedToken;
+          headers.set('authorization', `Bearer ${refreshedToken.accessToken}`);
+          response = await awaitWithAbort(
+            fetch(`${getBackendUrl()}${path}`, requestInit()),
+            signal,
+          );
+          statusCode = response.status;
+        }
+      }
+    }
+
+    const text = await awaitWithAbort(response.text(), signal);
+    let result: (T & ApiError) | undefined;
+    if (text) {
+      try {
+        result = JSON.parse(text) as T & ApiError;
+      } catch (error) {
+        if (response.ok) {
+          throw error;
+        }
+      }
+    }
+    if (!response.ok) {
+      throw new AuthenticatedRequestError(
+        response.status,
+        result && typeof result.message === 'string'
+          ? result.message
+          : (options.fallbackErrorMessage?.(response.status) ??
+              `Request failed with HTTP ${response.status}`),
+      );
+    }
+    logDebug('api_request_completed', {
+      durationMs: Date.now() - startedAt,
+      endpoint,
+      method,
+      statusCode,
+    });
+    return {
+      data: result as T,
+      token: token ? { idToken: token.idToken } : null,
+    };
+  } catch (error) {
+    logWarn('api_request_failed', {
+      durationMs: Date.now() - startedAt,
+      endpoint,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      method,
+      ...(statusCode ? { statusCode } : {}),
+    });
+    if (requestTimedOut) {
+      throw new ApiRequestTimeoutError();
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', abortFromExternalSignal);
+  }
+}

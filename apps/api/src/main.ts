@@ -1,5 +1,6 @@
 import { loadConfig } from './config/env';
 import { connectPrisma } from './lib/prisma';
+import { logError, logInfo } from './logging';
 import { createApiServer, startApiServer, stopApiServer } from './server';
 
 if (!process.env.AUTH_AUDIENCE || !process.env.AUTH_ISSUER_BASE_URL) {
@@ -10,11 +11,11 @@ const server = startApiServer(createApiServer(config), config);
 void connectPrisma(config.databaseUrl);
 
 function shutdown(signal: string) {
-  console.log(`Received ${signal}; shutting down API`);
+  logInfo('api_shutdown_started', { signal });
   stopApiServer(server)
     .then(() => process.exit(0))
     .catch((error: unknown) => {
-      console.error('Failed to shut down API cleanly', error);
+      logError('api_shutdown_failed', { error });
       process.exit(1);
     });
 }

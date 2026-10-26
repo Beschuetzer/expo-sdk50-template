@@ -10,6 +10,7 @@ import {
 } from '@/state/slices/generalSlice';
 import { useAppDispatch, useAppSelector } from '@/state/store';
 import { Error } from '@/types/errors';
+import { logInfo } from '@/utils/logging';
 
 export type ErrorModalProps = object;
 
@@ -34,7 +35,7 @@ export const ErrorModal = (props: ErrorModalProps) => {
     const stackTrace = error.stack ?? error.error?.stack;
     const statusCode = error.statusCode ?? undefined;
 
-    console.info('Error details:', {
+    logInfo('error_modal_details', {
       message: errorMessage,
       stackTrace,
       statusCode,

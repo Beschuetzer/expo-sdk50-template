@@ -150,6 +150,14 @@ const messages = {
       quickActions: 'Quick actions',
       requestsAction: 'Shared requests',
       settingsAction: 'Settings',
+      accessTokenTtl: 'Access token TTL',
+      accessTokenTtlUnavailable: 'Unavailable',
+      accessTokenTtlWebUnavailable: 'Unavailable for web sessions',
+      accessTokenExpired: 'Expired',
+      ttlDayShort: 'd',
+      ttlHourShort: 'h',
+      ttlMinuteShort: 'm',
+      ttlSecondShort: 's',
       noteTitle: 'A small reminder',
       noteMessage: 'The best relationships are built in the small moments.',
     },
@@ -157,9 +165,16 @@ const messages = {
       anonymousRequestAccepted:
         'Security check failed: the endpoint accepted an anonymous request.',
       anonymousRequestFailed: 'Anonymous endpoint security check failed.',
+      apiRequestTimedOut:
+        'The API request timed out. Check the API connection.',
       backendRequestFailed: 'Backend request failed',
       backendUnavailable: 'Backend connection failed. Is the API running?',
       authenticationFailed: 'Sign-in or authenticated request failed.',
+      noRefreshToken: 'No refresh token is available.',
+      refreshOutcomeUnknown:
+        'The token refresh could not be completed safely. Sign in again to continue.',
+      tokenEndpointUnavailable:
+        'The identity provider configuration does not include a token endpoint.',
       tokenRefreshFailed: 'Token refresh failed. Sign in again if needed.',
       signOutFailed: 'Sign out failed. Please try again.',
       errorBoundaryMessage: 'Message:',
@@ -386,6 +401,14 @@ const messages = {
       quickActions: 'Acciones rápidas',
       requestsAction: 'Peticiones compartidas',
       settingsAction: 'Configuración',
+      accessTokenTtl: 'TTL del token de acceso',
+      accessTokenTtlUnavailable: 'No disponible',
+      accessTokenTtlWebUnavailable: 'No disponible en sesiones web',
+      accessTokenExpired: 'Caducado',
+      ttlDayShort: 'd',
+      ttlHourShort: 'h',
+      ttlMinuteShort: 'min',
+      ttlSecondShort: 's',
       noteTitle: 'Un pequeño recordatorio',
       noteMessage:
         'Las mejores relaciones se construyen en los pequeños momentos.',
@@ -395,11 +418,18 @@ const messages = {
         'Comprobación de seguridad fallida: el endpoint aceptó una solicitud anónima.',
       anonymousRequestFailed:
         'Falló la comprobación de seguridad del endpoint anónimo.',
+      apiRequestTimedOut:
+        'La solicitud a la API superó el tiempo de espera. Comprueba la conexión con la API.',
       backendRequestFailed: 'La solicitud al backend falló',
       backendUnavailable:
         'La conexión con el backend falló. ¿Está ejecutándose la API?',
       authenticationFailed:
         'El inicio de sesión o la solicitud autenticada falló.',
+      noRefreshToken: 'No hay un token de actualización disponible.',
+      refreshOutcomeUnknown:
+        'No se pudo completar la renovación del token de forma segura. Inicia sesión de nuevo para continuar.',
+      tokenEndpointUnavailable:
+        'La configuración del proveedor de identidad no incluye un endpoint de token.',
       tokenRefreshFailed:
         'La renovación del token falló. Inicia sesión de nuevo si es necesario.',
       signOutFailed: 'No se pudo cerrar la sesión. Inténtalo de nuevo.',

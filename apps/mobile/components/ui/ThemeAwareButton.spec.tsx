@@ -50,7 +50,9 @@ describe('ThemeAwareButton', () => {
 
   it('uses an explicit background and preserves compound children', async () => {
     const tree = renderer.create(
-      <ThemeAwareButton bg="$success500">{<>Continue</>}</ThemeAwareButton>,
+      <ThemeAwareButton bg="$success500">
+        <>Continue</>
+      </ThemeAwareButton>,
     );
     const button = tree.root.find(
       (instance) => String(instance.type) === 'Button',

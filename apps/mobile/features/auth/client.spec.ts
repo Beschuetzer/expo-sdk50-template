@@ -1,11 +1,12 @@
+import { getAuthenticatedUser } from './authenticatedUser';
 import {
   exchangeAuthorizationCode,
   exchangeAuthorizationCodeForCurrentPlatform,
   createInvitationUrl,
   createProviderLogoutUrl,
+  fetchIdentityProviderDiscovery,
   getAccountProviderFromClaims,
   getDisplayNameFromClaims,
-  getAuthenticatedUser,
   getProfilePictureFromClaims,
   MOBILE_OAUTH_CLIENT_ID,
   MOBILE_OAUTH_SCHEME,
@@ -15,6 +16,12 @@ import {
   refreshAccessToken,
   verifyAuthenticatedEndpointRejectsAnonymousRequest,
 } from './client';
+import { DefinitiveOAuthRejectionError } from './errors';
+import { getValidAccessToken } from './tokenManager';
+
+jest.mock('./tokenManager', () => ({
+  getValidAccessToken: jest.fn(),
+}));
 
 jest.mock('@/utils/helpers', () => ({
   getBackendUrl: jest.fn(() => 'http://localhost:4200'),
@@ -25,16 +32,79 @@ function makeResponse(body: unknown, status: number): Response {
     json: async () => body,
     ok: status >= 200 && status < 300,
     status,
+    text: async () => JSON.stringify(body),
   } as Response;
 }
 
 describe('auth client', () => {
+  beforeEach(() => {
+    jest.mocked(getValidAccessToken).mockResolvedValue({
+      accessToken: 'access-token',
+      expiresAt: Date.now() + 60_000,
+      scope: 'openid',
+      tokenType: 'Bearer',
+    });
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
       value: { OS: 'android' },
     });
+  });
+
+  it('passes cancellation to the identity-provider discovery fetch', async () => {
+    const signal = new AbortController().signal;
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          authorization_endpoint: 'https://identity.example.com/authorize',
+          issuer: 'https://identity.example.com',
+          token_endpoint: 'https://identity.example.com/token',
+        },
+        200,
+      ),
+    );
+
+    await expect(
+      fetchIdentityProviderDiscovery('https://identity.example.com/', signal),
+    ).resolves.toMatchObject({
+      authorizationEndpoint: 'https://identity.example.com/authorize',
+      tokenEndpoint: 'https://identity.example.com/token',
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://identity.example.com/.well-known/openid-configuration',
+      expect.objectContaining({ signal }),
+    );
+  });
+
+  it('fetches discovery without a signal and reports unsuccessful responses', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        makeResponse(
+          {
+            authorization_endpoint: 'https://identity.example.com/authorize',
+            issuer: 'https://identity.example.com',
+            token_endpoint: 'https://identity.example.com/token',
+          },
+          200,
+        ),
+      )
+      .mockResolvedValueOnce(makeResponse({}, 503));
+
+    await expect(
+      fetchIdentityProviderDiscovery('https://identity.example.com'),
+    ).resolves.toMatchObject({
+      tokenEndpoint: 'https://identity.example.com/token',
+    });
+    expect(fetchSpy.mock.calls[0][1]).not.toHaveProperty('signal');
+    await expect(
+      fetchIdentityProviderDiscovery('https://identity.example.com'),
+    ).rejects.toThrow(
+      'Identity provider discovery failed with HTTP 503',
+    );
   });
 
   it('always requests offline access for refresh-token support', () => {
@@ -59,7 +129,9 @@ describe('auth client', () => {
       getProfilePictureFromClaims({ picture: 'ftp://example.com/tom.jpg' }),
     ).toBe(undefined);
     expect(getProfilePictureFromClaims({})).toBeUndefined();
-    expect(getProfilePictureFromClaims({ picture: 'not a URL' })).toBeUndefined();
+    expect(
+      getProfilePictureFromClaims({ picture: 'not a URL' }),
+    ).toBeUndefined();
   });
 
   it.each([
@@ -143,6 +215,7 @@ describe('auth client', () => {
       normalizeIdentityProviderDiscovery(
         {
           authorizationEndpoint: 'http://localhost:4300/auth',
+          endSessionEndpoint: 'http://localhost:4300/logout',
           revocationEndpoint: 'http://localhost:4300/token/revocation',
           tokenEndpoint: 'http://localhost:4300/token',
         },
@@ -150,6 +223,7 @@ describe('auth client', () => {
       ),
     ).toEqual({
       authorizationEndpoint: 'https://localhost:4300/auth',
+      endSessionEndpoint: 'https://localhost:4300/logout',
       revocationEndpoint: 'https://localhost:4300/token/revocation',
       tokenEndpoint: 'https://localhost:4300/token',
     });
@@ -187,31 +261,36 @@ describe('auth client', () => {
       'https://identity.example.com',
       'http://other.example.com/token',
     ],
-  ])('does not rewrite discovery URLs for %s', (_caseName, issuerUrl, endpoint) => {
-    expect(
-      normalizeIdentityProviderDiscovery(
-        { tokenEndpoint: endpoint },
-        issuerUrl,
-      ).tokenEndpoint,
-    ).toBe(endpoint);
-  });
+  ])(
+    'does not rewrite discovery URLs for %s',
+    (_caseName, issuerUrl, endpoint) => {
+      expect(
+        normalizeIdentityProviderDiscovery(
+          { tokenEndpoint: endpoint },
+          issuerUrl,
+        ).tokenEndpoint,
+      ).toBe(endpoint);
+    },
+  );
 
   it('builds a provider logout URL with the registered redirect', () => {
-    expect(createProviderLogoutUrl({}, 'expo50sdktemplate://logout')).toBeNull();
+    expect(
+      createProviderLogoutUrl({}, 'expo50sdktemplate://logout'),
+    ).toBeNull();
     expect(
       createProviderLogoutUrl(
         {
           endSessionEndpoint: 'http://localhost:4300/session/end',
         },
-        'relationshipapp://oauth/callback',
+        'expo50sdktemplate://oauth/callback',
       ),
     ).toBe(
-      `http://localhost:4300/session/end?client_id=${encodeURIComponent(MOBILE_OAUTH_CLIENT_ID)}&post_logout_redirect_uri=relationshipapp%3A%2F%2Foauth%2Fcallback`,
+      `http://localhost:4300/session/end?client_id=${encodeURIComponent(MOBILE_OAUTH_CLIENT_ID)}&post_logout_redirect_uri=expo50sdktemplate%3A%2F%2Foauth%2Fcallback`,
     );
     expect(
       createProviderLogoutUrl(
         { endSessionEndpoint: 'http://localhost:4300/session/end' },
-        'relationshipapp://oauth/callback',
+        'expo50sdktemplate://oauth/callback',
         'id-token-hint',
       ),
     ).toContain('id_token_hint=id-token-hint');
@@ -279,20 +358,34 @@ describe('auth client', () => {
     ).rejects.toThrow('Token revocation failed with HTTP 503');
   });
 
-  it('sends the bearer token to the authenticated endpoint', async () => {
+  it('uses the provider description for native revocation errors', async () => {
     jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(makeResponse({ error_description: 'Revoked' }, 503));
+
+    await expect(
+      revokeRefreshToken('refresh-token', {
+        revocationEndpoint: 'https://identity.example.com/revoke',
+      }),
+    ).rejects.toThrow('Revoked');
+  });
+
+  it('sends the bearer token to the authenticated endpoint', async () => {
+    const fetchSpy = jest
       .spyOn(global, 'fetch')
       .mockResolvedValue(
         makeResponse({ claims: { sub: 'user-1' }, subject: 'user-1' }, 200),
       );
 
-    await expect(getAuthenticatedUser('access-token')).resolves.toEqual({
+    await expect(getAuthenticatedUser()).resolves.toEqual({
       claims: { sub: 'user-1' },
       subject: 'user-1',
     });
-    expect(fetch).toHaveBeenCalledWith('http://localhost:4200/api/v1/me', {
-      headers: { Authorization: 'Bearer access-token' },
-    });
+    const [url, request] = fetchSpy.mock.calls[0];
+    expect(url).toBe('http://localhost:4200/api/v1/me');
+    expect(new Headers(request?.headers).get('authorization')).toBe(
+      'Bearer access-token',
+    );
   });
 
   it('merges the ID token name when the API claims omit it', async () => {
@@ -304,12 +397,63 @@ describe('auth client', () => {
 
     await expect(
       getAuthenticatedUser(
-        'access-token',
         'eyJhbGciOiJub25lIn0.eyJuYW1lIjoiQWRhIExvdmVsYWNlIiwic3ViIjoiaWQtdXNlciJ9.signature',
       ),
     ).resolves.toEqual({
       claims: { name: 'Ada Lovelace', sub: 'user-1' },
       subject: 'user-1',
+    });
+  });
+
+  it('uses the ID token from the refreshed request when merging claims', async () => {
+    const initialIdToken = `header.${Buffer.from(
+      JSON.stringify({
+        name: 'Old Name',
+        picture: 'https://example.com/old.jpg',
+        sub: 'token-user',
+      }),
+    ).toString('base64url')}.signature`;
+    const refreshedIdToken = `header.${Buffer.from(
+      JSON.stringify({
+        name: 'Updated Name',
+        picture: 'https://example.com/new.jpg',
+        preferred_username: 'updated-user',
+        sub: 'refreshed-token-user',
+      }),
+    ).toString('base64url')}.signature`;
+    const initialToken = {
+      accessToken: 'expired-access-token',
+      expiresAt: Date.now() - 1,
+      idToken: initialIdToken,
+      refreshToken: 'refresh-token',
+      scope: 'openid',
+      tokenType: 'Bearer' as const,
+    };
+    const refreshedToken = {
+      ...initialToken,
+      accessToken: 'refreshed-access-token',
+      expiresAt: Date.now() + 60_000,
+      idToken: refreshedIdToken,
+    };
+    jest
+      .mocked(getValidAccessToken)
+      .mockResolvedValueOnce(initialToken)
+      .mockResolvedValueOnce(refreshedToken);
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(makeResponse({ message: 'Token expired' }, 401))
+      .mockResolvedValueOnce(
+        makeResponse({ claims: { sub: 'api-user' }, subject: 'api-user' }, 200),
+      );
+
+    await expect(getAuthenticatedUser(initialIdToken)).resolves.toEqual({
+      claims: {
+        name: 'Updated Name',
+        picture: 'https://example.com/new.jpg',
+        preferred_username: 'updated-user',
+        sub: 'api-user',
+      },
+      subject: 'api-user',
     });
   });
 
@@ -321,16 +465,14 @@ describe('auth client', () => {
     });
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        makeResponse({ claims: { sub: 'api-user' } }, 200),
-      );
+      .mockResolvedValue(makeResponse({ claims: { sub: 'api-user' } }, 200));
 
     try {
       const payload = Buffer.from(
         JSON.stringify({ name: 'Mina', sub: 'token-user' }),
       ).toString('base64url');
       await expect(
-        getAuthenticatedUser('access-token', `header.${payload}.signature`),
+        getAuthenticatedUser(`header.${payload}.signature`),
       ).resolves.toEqual({
         claims: { name: 'Mina', sub: 'api-user' },
         subject: null,
@@ -348,9 +490,7 @@ describe('auth client', () => {
       .spyOn(global, 'fetch')
       .mockResolvedValue(makeResponse({ claims: { sub: 'api-user' } }, 200));
 
-    await expect(
-      getAuthenticatedUser('access-token', 'not-a-token'),
-    ).resolves.toEqual({
+    await expect(getAuthenticatedUser('not-a-token')).resolves.toEqual({
       claims: { sub: 'api-user' },
       subject: null,
     });
@@ -363,7 +503,7 @@ describe('auth client', () => {
     const primitivePayload = Buffer.from('null').toString('base64url');
 
     await expect(
-      getAuthenticatedUser('access-token', `header.${primitivePayload}.sig`),
+      getAuthenticatedUser(`header.${primitivePayload}.sig`),
     ).resolves.toEqual({
       claims: { sub: 'api-user' },
       subject: null,
@@ -375,25 +515,26 @@ describe('auth client', () => {
       configurable: true,
       value: { OS: 'web' },
     });
-    jest
+    const fetchSpy = jest
       .spyOn(global, 'fetch')
       .mockResolvedValue(
         makeResponse({ claims: { sub: 'web-user' }, subject: 'web-user' }, 200),
       );
 
-    await expect(getAuthenticatedUser('unused')).resolves.toEqual({
+    await expect(getAuthenticatedUser()).resolves.toEqual({
       claims: { sub: 'web-user' },
       subject: 'web-user',
     });
-    expect(fetch).toHaveBeenCalledWith('http://localhost:4200/api/v1/me', {
-      credentials: 'include',
-    });
+    const [url, request] = fetchSpy.mock.calls[0];
+    expect(url).toBe('http://localhost:4200/api/v1/me');
+    expect(request?.credentials).toBe('include');
+    expect(new Headers(request?.headers).has('authorization')).toBe(false);
   });
 
   it('uses default claims and subject values when the response omits them', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 200));
 
-    await expect(getAuthenticatedUser('access-token')).resolves.toEqual({
+    await expect(getAuthenticatedUser()).resolves.toEqual({
       claims: {},
       subject: null,
     });
@@ -406,7 +547,7 @@ describe('auth client', () => {
         makeResponse({ message: 'Authentication is required.' }, 401),
       );
 
-    await expect(getAuthenticatedUser('expired-token')).rejects.toThrow(
+    await expect(getAuthenticatedUser()).rejects.toThrow(
       'Authentication is required.',
     );
   });
@@ -414,7 +555,7 @@ describe('auth client', () => {
   it('uses the HTTP status when an authenticated endpoint error has no message', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 502));
 
-    await expect(getAuthenticatedUser('access-token')).rejects.toThrow(
+    await expect(getAuthenticatedUser()).rejects.toThrow(
       'Authenticated request failed with HTTP 502',
     );
   });
@@ -516,19 +657,35 @@ describe('auth client', () => {
     ).rejects.toThrow('The code is expired.');
   });
 
+  it('uses the HTTP status when a native token exchange has no description', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 400));
+
+    await expect(
+      exchangeAuthorizationCode({
+        code: 'auth-code',
+        codeVerifier: 'challenge',
+        discovery: { tokenEndpoint: 'https://identity.example.com/token' },
+        redirectUri: 'exp://localhost:19000',
+      }),
+    ).rejects.toThrow('Token exchange failed with HTTP 400');
+  });
+
   it('uses the BFF for web authorization-code exchange', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
       value: { OS: 'web' },
     });
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        makeResponse(
-          { expires_in: 3600, scope: 'openid api:read', token_type: 'Bearer' },
-          200,
-        ),
-      );
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          expires_in: 3600,
+          id_token: 'web-id-token',
+          scope: 'openid api:read',
+          token_type: 'Bearer',
+        },
+        200,
+      ),
+    );
 
     await expect(
       exchangeAuthorizationCodeForCurrentPlatform({
@@ -540,6 +697,7 @@ describe('auth client', () => {
     ).resolves.toEqual({
       accessToken: '',
       expiresAt: expect.any(Number),
+      idToken: 'web-id-token',
       scope: 'openid api:read',
       tokenType: 'Bearer',
     });
@@ -558,15 +716,25 @@ describe('auth client', () => {
     });
     jest.spyOn(global, 'fetch').mockResolvedValue(
       makeResponse(
-        { expires_in: 3600, scope: 'openid api:read', token_type: 'Bearer' },
+        {
+          expires_in: 3600,
+          id_token: 'web-refresh-id-token',
+          scope: 'openid api:read',
+          token_type: 'Bearer',
+        },
         200,
       ),
     );
 
+    const signal = new AbortController().signal;
     await expect(
-      refreshAccessToken(undefined, {
-        authorizationEndpoint: 'http://localhost:4300/authorize',
-      }),
+      refreshAccessToken(
+        undefined,
+        {
+          authorizationEndpoint: 'http://localhost:4300/authorize',
+        },
+        signal,
+      ),
     ).resolves.toMatchObject({
       accessToken: '',
       scope: 'openid api:read',
@@ -575,6 +743,35 @@ describe('auth client', () => {
     expect(fetch).toHaveBeenCalledWith('http://localhost:4200/auth/refresh', {
       credentials: 'include',
       method: 'POST',
+      signal,
+    });
+  });
+
+  it('defaults optional web authorization-code fields when omitted', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        makeResponse({ expires_in: 900, token_type: 'Bearer' }, 200),
+      );
+
+    await expect(
+      exchangeAuthorizationCodeForCurrentPlatform({
+        code: 'auth-code',
+        codeVerifier: 'challenge',
+        discovery: {},
+        redirectUri: 'https://app.example.com/oauth/callback',
+      }),
+    ).resolves.toEqual({
+      accessToken: '',
+      expiresAt: expect.any(Number),
+      idToken: undefined,
+      refreshToken: undefined,
+      scope: '',
+      tokenType: 'Bearer',
     });
   });
 
@@ -595,6 +792,27 @@ describe('auth client', () => {
     ).rejects.toThrow('Token exchange failed with HTTP 502');
   });
 
+  it('uses upstream descriptions for BFF authorization-code errors', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        makeResponse({ error_description: 'Authorization code expired.' }, 401),
+      );
+
+    await expect(
+      exchangeAuthorizationCodeForCurrentPlatform({
+        code: 'auth-code',
+        codeVerifier: 'challenge',
+        discovery: { authorizationEndpoint: 'https://identity.example.com' },
+        redirectUri: 'https://app.example.com/oauth/callback',
+      }),
+    ).rejects.toThrow('Authorization code expired.');
+  });
+
   it('refreshes a native token and rotates its refresh token', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
@@ -605,6 +823,7 @@ describe('auth client', () => {
         {
           access_token: 'refreshed-access-token',
           expires_in: 900,
+          id_token: 'refreshed-id-token',
           refresh_token: 'rotated-refresh-token',
           scope: 'openid api:read',
           token_type: 'Bearer',
@@ -612,6 +831,7 @@ describe('auth client', () => {
         200,
       ),
     );
+    const signal = new AbortController().signal;
 
     await expect(
       refreshAccessToken(
@@ -626,10 +846,12 @@ describe('auth client', () => {
           authorizationEndpoint: 'http://localhost:4300/authorize',
           tokenEndpoint: 'http://localhost:4300/token',
         },
+        signal,
       ),
     ).resolves.toEqual({
       accessToken: 'refreshed-access-token',
       expiresAt: expect.any(Number),
+      idToken: 'refreshed-id-token',
       refreshToken: 'rotated-refresh-token',
       scope: 'openid api:read',
       tokenType: 'Bearer',
@@ -638,6 +860,7 @@ describe('auth client', () => {
       body: expect.stringContaining('grant_type=refresh_token'),
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       method: 'POST',
+      signal,
     });
   });
 
@@ -679,11 +902,16 @@ describe('auth client', () => {
       configurable: true,
       value: { OS: 'web' },
     });
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        makeResponse({ expires_in: 900, token_type: 'Bearer' }, 200),
-      );
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          expires_in: 900,
+          id_token: 'web-refresh-id-token',
+          token_type: 'Bearer',
+        },
+        200,
+      ),
+    );
 
     await expect(
       refreshAccessToken(
@@ -698,6 +926,7 @@ describe('auth client', () => {
     ).resolves.toEqual({
       accessToken: '',
       expiresAt: expect.any(Number),
+      idToken: 'web-refresh-id-token',
       scope: 'openid api:read',
       tokenType: 'Bearer',
     });
@@ -731,6 +960,24 @@ describe('auth client', () => {
     ).resolves.toMatchObject({ scope: 'api:read' });
   });
 
+  it('uses an empty scope when a web refresh has no previous session', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        makeResponse({ expires_in: 900, token_type: 'Bearer' }, 200),
+      );
+
+    await expect(
+      refreshAccessToken(undefined, {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+      }),
+    ).resolves.toMatchObject({ scope: '' });
+  });
+
   it('reports a BFF refresh error description', async () => {
     Object.defineProperty(require('react-native'), 'Platform', {
       configurable: true,
@@ -753,6 +1000,63 @@ describe('auth client', () => {
         { authorizationEndpoint: 'http://localhost:4300/authorize' },
       ),
     ).rejects.toThrow('Refresh session expired.');
+  });
+
+  it('uses the HTTP status when a BFF refresh fails without a description', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse({}, 401));
+
+    await expect(
+      refreshAccessToken(undefined, {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+      }),
+    ).rejects.toThrow('Token refresh failed with HTTP 401');
+  });
+
+  it.each([
+    ['a null response', null],
+    ['an array response', []],
+    ['a primitive response', 'invalid response'],
+  ])('rejects %s safely during web token refresh', async (_caseName, body) => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(makeResponse(body, 200));
+
+    await expect(
+      refreshAccessToken(undefined, {
+        authorizationEndpoint: 'https://identity.example.com/authorize',
+      }),
+    ).rejects.toThrow('Token refresh failed with HTTP 200');
+  });
+
+  it('marks a definitive BFF refresh rejection', async () => {
+    Object.defineProperty(require('react-native'), 'Platform', {
+      configurable: true,
+      value: { OS: 'web' },
+    });
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          message: 'A refresh session is required.',
+          status: 'invalid_grant',
+        },
+        401,
+      ),
+    );
+
+    await expect(
+      refreshAccessToken(undefined, {
+        authorizationEndpoint: 'http://localhost:4300/authorize',
+      }),
+    ).rejects.toMatchObject({
+      name: 'DefinitiveOAuthRejectionError',
+      oauthErrorCode: 'invalid_grant',
+    });
   });
 
   it('requires a native refresh token and token endpoint', async () => {
@@ -789,6 +1093,31 @@ describe('auth client', () => {
         { tokenEndpoint: 'http://localhost:4300/token' },
       ),
     ).rejects.toThrow('Token refresh failed with HTTP 200');
+  });
+
+  it('marks a definitive native OAuth refresh rejection', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      makeResponse(
+        {
+          error: 'invalid_grant',
+          error_description: 'The refresh token is invalid.',
+        },
+        400,
+      ),
+    );
+
+    await expect(
+      refreshAccessToken(
+        {
+          accessToken: 'expired-access-token',
+          expiresAt: Date.now() - 1,
+          refreshToken: 'refresh-token',
+          scope: 'api:read',
+          tokenType: 'Bearer',
+        },
+        { tokenEndpoint: 'http://localhost:4300/token' },
+      ),
+    ).rejects.toBeInstanceOf(DefinitiveOAuthRejectionError);
   });
 
   it.each([

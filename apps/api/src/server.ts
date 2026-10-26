@@ -2,12 +2,13 @@ import { createServer, type Server } from 'node:http';
 
 import { createApp } from './app';
 import { loadConfig, type ApiConfig } from './config/env';
+import { logError, logInfo } from './logging';
 
 export function createApiServer(config: ApiConfig = loadConfig()) {
   const server = createServer(createApp(config));
 
   server.on('error', (error) => {
-    console.error('API server error', error);
+    logError('api_server_error', { error });
   });
 
   return server;
@@ -15,9 +16,11 @@ export function createApiServer(config: ApiConfig = loadConfig()) {
 
 export function startApiServer(server: Server, config: ApiConfig) {
   server.listen(config.port, config.host, () => {
-    console.log(
-      `API listening on http://${config.host}:${config.port} (${config.environment})`,
-    );
+    logInfo('api_server_listening', {
+      environment: config.environment,
+      host: config.host,
+      port: config.port,
+    });
   });
 
   return server;

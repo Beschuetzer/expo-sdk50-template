@@ -20,6 +20,77 @@ describe('environment helpers', () => {
     expect(getIsDevelopmentMode(env)).toBe(true);
   });
 
+  it('uses process values when no environment object is passed', () => {
+    const previousValues = {
+      env: process.env.EXPO_PUBLIC_ENV,
+      ipAddress: process.env.EXPO_PUBLIC_IP_ADDRESS,
+      portNumber: process.env.EXPO_PUBLIC_PORT_NUMBER,
+    };
+    process.env.EXPO_PUBLIC_ENV = 'production';
+    process.env.EXPO_PUBLIC_IP_ADDRESS = '192.168.1.5';
+    process.env.EXPO_PUBLIC_PORT_NUMBER = '4200';
+
+    try {
+      expect(getRequiredEnvironment()).toEqual({
+        env: 'production',
+        ipAddress: '192.168.1.5',
+        portNumber: '4200',
+      });
+      expect(getIsDevelopmentMode()).toBe(false);
+    } finally {
+      if (previousValues.env === undefined) {
+        delete process.env.EXPO_PUBLIC_ENV;
+      } else {
+        process.env.EXPO_PUBLIC_ENV = previousValues.env;
+      }
+      if (previousValues.ipAddress === undefined) {
+        delete process.env.EXPO_PUBLIC_IP_ADDRESS;
+      } else {
+        process.env.EXPO_PUBLIC_IP_ADDRESS = previousValues.ipAddress;
+      }
+      if (previousValues.portNumber === undefined) {
+        delete process.env.EXPO_PUBLIC_PORT_NUMBER;
+      } else {
+        process.env.EXPO_PUBLIC_PORT_NUMBER = previousValues.portNumber;
+      }
+    }
+  });
+
+  it('uses the process environment for default environment lookup', () => {
+    const previousValues = {
+      env: process.env.EXPO_PUBLIC_ENV,
+      ipAddress: process.env.EXPO_PUBLIC_IP_ADDRESS,
+      portNumber: process.env.EXPO_PUBLIC_PORT_NUMBER,
+    };
+    process.env.EXPO_PUBLIC_ENV = 'test';
+    process.env.EXPO_PUBLIC_IP_ADDRESS = '192.168.1.20';
+    process.env.EXPO_PUBLIC_PORT_NUMBER = '4300';
+
+    try {
+      expect(getEnvironmentOrDefault()).toEqual({
+        env: 'test',
+        ipAddress: '192.168.1.20',
+        portNumber: '4300',
+      });
+    } finally {
+      if (previousValues.env === undefined) {
+        delete process.env.EXPO_PUBLIC_ENV;
+      } else {
+        process.env.EXPO_PUBLIC_ENV = previousValues.env;
+      }
+      if (previousValues.ipAddress === undefined) {
+        delete process.env.EXPO_PUBLIC_IP_ADDRESS;
+      } else {
+        process.env.EXPO_PUBLIC_IP_ADDRESS = previousValues.ipAddress;
+      }
+      if (previousValues.portNumber === undefined) {
+        delete process.env.EXPO_PUBLIC_PORT_NUMBER;
+      } else {
+        process.env.EXPO_PUBLIC_PORT_NUMBER = previousValues.portNumber;
+      }
+    }
+  });
+
   it('reports missing required values', () => {
     expect(() => getRequiredEnvironment({})).toThrow(
       'Missing required Expo env values',

@@ -5,6 +5,9 @@
     "paths": {
       "@expo-50sdk-template/shared-types": [
         "../../dist/libs/shared-types/index.d.ts"
+      ],
+      "@expo-50sdk-template/logging": [
+        "../../libs/logging/dist/index.d.ts"
       ]
     }
   },

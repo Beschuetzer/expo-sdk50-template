@@ -3,7 +3,12 @@
         "Get-Content": true,
         "Select-String": true,
         "npx nx": true,
-        "Where-Object": true
+        "Where-Object": true,
+        "/^npx nx run mobile:typecheck$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "Set-Location": true
     },
     "prisma.pinToPrisma6": true
 }

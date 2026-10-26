@@ -1,0 +1,29 @@
+{
+  "name": "logging",
+  "projectType": "library",
+  "sourceRoot": "libs/logging/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsc -p tsconfig.build.json",
+        "cwd": "libs/logging"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsc --noEmit -p tsconfig.json",
+        "cwd": "libs/logging"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx --test src/index.spec.ts",
+        "cwd": "libs/logging"
+      }
+    }
+  }
+}

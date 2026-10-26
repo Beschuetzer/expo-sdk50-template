@@ -1,4 +1,4 @@
-import { ScrollView } from '@gluestack-ui/themed';
+import { ScrollView, VStack } from '@gluestack-ui/themed';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListProps } from '@shopify/flash-list';
 import type { ComponentProps, ReactNode } from 'react';
@@ -9,7 +9,10 @@ import { ThemeAwareSurface } from './ThemeAwareSurface';
 import { FORM_INTER_ITEM_SPACING } from '@/constants/general';
 import { absolutePositioning } from '@/constants/styles';
 
-type ThemeAwareScreenProps<ItemT> = {
+type ThemeAwareScreenProps<ItemT> = Omit<
+  ComponentProps<typeof VStack>,
+  'children'
+> & {
   absolutelyPositionedJsx?: ReactNode | ReactNode[];
   children: ReactNode | ReactNode[];
   contentContainerStyle?: ComponentProps<
@@ -29,15 +32,28 @@ export function ThemeAwareScreen<ItemT = unknown>(
     contentContainerStyle,
     fixedHeader = false,
     flashListProps,
+    p,
+    px,
+    py,
+    ...contentProps
   } = props;
+  const hasCustomPadding =
+    p !== undefined || px !== undefined || py !== undefined;
   const [containerHeight, setContainerHeight] = useState(
     CONTAINER_HEIGHT_DEFAULT,
   );
 
   function renderList() {
     const contentJSX = (
-      <ThemeAwareSurface py="$0" px="$2">
-        {children}
+      <ThemeAwareSurface>
+        <VStack
+          p={p}
+          px={hasCustomPadding ? px : '$4'}
+          py={hasCustomPadding ? py : '$0'}
+          {...contentProps}
+        >
+          {children}
+        </VStack>
       </ThemeAwareSurface>
     );
 

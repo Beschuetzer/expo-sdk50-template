@@ -1,0 +1,8 @@
+{
+  "name": "@expo-50sdk-template/logging",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "react-native": "src/index.ts",
+  "types": "./dist/index.d.ts"
+}

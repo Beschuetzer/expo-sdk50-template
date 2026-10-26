@@ -120,6 +120,40 @@ async function seedDevelopmentData() {
   });
 }
 
+async function generatePrismaClient() {
+  console.log('[prisma] Generating the Prisma client...');
+  const generateProcess = spawn(
+    'npm',
+    ['run', 'prisma:generate', '--workspace=api'],
+    {
+      cwd: rootDir,
+      env: process.env,
+      shell: true,
+      stdio: 'inherit',
+    },
+  );
+
+  await new Promise((resolve, reject) => {
+    generateProcess.once('error', reject);
+    generateProcess.once('exit', (code, signal) => {
+      if (code !== 0) {
+        reject(
+          new Error(
+            `Prisma client generation failed${
+              signal ? ` with signal ${signal}` : ` with exit code ${code}`
+            }.`,
+          ),
+        );
+        return;
+      }
+      console.log('[prisma] Prisma client generated successfully.');
+      resolve();
+    });
+  });
+}
+
+await generatePrismaClient();
+
 const databaseProcess = spawn('node', ['scripts/start-mongodb.mjs'], {
   cwd: rootDir,
   stdio: 'inherit',

@@ -1,7 +1,13 @@
 import type { DiscoveryDocument } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
+import { throwIfAborted } from './abort';
+import { DefinitiveOAuthRejectionError } from './errors';
 import type { StoredAccessToken } from './storage';
+import {
+  registerPendingWebRefresh,
+  throwIfWebSessionLogoutPending,
+} from './webSession';
 
 import { getBackendUrl } from '@/utils/helpers';
 
@@ -36,11 +42,6 @@ export function createInvitationUrl(token: string) {
   return `${MOBILE_OAUTH_SCHEME}://invitation/${encodedToken}`;
 }
 
-export type AuthenticatedUser = {
-  claims: Record<string, unknown>;
-  subject: string | null;
-};
-
 type TokenResponse = {
   access_token?: unknown;
   id_token?: unknown;
@@ -50,17 +51,77 @@ type TokenResponse = {
   token_type?: unknown;
   error?: unknown;
   error_description?: unknown;
+  status?: unknown;
 };
 
+const DEFINITIVE_OAUTH_REJECTION_CODES = new Set([
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+]);
+
+function getTokenResponseField(
+  result: unknown,
+  field: keyof TokenResponse,
+): unknown {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    return undefined;
+  }
+  return (result as TokenResponse)[field];
+}
+
+function getDefinitiveOAuthRejectionCode(
+  response: Response,
+  result: unknown,
+): string | undefined {
+  if (
+    response.status < 400 ||
+    response.status >= 500 ||
+    response.status === 408 ||
+    response.status === 425 ||
+    response.status === 429
+  ) {
+    return undefined;
+  }
+
+  const errorCodes = [
+    getTokenResponseField(result, 'error'),
+    getTokenResponseField(result, 'status'),
+  ];
+  return errorCodes.find(
+    (code): code is string =>
+      typeof code === 'string' && DEFINITIVE_OAUTH_REJECTION_CODES.has(code),
+  );
+}
+
+function createTokenRefreshError(response: Response, result: unknown): Error {
+  const errorDescription = getTokenResponseField(result, 'error_description');
+  const message =
+    typeof errorDescription === 'string'
+      ? errorDescription
+      : `Token refresh failed with HTTP ${response.status}`;
+  const oauthError = getDefinitiveOAuthRejectionCode(response, result);
+  return oauthError
+    ? new DefinitiveOAuthRejectionError(oauthError, message)
+    : new Error(message);
+}
+
 function hasValidTokenMetadata(
-  result: TokenResponse,
+  result: unknown,
 ): result is TokenResponse & { expires_in: number; token_type: string } {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    return false;
+  }
+  const tokenResponse = result as TokenResponse;
   return (
-    typeof result.expires_in === 'number' &&
-    Number.isFinite(result.expires_in) &&
-    result.expires_in > 0 &&
-    typeof result.token_type === 'string' &&
-    result.token_type.toLowerCase() === 'bearer'
+    typeof tokenResponse.expires_in === 'number' &&
+    Number.isFinite(tokenResponse.expires_in) &&
+    tokenResponse.expires_in > 0 &&
+    typeof tokenResponse.token_type === 'string' &&
+    tokenResponse.token_type.toLowerCase() === 'bearer'
   );
 }
 
@@ -112,6 +173,39 @@ export function normalizeIdentityProviderDiscovery(
       issuerUrl,
     ),
     ...(endSessionEndpoint ? { endSessionEndpoint } : {}),
+  };
+}
+
+export async function fetchIdentityProviderDiscovery(
+  issuerUrl: string,
+  signal?: AbortSignal,
+): Promise<DiscoveryDocument> {
+  const normalizedIssuerUrl = issuerUrl.replace(/\/+$/, '');
+  const response = await fetch(
+    `${normalizedIssuerUrl}/.well-known/openid-configuration`,
+    {
+      mode: 'cors',
+      headers: { Accept: 'application/json, text/javascript; q=0.01' },
+      ...(signal ? { signal } : {}),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Identity provider discovery failed with HTTP ${response.status}`,
+    );
+  }
+
+  const discoveryDocument = (await response.json()) as NonNullable<
+    DiscoveryDocument['discoveryDocument']
+  >;
+  return {
+    discoveryDocument,
+    authorizationEndpoint: discoveryDocument.authorization_endpoint,
+    tokenEndpoint: discoveryDocument.token_endpoint,
+    revocationEndpoint: discoveryDocument.revocation_endpoint,
+    userInfoEndpoint: discoveryDocument.userinfo_endpoint,
+    endSessionEndpoint: discoveryDocument.end_session_endpoint,
+    registrationEndpoint: discoveryDocument.registration_endpoint,
   };
 }
 
@@ -254,29 +348,40 @@ export async function exchangeAuthorizationCodeForCurrentPlatform(input: {
 export async function refreshAccessToken(
   token: StoredAccessToken | undefined,
   discovery: DiscoveryDocument,
+  signal?: AbortSignal,
 ): Promise<StoredAccessToken> {
   if (Platform.OS === 'web') {
-    const response = await fetch(`${getBackendUrl()}/auth/refresh`, {
-      credentials: 'include',
-      method: 'POST',
-    });
-    const result = (await response.json()) as TokenResponse;
-    if (!response.ok || !hasValidTokenMetadata(result)) {
-      throw new Error(
-        typeof result.error_description === 'string'
-          ? result.error_description
-          : `Token refresh failed with HTTP ${response.status}`,
-      );
+    throwIfWebSessionLogoutPending();
+    const refreshRequest = (async () => {
+      const response = await fetch(`${getBackendUrl()}/auth/refresh`, {
+        credentials: 'include',
+        method: 'POST',
+        ...(signal ? { signal } : {}),
+      });
+      throwIfAborted(signal);
+      const result: unknown = await response.json();
+      throwIfAborted(signal);
+      if (!response.ok || !hasValidTokenMetadata(result)) {
+        throw createTokenRefreshError(response, result);
+      }
+      return {
+        accessToken: '',
+        expiresAt: Date.now() + result.expires_in * 1000,
+        idToken:
+          typeof result.id_token === 'string'
+            ? result.id_token
+            : token?.idToken,
+        scope:
+          typeof result.scope === 'string' ? result.scope : token?.scope ?? '',
+        tokenType: 'Bearer' as const,
+      };
+    })();
+    const unregister = registerPendingWebRefresh(refreshRequest);
+    try {
+      return await refreshRequest;
+    } finally {
+      unregister();
     }
-    return {
-      accessToken: '',
-      expiresAt: Date.now() + result.expires_in * 1000,
-      idToken:
-        typeof result.id_token === 'string' ? result.id_token : token?.idToken,
-      scope:
-        typeof result.scope === 'string' ? result.scope : token?.scope ?? '',
-      tokenType: 'Bearer',
-    };
   }
 
   if (!token?.refreshToken || !discovery.tokenEndpoint) {
@@ -290,18 +395,15 @@ export async function refreshAccessToken(
     }).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     method: 'POST',
+    ...(signal ? { signal } : {}),
   });
-  const result = (await response.json()) as TokenResponse;
+  const result: unknown = await response.json();
   if (
     !response.ok ||
-    typeof result.access_token !== 'string' ||
-    !hasValidTokenMetadata(result)
+    !hasValidTokenMetadata(result) ||
+    typeof result.access_token !== 'string'
   ) {
-    throw new Error(
-      typeof result.error_description === 'string'
-        ? result.error_description
-        : `Token refresh failed with HTTP ${response.status}`,
-    );
+    throw createTokenRefreshError(response, result);
   }
   return {
     accessToken: result.access_token,
@@ -315,55 +417,6 @@ export async function refreshAccessToken(
     scope: typeof result.scope === 'string' ? result.scope : token.scope,
     tokenType: 'Bearer',
   };
-}
-
-function decodeBase64Url(value: string) {
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-  if (typeof globalThis.atob === 'function') {
-    return globalThis.atob(padded);
-  }
-
-  const alphabet =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  for (let index = 0; index < padded.length; index += 4) {
-    const first = alphabet.indexOf(padded[index]);
-    const second = alphabet.indexOf(padded[index + 1]);
-    const third = alphabet.indexOf(padded[index + 2]);
-    const fourth = alphabet.indexOf(padded[index + 3]);
-    result += String.fromCharCode((first << 2) | (second >> 4));
-    if (third >= 0) {
-      result += String.fromCharCode(((second & 15) << 4) | (third >> 2));
-    }
-    if (fourth >= 0) {
-      result += String.fromCharCode(((third & 3) << 6) | fourth);
-    }
-  }
-  return result;
-}
-
-function decodeIdTokenClaims(idToken: string | undefined) {
-  if (!idToken) return {};
-  try {
-    const payload = idToken.split('.')[1];
-    if (!payload) return {};
-    const binary = decodeBase64Url(payload);
-    const json = decodeURIComponent(
-      Array.from(binary)
-        .map(
-          (character) =>
-            `%${character.charCodeAt(0).toString(16).padStart(2, '0')}`,
-        )
-        .join(''),
-    );
-    const claims: unknown = JSON.parse(json);
-    return claims && typeof claims === 'object'
-      ? (claims as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
 }
 
 export function getDisplayNameFromClaims(claims: Record<string, unknown>) {
@@ -428,35 +481,6 @@ export function getAccountProviderFromClaims(claims: Record<string, unknown>) {
   return knownProviders.find(({ values }) =>
     values.some((value) => normalizedProvider.includes(value)),
   )?.key;
-}
-
-export async function getAuthenticatedUser(
-  accessToken: string,
-  idToken?: string,
-) {
-  const response = await fetch(`${getBackendUrl()}/api/v1/me`, {
-    ...(Platform.OS === 'web'
-      ? { credentials: 'include' as const }
-      : { headers: { Authorization: `Bearer ${accessToken}` } }),
-  });
-  const result = (await response.json()) as Partial<AuthenticatedUser> & {
-    message?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(
-      result.message ??
-        `Authenticated request failed with HTTP ${response.status}`,
-    );
-  }
-
-  return {
-    claims: {
-      ...decodeIdTokenClaims(idToken),
-      ...(result.claims ?? {}),
-    },
-    subject: result.subject ?? null,
-  } satisfies AuthenticatedUser;
 }
 
 export async function verifyAuthenticatedEndpointRejectsAnonymousRequest() {
