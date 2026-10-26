@@ -482,15 +482,3 @@ export function getAccountProviderFromClaims(claims: Record<string, unknown>) {
     values.some((value) => normalizedProvider.includes(value)),
   )?.key;
 }
-
-export async function verifyAuthenticatedEndpointRejectsAnonymousRequest() {
-  const response = await fetch(`${getBackendUrl()}/api/v1/me`);
-
-  if (response.status !== 401) {
-    throw new Error(
-      `Anonymous authenticated-endpoint request returned HTTP ${response.status}`,
-    );
-  }
-
-  return response.status;
-}
