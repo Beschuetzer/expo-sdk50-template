@@ -89,9 +89,164 @@ describe('ThemeAwareScreen', () => {
     ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
   });
 
-  it('reserves viewport space for pinned bottom content', () => {
+  it('preserves custom spacing for scrollable, header, and bottom sections', () => {
+      const cases = [
+    {
+      padding: { p: '$2' },
+      body: { p: '$2', px: undefined, py: undefined },
+      section: { p: '$2', px: undefined, py: undefined },
+    },
+    {
+      padding: { px: '$5' },
+      body: { p: undefined, px: '$5', py: undefined },
+      section: { p: undefined, px: '$5', py: '$3' },
+    },
+    {
+      padding: { py: '$6' },
+      body: { p: undefined, px: undefined, py: '$6' },
+      section: { p: undefined, px: '$4', py: '$6' },
+    },
+      ] as const;
+
+      for (const { padding, body, section } of cases) {
     const tree = renderer.create(
-      <ThemeAwareScreen bottomContent={<FooterHost />}>
+      <ThemeAwareScreen
+        {...padding}
+        bottomContent={<FooterHost />}
+        fixedHeaderContent={<HeaderHost />}
+      >
+        <BodyHost />
+      </ThemeAwareScreen>,
+    );
+    const bodyStack = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'VStack' &&
+        instance.findAll((child) => String(child.type) === 'BodyHost')
+          .length > 0,
+    );
+    const headerStack = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'VStack' &&
+        instance.findAll((child) => String(child.type) === 'HeaderHost')
+          .length > 0,
+    );
+    const footerStack = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'VStack' &&
+        instance.findAll((child) => String(child.type) === 'FooterHost')
+          .length > 0,
+    );
+
+    expect(bodyStack.props).toEqual(expect.objectContaining(body));
+    expect(headerStack.props).toEqual(expect.objectContaining(section));
+    expect(footerStack.props).toEqual(expect.objectContaining(section));
+    tree.unmount();
+      }
+  });
+
+  it('uses default FlashList options when fixed header content is supplied', () => {
+      const tree = renderer.create(
+    <ThemeAwareScreen
+      fixedHeaderContent={<HeaderHost />}
+      flashListProps={{ data: [], renderItem: () => null }}
+    >
+      <BodyHost />
+    </ThemeAwareScreen>,
+      );
+      const flashList = tree.root.find(
+    (instance) => String(instance.type) === 'FlashList',
+      );
+
+      expect(
+    tree.root.findAll((instance) => String(instance.type) === 'HeaderHost'),
+      ).toHaveLength(1);
+      expect(flashList.props.ListHeaderComponent).toBeDefined();
+      expect(flashList.props.keyboardShouldPersistTaps).toBe('always');
+      expect(flashList.props.estimatedItemSize).toBe(200);
+  });
+
+  it('keeps fixed content outside the FlashList when fixedHeader is enabled', () => {
+      const tree = renderer.create(
+    <ThemeAwareScreen
+      fixedHeader
+      fixedHeaderContent={<HeaderHost />}
+      flashListProps={{ data: [], renderItem: () => null }}
+    >
+      <BodyHost />
+    </ThemeAwareScreen>,
+      );
+      const flashList = tree.root.find(
+    (instance) => String(instance.type) === 'FlashList',
+      );
+
+      expect(
+    tree.root.findAll((instance) => String(instance.type) === 'HeaderHost'),
+      ).toHaveLength(1);
+      expect(
+    tree.root.findAll((instance) => String(instance.type) === 'BodyHost'),
+      ).toHaveLength(1);
+      expect(flashList.props.ListHeaderComponent).toBeUndefined();
+      expect(flashList.props.keyboardShouldPersistTaps).toBe('always');
+      expect(flashList.props.estimatedItemSize).toBe(200);
+  });
+
+  it('uses caller-provided list options when there is no fixed header', () => {
+      const customListHeader = <ListHeaderHost />;
+      const contentContainerStyle = { paddingBottom: 24 };
+      const tree = renderer.create(
+    <ThemeAwareScreen
+      flashListProps={{
+        contentContainerStyle,
+        data: [],
+        estimatedItemSize: 48,
+        keyboardShouldPersistTaps: 'handled',
+        ListHeaderComponent: customListHeader,
+        renderItem: () => null,
+      }}
+    >
+      <BodyHost />
+    </ThemeAwareScreen>,
+      );
+      const flashList = tree.root.find(
+    (instance) => String(instance.type) === 'FlashList',
+      );
+
+      expect(flashList.props.ListHeaderComponent).toBe(customListHeader);
+      expect(flashList.props.keyboardShouldPersistTaps).toBe('handled');
+      expect(flashList.props.estimatedItemSize).toBe(48);
+      expect(flashList.props.contentContainerStyle).toBe(contentContainerStyle);
+  });
+
+  it.each([
+      { label: 'null', bottomContent: null },
+      { label: 'false', bottomContent: false },
+  ])('does not reserve space for $label bottom content', ({ bottomContent }) => {
+      const tree = renderer.create(
+    <ThemeAwareScreen bottomContent={bottomContent}>
+      <BodyHost />
+    </ThemeAwareScreen>,
+      );
+
+      expect(
+    tree.root.findAll(
+      (instance) =>
+        String(instance.type) === 'ThemeAwareSurface' &&
+        typeof instance.props.onLayout === 'function',
+    ),
+      ).toHaveLength(0);
+      expect(
+    tree.root.find(
+      (instance) =>
+        String(instance.type) === 'ThemeAwareSurface' &&
+        instance.props.flex === 1 &&
+        instance.props.style?.marginBottom === 0,
+    ),
+      ).toBeDefined();
+  });
+
+  it('reserves viewport space for pinned bottom content', () => {
+      const tree = renderer.create(
+    <ThemeAwareScreen bottomContent={<FooterHost />}>
         <BodyHost />
       </ThemeAwareScreen>,
     );
@@ -141,4 +296,8 @@ function BodyHost() {
 
 function FooterHost() {
   return React.createElement('FooterHost');
+}
+
+function ListHeaderHost() {
+  return React.createElement('ListHeaderHost');
 }

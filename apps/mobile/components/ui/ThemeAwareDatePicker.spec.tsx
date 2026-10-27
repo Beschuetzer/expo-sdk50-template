@@ -27,7 +27,7 @@ jest.mock('@react-native-community/datetimepicker', () => {
     default: (props: Record<string, unknown>) =>
       React.createElement('NativeDateTimePicker', props),
   };
-});
+}, { virtual: true });
 
 jest.mock('@gluestack-ui/themed', () => {
   const React = jest.requireActual('react') as typeof import('react');
@@ -350,6 +350,101 @@ describe('ThemeAwareDatePicker', () => {
       },
       pickedDate,
     );
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the browser date picker from the calendar button', () => {
+    mockPlatformOS = 'web';
+    const onOpen = jest.fn();
+    const tree = renderer.create(<ThemeAwareDatePicker onOpen={onOpen} />);
+    const calendarIcon = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'InputSlot' &&
+        instance.props.accessibilityLabel === 'datePicker.open',
+    );
+
+    act(() => calendarIcon.props.onPress());
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(mockAndroidOpen).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: 'empty', value: '' },
+    { label: 'invalid', value: '2024-02-31' },
+  ])('ignores $label browser date values', ({ value }) => {
+    mockPlatformOS = 'web';
+    const onChange = jest.fn();
+    const onClose = jest.fn();
+    const tree = renderer.create(
+      <ThemeAwareDatePicker onChange={onChange} onClose={onClose} />,
+    );
+    const dateInput = tree.root.find(
+      (instance) => String(instance.type) === 'input',
+    );
+
+    act(() =>
+      dateInput.props.onChange({
+        currentTarget: { value },
+      }),
+    );
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('does not open or clear a disabled picker', () => {
+    mockPlatformOS = 'android';
+    const onOpen = jest.fn();
+    const onClear = jest.fn();
+    const tree = renderer.create(
+      <ThemeAwareDatePicker
+        clearable
+        isDisabled
+        onClear={onClear}
+        onOpen={onOpen}
+        value={new Date(2024, 0, 15)}
+      />,
+    );
+    const clearButton = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'InputSlot' &&
+        instance.props.accessibilityLabel === 'datePicker.clear',
+    );
+    const openButton = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'InputSlot' &&
+        instance.props.accessibilityLabel === 'datePicker.open',
+    );
+
+    act(() => {
+      clearButton.props.onPress();
+      openButton.props.onPress();
+    });
+
+    expect(onClear).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(mockAndroidOpen).not.toHaveBeenCalled();
+  });
+
+  it('reports cancellation when the iOS picker modal is dismissed', () => {
+    const onCancel = jest.fn();
+    const onClose = jest.fn();
+    const tree = renderer.create(
+      <ThemeAwareDatePicker onCancel={onCancel} onClose={onClose} />,
+    );
+    const calendarIcon = tree.root.find(
+      (instance) => String(instance.type) === 'InputSlot',
+    );
+
+    act(() => calendarIcon.props.onPress());
+
+    const modal = tree.root.find(
+      (instance) => String(instance.type) === 'ThemedModal',
+    );
+    act(() => modal.props.onClose());
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

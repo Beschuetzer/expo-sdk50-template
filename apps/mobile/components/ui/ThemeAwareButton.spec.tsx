@@ -139,4 +139,31 @@ describe('ThemeAwareButton', () => {
         .isDisabled,
     ).toBe(true);
   });
+
+  it('resets loading state when a press callback rejects and unmounts cleanly', async () => {
+    const failure = new Error('save failed');
+    const tree = renderer.create(
+      <ThemeAwareButton onPress={() => Promise.reject(failure)}>
+        Save
+      </ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+    let pressPromise!: Promise<void>;
+
+    act(() => {
+      pressPromise = button.props.onPress({});
+    });
+
+    await act(async () => {
+      await expect(pressPromise).rejects.toBe(failure);
+    });
+
+    expect(
+      tree.root.find((instance) => String(instance.type) === 'Button').props
+        .isDisabled,
+    ).toBe(false);
+    act(() => tree.unmount());
+  });
 });

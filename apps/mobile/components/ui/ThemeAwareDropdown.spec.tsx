@@ -107,4 +107,20 @@ describe('ThemeAwareDropdown', () => {
 
     expect(selectedItem.props.bg).toBe('$backgroundLight300');
   });
+
+  it('shows an empty value when no option matches the selection', () => {
+    const tree = renderer.create(
+      <ThemeAwareDropdown
+        onValueChange={jest.fn()}
+        options={[{ label: 'Shared', value: 'shared' }]}
+        placeholder="Choose a space"
+        selectedValue="missing"
+      />,
+    );
+    const selectInput = tree.root.find(
+      (instance) => String(instance.type) === 'SelectInput',
+    );
+
+    expect(selectInput.props.value).toBe('');
+  });
 });
