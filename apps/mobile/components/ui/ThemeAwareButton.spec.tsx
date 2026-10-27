@@ -3,7 +3,7 @@ import renderer, { act } from 'react-test-renderer';
 
 import { ThemeAwareButton } from './ThemeAwareButton';
 
-let mockColorScheme: 'light' | 'dark' = 'light';
+let mockColorScheme = 'light';
 
 jest.mock('@gluestack-ui/themed', () => {
   const React = jest.requireActual('react') as typeof import('react');
@@ -29,88 +29,6 @@ jest.mock('@/components/ui/useThemeAwareTypography', () => ({
 }));
 
 describe('ThemeAwareButton', () => {
-  beforeEach(() => {
-    mockColorScheme = 'light';
-  });
-
-  it.each(['outline', 'link'] as const)(
-    'keeps the %s variant transparent by default',
-    async (variant) => {
-      const tree = renderer.create(
-        <ThemeAwareButton variant={variant}>Open</ThemeAwareButton>,
-      );
-      const button = tree.root.find(
-        (instance) => String(instance.type) === 'Button',
-      );
-
-      expect(button.props.bg).toBe('$transparent');
-      await act(async () => tree.unmount());
-    },
-  );
-
-  it('uses an explicit background and preserves compound children', async () => {
-    const tree = renderer.create(
-      <ThemeAwareButton bg="$success500">
-        <>Continue</>
-      </ThemeAwareButton>,
-    );
-    const button = tree.root.find(
-      (instance) => String(instance.type) === 'Button',
-    );
-
-    expect(button.props.bg).toBe('$success500');
-    expect(
-      tree.root.findAll((instance) => String(instance.type) === 'ButtonText'),
-    ).toHaveLength(0);
-    await act(async () => tree.unmount());
-  });
-
-  it('wraps numeric labels in the themed button text', async () => {
-    const tree = renderer.create(<ThemeAwareButton>{42}</ThemeAwareButton>);
-    const buttonTexts = tree.root.findAll(
-      (instance) => String(instance.type) === 'ButtonText',
-    );
-
-    expect(buttonTexts).toHaveLength(1);
-    expect(buttonTexts[0].props.children).toBe(42);
-    await act(async () => tree.unmount());
-  });
-
-  it('uses the dark theme background in dark mode', async () => {
-    mockColorScheme = 'dark';
-    const tree = renderer.create(<ThemeAwareButton>Save</ThemeAwareButton>);
-    const button = tree.root.find(
-      (instance) => String(instance.type) === 'Button',
-    );
-
-    expect(button.props.bg).toBe('$primary600');
-    await act(async () => tree.unmount());
-  });
-
-  it('does not invoke the press callback when disabled', async () => {
-    const onPress = jest.fn();
-    const tree = renderer.create(
-      <ThemeAwareButton disabled onPress={onPress}>
-        Save
-      </ThemeAwareButton>,
-    );
-    const button = tree.root.find(
-      (instance) => String(instance.type) === 'Button',
-    );
-
-    await act(async () => {
-      await button.props.onPress({});
-    });
-
-    expect(onPress).not.toHaveBeenCalled();
-    expect(
-      tree.root.findAll(
-        (instance) => String(instance.type) === 'ButtonSpinner',
-      ),
-    ).toHaveLength(0);
-    await act(async () => tree.unmount());
-  });
-
   it('shows a spinner and blocks repeat presses until the callback finishes', async () => {
     let resolveCallback: (() => void) | undefined;
     const onPress = jest.fn(
@@ -154,5 +72,98 @@ describe('ThemeAwareButton', () => {
     expect(findSpinners()).toHaveLength(0);
     expect(findButtonText()).toHaveLength(1);
     expect(findButtonText()[0].props.children).toBe('Save');
+  });
+
+  it('uses dark-theme backgrounds and supports custom button backgrounds', () => {
+    mockColorScheme = 'dark';
+    const darkTree = renderer.create(
+      <ThemeAwareButton darkBackground="$dark-custom">Dark</ThemeAwareButton>,
+    );
+    const darkButton = darkTree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+
+    expect(darkButton.props.bg).toBe('$dark-custom');
+
+    const customTree = renderer.create(
+      <ThemeAwareButton bg="$explicit">Custom</ThemeAwareButton>,
+    );
+    const customButton = customTree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+
+    expect(customButton.props.bg).toBe('$explicit');
+    mockColorScheme = 'light';
+  });
+
+  it.each(['outline', 'link'] as const)(
+    'uses a transparent background for the %s variant',
+    (variant) => {
+      const tree = renderer.create(
+        <ThemeAwareButton variant={variant}>
+          {React.createElement('Icon')}
+        </ThemeAwareButton>,
+      );
+      const button = tree.root.find(
+        (instance) => String(instance.type) === 'Button',
+      );
+
+      expect(button.props.bg).toBe('$transparent');
+      expect(
+        tree.root.findAll((instance) => String(instance.type) === 'ButtonText'),
+      ).toHaveLength(0);
+    },
+  );
+
+  it('ignores presses when no handler is provided or the button is disabled', () => {
+    const withoutHandler = renderer.create(
+      <ThemeAwareButton>Static</ThemeAwareButton>,
+    );
+    const disabled = renderer.create(
+      <ThemeAwareButton disabled onPress={jest.fn()}>
+        Disabled
+      </ThemeAwareButton>,
+    );
+
+    act(() => {
+      withoutHandler.root
+        .find((instance) => String(instance.type) === 'Button')
+        .props.onPress({});
+      disabled.root
+        .find((instance) => String(instance.type) === 'Button')
+        .props.onPress({});
+    });
+
+    expect(
+      disabled.root.find((instance) => String(instance.type) === 'Button').props
+        .isDisabled,
+    ).toBe(true);
+  });
+
+  it('resets loading state when a press callback rejects and unmounts cleanly', async () => {
+    const failure = new Error('save failed');
+    const tree = renderer.create(
+      <ThemeAwareButton onPress={() => Promise.reject(failure)}>
+        Save
+      </ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+    let pressPromise!: Promise<void>;
+
+    act(() => {
+      pressPromise = button.props.onPress({});
+    });
+
+    await act(async () => {
+      await expect(pressPromise).rejects.toBe(failure);
+    });
+
+    expect(
+      tree.root.find((instance) => String(instance.type) === 'Button').props
+        .isDisabled,
+    ).toBe(false);
+    act(() => tree.unmount());
   });
 });

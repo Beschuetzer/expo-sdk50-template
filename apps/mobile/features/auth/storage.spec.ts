@@ -83,6 +83,16 @@ describe('access-token storage', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 
+  it('rejects a native read when its signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      loadAccessToken({ signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(SecureStore.isAvailableAsync).not.toHaveBeenCalled();
+  });
+
   it('skips a native read that is already stale when it leaves the queue', async () => {
     const read = loadAccessToken();
     const newerToken = {
@@ -688,6 +698,97 @@ describe('access-token storage', () => {
     );
   });
 
+  it('propagates native write failures and repairs incomplete storage', async () => {
+    const writeError = new Error('secure store write failed');
+    jest.mocked(SecureStore.setItemAsync).mockRejectedValueOnce(writeError);
+
+    await expect(saveAccessToken(token)).rejects.toBe(writeError);
+    await expect(loadAccessToken()).resolves.toBeNull();
+
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'expo50sdktemplate.oauth.access-token',
+    );
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'expo50sdktemplate.oauth.id-token',
+    );
+  });
+
+  it('does not expose an old token while a failed repair is retried', async () => {
+    const accessTokenKey = 'expo50sdktemplate.oauth.access-token';
+    const oldToken = {
+      ...token,
+      accessToken: 'old-access-token',
+      expiresAt: Date.now() + 60_000,
+    };
+    secureStoreValues.set(
+      accessTokenKey,
+      JSON.stringify({ ...oldToken, storageVersion: 2 }),
+    );
+    const writeError = new Error('secure store write failed');
+    const repairError = new Error('secure store cleanup failed');
+    const consoleWarn = jest
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    jest.mocked(SecureStore.setItemAsync).mockRejectedValueOnce(writeError);
+    jest
+      .mocked(SecureStore.deleteItemAsync)
+      .mockRejectedValueOnce(repairError);
+
+    try {
+      await expect(saveAccessToken(token)).rejects.toBe(writeError);
+      await expect(loadAccessToken()).resolves.toBeNull();
+      await expect(loadAccessToken()).resolves.toBeNull();
+
+      expect(consoleWarn).toHaveBeenCalledWith(
+        expect.stringContaining('auth_access_token_storage_repair_failed'),
+      );
+      expect(secureStoreValues.has(accessTokenKey)).toBe(false);
+    } finally {
+      consoleWarn.mockRestore();
+    }
+  });
+
+  it('repairs a stale native write that fails after a newer sign-in', async () => {
+    const originalToken = { ...token, expiresAt: Date.now() + 60_000 };
+    const replacementToken = {
+      ...originalToken,
+      accessToken: 'replacement-access-token',
+      refreshToken: 'replacement-refresh-token',
+    };
+    const accessTokenKey = 'expo50sdktemplate.oauth.access-token';
+    const originalValue = JSON.stringify({
+      ...originalToken,
+      storageVersion: 2,
+    });
+    const writeError = new Error('stale secure store write failed');
+    let rejectOriginalWrite!: (error: Error) => void;
+
+    jest
+      .mocked(SecureStore.setItemAsync)
+      .mockImplementation(async (key, value) => {
+        if (key === accessTokenKey && value === originalValue) {
+          await new Promise<void>((_resolve, reject) => {
+            rejectOriginalWrite = reject;
+          });
+        }
+        secureStoreValues.set(key, value);
+      });
+
+    const originalSave = saveAccessToken(originalToken);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rejectOriginalWrite).toBeDefined();
+
+    const replacementSave = saveAccessToken(replacementToken);
+    rejectOriginalWrite(writeError);
+
+    await expect(originalSave).rejects.toBe(writeError);
+    await expect(replacementSave).resolves.toBeUndefined();
+    await expect(loadAccessToken()).resolves.toEqual(replacementToken);
+    expect(secureStoreValues.get(accessTokenKey)).toBe(
+      JSON.stringify({ ...replacementToken, storageVersion: 2 }),
+    );
+  });
+
   it('fails when secure storage is unavailable', async () => {
     jest.mocked(SecureStore.isAvailableAsync).mockResolvedValue(false);
 
@@ -822,5 +923,35 @@ describe('access-token storage', () => {
         currentRevision - 1,
       ),
     ).resolves.toBe(false);
+  });
+
+  it('persists a refreshed token for the current matching session', async () => {
+    const originalToken = {
+      ...token,
+      expiresAt: Date.now() + 60_000,
+      refreshToken: 'refresh-token',
+    };
+    const refreshedToken = {
+      ...originalToken,
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+    };
+
+    await saveAccessToken(originalToken);
+    const expectedRevision = getAccessTokenSessionRevision();
+
+    await expect(
+      persistRefreshedAccessTokenIfCurrent(
+        refreshedToken,
+        originalToken,
+        expectedRevision,
+      ),
+    ).resolves.toBe(true);
+    await expect(loadAccessToken()).resolves.toEqual(refreshedToken);
+    expect(SecureStore.setItemAsync).toHaveBeenLastCalledWith(
+      'expo50sdktemplate.oauth.access-token',
+      JSON.stringify({ ...refreshedToken, storageVersion: 2 }),
+      { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
+    );
   });
 });
