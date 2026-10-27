@@ -1,9 +1,10 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,6 +22,9 @@ import { useI18n } from '@/utils/i18n';
 
 const DEFAULT_MENU_WIDTH = 320;
 const DEFAULT_ANIMATION_DURATION = 220;
+const SWIPE_ACTIVATION_DISTANCE = 12;
+const SWIPE_CLOSE_DISTANCE = 64;
+const SWIPE_CLOSE_VELOCITY = 0.5;
 
 export type ThemeAwareMenuSide = 'left' | 'right';
 
@@ -175,6 +179,33 @@ export function ThemeAwareMenu({
     [isControlled, onOpenChange],
   );
   const closeMenu = useCallback(() => changeOpen(false), [changeOpen]);
+  const swipeResponder = useMemo(() => {
+    const closeDirection = side === 'left' ? -1 : 1;
+
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, { dx, dy }) => {
+        const closeDistance = dx * closeDirection;
+
+        return (
+          isOpen &&
+          closeDistance > SWIPE_ACTIVATION_DISTANCE &&
+          closeDistance > Math.abs(dy) * 1.2
+        );
+      },
+      onPanResponderRelease: (_event, { dx, vx }) => {
+        const closeDistance = dx * closeDirection;
+        const closeVelocity = vx * closeDirection;
+        const shouldClose =
+          closeDistance >= SWIPE_CLOSE_DISTANCE ||
+          (closeDistance > SWIPE_ACTIVATION_DISTANCE &&
+            closeVelocity >= SWIPE_CLOSE_VELOCITY);
+
+        if (shouldClose) {
+          closeMenu();
+        }
+      },
+    });
+  }, [closeMenu, isOpen, side]);
 
   useEffect(() => {
     if (!isOpen && !isModalVisible) {
@@ -353,6 +384,7 @@ export function ThemeAwareMenu({
           </Animated.View>
           <Animated.View
             accessibilityViewIsModal
+            {...swipeResponder.panHandlers}
             style={[
               styles.panel,
               side === 'left'

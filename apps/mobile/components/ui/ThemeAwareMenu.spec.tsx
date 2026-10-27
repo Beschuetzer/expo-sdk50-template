@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Animated,
   Modal,
+  PanResponder,
   Platform,
   StyleSheet,
   Text,
@@ -51,6 +52,31 @@ jest.mock('@/utils/i18n', () => ({
   }),
 }));
 
+type PanResponderConfig = Parameters<typeof PanResponder.create>[0];
+type PanResponderMoveHandler = NonNullable<
+  PanResponderConfig['onMoveShouldSetPanResponder']
+>;
+type PanResponderEvent = Parameters<PanResponderMoveHandler>[0];
+type PanResponderGestureState = Parameters<PanResponderMoveHandler>[1];
+
+function capturePanResponderConfig() {
+  let config: PanResponderConfig | undefined;
+  const originalCreate = PanResponder.create.bind(PanResponder);
+  jest.spyOn(PanResponder, 'create').mockImplementation((nextConfig) => {
+    config = nextConfig;
+    return originalCreate(nextConfig);
+  });
+  return () => config;
+}
+
+function createGestureState(
+  dx: number,
+  dy: number,
+  vx = 0,
+): PanResponderGestureState {
+  return { dx, dy, vx } as PanResponderGestureState;
+}
+
 describe('ThemeAwareMenu', () => {
   let mountedTree: ReactTestRenderer | undefined;
   const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(
@@ -68,6 +94,7 @@ describe('ThemeAwareMenu', () => {
     if (originalPlatformDescriptor) {
       Object.defineProperty(Platform, 'OS', originalPlatformDescriptor);
     }
+    jest.restoreAllMocks();
   });
 
   it('renders a translated hamburger trigger and opens the drawer', () => {
@@ -136,6 +163,109 @@ describe('ThemeAwareMenu', () => {
         expect.objectContaining({ backgroundColor: 'transparent' }),
       ]),
     );
+  });
+
+  it.each([
+    { side: 'left' as const, closeDelta: -80, openDelta: 80 },
+    { side: 'right' as const, closeDelta: 80, openDelta: -80 },
+  ])('closes the $side menu when swiped toward its edge', ({
+    side,
+    closeDelta,
+    openDelta,
+  }) => {
+    const onOpenChange = jest.fn();
+    const getPanResponderConfig = capturePanResponderConfig();
+    act(() => {
+      mountedTree = renderer.create(
+        <ThemeAwareMenu defaultOpen onOpenChange={onOpenChange} side={side}>
+          <Text>Drawer content</Text>
+        </ThemeAwareMenu>,
+      );
+    });
+    const tree = mountedTree;
+    if (!tree) {
+      throw new Error('Expected the menu renderer to be initialized.');
+    }
+    const panel = tree.root
+      .findAllByType(Animated.View)
+      .find((instance) => Boolean(instance.props.accessibilityViewIsModal));
+    if (!panel) {
+      throw new Error('Expected the drawer panel to be rendered.');
+    }
+    const config = getPanResponderConfig();
+    if (!config?.onMoveShouldSetPanResponder || !config.onPanResponderRelease) {
+      throw new Error('Expected swipe handlers to be configured.');
+    }
+    const event = {} as PanResponderEvent;
+
+    expect(
+      config.onMoveShouldSetPanResponder(
+        event,
+        createGestureState(openDelta, 0),
+      ),
+    ).toBe(false);
+    expect(
+      config.onMoveShouldSetPanResponder(
+        event,
+        createGestureState(closeDelta / 4, 60),
+      ),
+    ).toBe(false);
+    expect(
+      config.onMoveShouldSetPanResponder(
+        event,
+        createGestureState(closeDelta / 4, 0),
+      ),
+    ).toBe(true);
+    expect(panel.props.onMoveShouldSetResponder).toEqual(
+      expect.any(Function),
+    );
+
+    act(() => {
+      config.onPanResponderRelease?.(
+        event,
+        createGestureState(closeDelta, 0),
+      );
+    });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('closes on a quick flick toward the closing edge', () => {
+    const onOpenChange = jest.fn();
+    const getPanResponderConfig = capturePanResponderConfig();
+    act(() => {
+      mountedTree = renderer.create(
+        <ThemeAwareMenu defaultOpen onOpenChange={onOpenChange} side="left">
+          <Text>Drawer content</Text>
+        </ThemeAwareMenu>,
+      );
+    });
+    const tree = mountedTree;
+    if (!tree) {
+      throw new Error('Expected the menu renderer to be initialized.');
+    }
+    const panel = tree.root
+      .findAllByType(Animated.View)
+      .find((instance) => Boolean(instance.props.accessibilityViewIsModal));
+    if (!panel) {
+      throw new Error('Expected the drawer panel to be rendered.');
+    }
+    const config = getPanResponderConfig();
+    if (!config?.onMoveShouldSetPanResponder || !config.onPanResponderRelease) {
+      throw new Error('Expected swipe handlers to be configured.');
+    }
+    const event = {} as PanResponderEvent;
+    const gestureState = createGestureState(-20, 0, -0.6);
+
+    expect(
+      config.onMoveShouldSetPanResponder(event, gestureState),
+    ).toBe(true);
+    expect(panel.props.onResponderRelease).toEqual(expect.any(Function));
+    act(() => {
+      config.onPanResponderRelease?.(event, gestureState);
+    });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('runs native quick actions and closes their action list', () => {

@@ -134,7 +134,6 @@ describe('HomeScreen menu showcase', () => {
     );
     const screenOptions = stackScreen.props.options as {
       headerRight?: () => ReactNode;
-      headerRightContainerStyle: { paddingRight: number };
     };
     const quickActions = menu.props.quickActions as ThemeAwareMenuAction[];
     const headings = tree.root
@@ -142,7 +141,11 @@ describe('HomeScreen menu showcase', () => {
       .map((instance) => instance.props.children);
 
     expect(screenOptions.headerRight).toEqual(expect.any(Function));
-    expect(screenOptions.headerRightContainerStyle).toEqual({ paddingRight: 12 });
+    expect(
+      stackScreen.findAll(
+        (instance) => String(instance.type) === 'ThemeAwareMenu',
+      ),
+    ).toHaveLength(1);
     expect(menu.props.side).toBe('right');
     expect(menu.props.width).toBe('85%');
     expect(quickActions.map(({ id, label }) => ({ id, label }))).toEqual([

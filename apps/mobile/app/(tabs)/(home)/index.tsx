@@ -55,7 +55,6 @@ export default function HomeScreen() {
     <>
       <Stack.Screen
         options={{
-          headerRightContainerStyle: { paddingRight: 12 },
           headerRight: () => (
             <ThemeAwareMenu
               header={
