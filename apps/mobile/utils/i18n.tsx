@@ -76,6 +76,14 @@ const messages = {
     common: {
       loading: 'Loading...',
     },
+    datePicker: {
+      cancel: 'Cancel',
+      clear: 'Clear date',
+      confirm: 'Confirm',
+      open: 'Open date picker',
+      placeholder: 'Select date',
+      title: 'Select date',
+    },
     errors: {
       apiRequestTimedOut:
         'The API request timed out. Check the API connection.',
@@ -214,6 +222,14 @@ const messages = {
     common: {
       loading: 'Cargando...',
     },
+    datePicker: {
+      cancel: 'Cancelar',
+      clear: 'Borrar fecha',
+      confirm: 'Confirmar',
+      open: 'Abrir selector de fecha',
+      placeholder: 'Seleccionar fecha',
+      title: 'Seleccionar fecha',
+    },
     errors: {
       apiRequestTimedOut:
         'La solicitud a la API superó el tiempo de espera. Comprueba la conexión con la API.',
@@ -312,6 +328,7 @@ export type TranslationKey =
   | `app.${keyof typeof messages.en.app}`
   | `auth.${keyof typeof messages.en.auth}`
   | `common.${keyof typeof messages.en.common}`
+  | `datePicker.${keyof typeof messages.en.datePicker}`
   | `errors.${keyof typeof messages.en.errors}`
   | `font.${keyof typeof messages.en.font}`
   | `language.${keyof typeof messages.en.language}`
