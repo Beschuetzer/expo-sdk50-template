@@ -7,7 +7,6 @@ import type { LayoutChangeEvent } from 'react-native';
 
 import { ThemeAwareSurface } from './ThemeAwareSurface';
 
-import { FORM_INTER_ITEM_SPACING } from '@/constants/general';
 import { absolutePositioning } from '@/constants/styles';
 
 const BOTTOM_CONTENT_POSITIONING = {
@@ -60,7 +59,7 @@ export function ThemeAwareScreen<ItemT = unknown>(
         <VStack
           p={p}
           px={hasCustomPadding ? px : '$4'}
-          py={hasCustomPadding ? py : '$0'}
+          py={hasCustomPadding ? py : '$3'}
           {...contentProps}
         >
           {content}
@@ -69,19 +68,36 @@ export function ThemeAwareScreen<ItemT = unknown>(
     );
   }
 
+  function renderSectionContent(content: ReactNode | ReactNode[]) {
+    return (
+      <VStack
+        p={p}
+        px={p === undefined ? px ?? '$4' : px}
+        py={p === undefined ? py ?? '$3' : py}
+        {...contentProps}
+      >
+        {content}
+      </VStack>
+    );
+  }
+
   function renderList() {
     const contentJSX = renderContent(children);
     const fixedHeaderJSX =
-      fixedHeaderContent === undefined
-        ? undefined
-        : renderContent(fixedHeaderContent);
+      fixedHeaderContent === undefined ? undefined : (
+        <ThemeAwareSurface borderBottomWidth="$1">
+          {renderSectionContent(fixedHeaderContent)}
+        </ThemeAwareSurface>
+      );
 
     if (flashListProps) {
       if (fixedHeader) {
         return (
           <ThemeAwareSurface flex={1}>
             {fixedHeaderJSX}
-            {contentJSX}
+            <ThemeAwareSurface borderBottomWidth="$1">
+              {renderSectionContent(children)}
+            </ThemeAwareSurface>
             <FlashList
               {...flashListProps}
               keyboardShouldPersistTaps={
@@ -163,13 +179,12 @@ export function ThemeAwareScreen<ItemT = unknown>(
       {hasBottomContent ? (
         <ThemeAwareSurface
           {...BOTTOM_CONTENT_POSITIONING}
-          p="$1"
-          py={FORM_INTER_ITEM_SPACING}
+          borderTopWidth="$1"
           onLayout={(event: LayoutChangeEvent) => {
             setBottomContentHeight(event.nativeEvent.layout.height);
           }}
         >
-          {bottomContent}
+          {renderSectionContent(bottomContent)}
         </ThemeAwareSurface>
       ) : null}
     </ThemeAwareSurface>

@@ -59,6 +59,16 @@ describe('ThemeAwareScreen', () => {
     expect(
       scrollView.findAll((instance) => String(instance.type) === 'BodyHost'),
     ).toHaveLength(1);
+    const headerSurface = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'ThemeAwareSurface' &&
+        instance.props.borderBottomWidth === '$1',
+    );
+
+    expect(
+      headerSurface.find((instance) => String(instance.type) === 'VStack')
+        .props,
+    ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
   });
 
   it('keeps regular content inside the scroll view when there is no fixed header', () => {
@@ -74,6 +84,9 @@ describe('ThemeAwareScreen', () => {
     expect(
       scrollView.findAll((instance) => String(instance.type) === 'BodyHost'),
     ).toHaveLength(1);
+    expect(
+      scrollView.find((instance) => String(instance.type) === 'VStack').props,
+    ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
   });
 
   it('reserves viewport space for pinned bottom content', () => {
@@ -97,6 +110,11 @@ describe('ThemeAwareScreen', () => {
     expect(bottomSurface.props.position).toBe('absolute');
     expect(bottomSurface.props.bottom).toBe(0);
     expect(bottomSurface.props.top).toBeUndefined();
+    expect(bottomSurface.props.borderTopWidth).toBe('$1');
+    expect(
+      bottomSurface.find((instance) => String(instance.type) === 'VStack')
+        .props,
+    ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
     expect(mainSurface(0)).toBeDefined();
 
     act(() => {
