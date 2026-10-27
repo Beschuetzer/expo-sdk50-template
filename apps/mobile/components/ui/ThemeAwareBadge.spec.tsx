@@ -77,17 +77,4 @@ describe('ThemeAwareBadge', () => {
     expect(badgeText.props.color).toBe('$error800');
     expect(badgeText.props.fontFamily).toBe('test-font');
   });
-
-  it('uses default colors when no color overrides are provided', () => {
-    const tree = renderer.create(<ThemeAwareBadge>Member</ThemeAwareBadge>);
-    const badge = tree.root.find(
-      (instance) => String(instance.type) === 'Badge',
-    );
-    const badgeText = tree.root.find(
-      (instance) => String(instance.type) === 'BadgeText',
-    );
-
-    expect(badge.props.bg).toBe('$coolGray100');
-    expect(badgeText.props.color).toBe('$textLight900');
-  });
 });

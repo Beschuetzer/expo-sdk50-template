@@ -3,34 +3,43 @@ import { FlashList } from '@shopify/flash-list';
 import type { FlashListProps } from '@shopify/flash-list';
 import type { ComponentProps, ReactNode } from 'react';
 import { useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 
 import { ThemeAwareSurface } from './ThemeAwareSurface';
 
 import { FORM_INTER_ITEM_SPACING } from '@/constants/general';
 import { absolutePositioning } from '@/constants/styles';
 
+const BOTTOM_CONTENT_POSITIONING = {
+  position: 'absolute' as const,
+  bottom: 0,
+  left: 0,
+  right: 0,
+};
+
 type ThemeAwareScreenProps<ItemT> = Omit<
   ComponentProps<typeof VStack>,
   'children'
 > & {
-  absolutelyPositionedJsx?: ReactNode | ReactNode[];
+  bottomContent?: ReactNode;
   children: ReactNode | ReactNode[];
   contentContainerStyle?: ComponentProps<
     typeof ScrollView
   >['contentContainerStyle'];
   fixedHeader?: boolean;
+  fixedHeaderContent?: ReactNode | ReactNode[];
   flashListProps?: FlashListProps<ItemT>;
 };
 
-const CONTAINER_HEIGHT_DEFAULT = 0;
 export function ThemeAwareScreen<ItemT = unknown>(
   props: ThemeAwareScreenProps<ItemT>,
 ) {
   const {
-    absolutelyPositionedJsx,
+    bottomContent,
     children,
     contentContainerStyle,
     fixedHeader = false,
+    fixedHeaderContent,
     flashListProps,
     p,
     px,
@@ -39,12 +48,14 @@ export function ThemeAwareScreen<ItemT = unknown>(
   } = props;
   const hasCustomPadding =
     p !== undefined || px !== undefined || py !== undefined;
-  const [containerHeight, setContainerHeight] = useState(
-    CONTAINER_HEIGHT_DEFAULT,
-  );
+  const hasBottomContent =
+    bottomContent !== undefined &&
+    bottomContent !== null &&
+    bottomContent !== false;
+  const [bottomContentHeight, setBottomContentHeight] = useState(0);
 
-  function renderList() {
-    const contentJSX = (
+  function renderContent(content: ReactNode | ReactNode[]) {
+    return (
       <ThemeAwareSurface>
         <VStack
           p={p}
@@ -52,15 +63,24 @@ export function ThemeAwareScreen<ItemT = unknown>(
           py={hasCustomPadding ? py : '$0'}
           {...contentProps}
         >
-          {children}
+          {content}
         </VStack>
       </ThemeAwareSurface>
     );
+  }
+
+  function renderList() {
+    const contentJSX = renderContent(children);
+    const fixedHeaderJSX =
+      fixedHeaderContent === undefined
+        ? undefined
+        : renderContent(fixedHeaderContent);
 
     if (flashListProps) {
       if (fixedHeader) {
         return (
           <ThemeAwareSurface flex={1}>
+            {fixedHeaderJSX}
             {contentJSX}
             <FlashList
               {...flashListProps}
@@ -68,10 +88,26 @@ export function ThemeAwareScreen<ItemT = unknown>(
                 flashListProps.keyboardShouldPersistTaps ?? 'always'
               }
               estimatedItemSize={flashListProps.estimatedItemSize ?? 200}
-              contentContainerStyle={{
-                ...flashListProps.contentContainerStyle,
-                paddingBottom: containerHeight,
-              }}
+              contentContainerStyle={flashListProps.contentContainerStyle}
+            />
+          </ThemeAwareSurface>
+        );
+      }
+
+      if (fixedHeaderJSX) {
+        return (
+          <ThemeAwareSurface flex={1}>
+            {fixedHeaderJSX}
+            <FlashList
+              {...flashListProps}
+              ListHeaderComponent={
+                flashListProps.ListHeaderComponent ?? contentJSX
+              }
+              keyboardShouldPersistTaps={
+                flashListProps.keyboardShouldPersistTaps ?? 'always'
+              }
+              estimatedItemSize={flashListProps.estimatedItemSize ?? 200}
+              contentContainerStyle={flashListProps.contentContainerStyle}
             />
           </ThemeAwareSurface>
         );
@@ -85,20 +121,31 @@ export function ThemeAwareScreen<ItemT = unknown>(
             flashListProps.keyboardShouldPersistTaps ?? 'always'
           }
           estimatedItemSize={flashListProps.estimatedItemSize ?? 200}
-          contentContainerStyle={{
-            ...flashListProps.contentContainerStyle,
-            paddingBottom: containerHeight,
-          }}
+          contentContainerStyle={flashListProps.contentContainerStyle}
         />
       );
     }
+
+    if (fixedHeaderJSX) {
+      return (
+        <ThemeAwareSurface flex={1}>
+          {fixedHeaderJSX}
+          <ScrollView
+            style={{ flex: 1 }}
+            keyboardShouldPersistTaps="always"
+            contentContainerStyle={contentContainerStyle}
+          >
+            {contentJSX}
+          </ScrollView>
+        </ThemeAwareSurface>
+      );
+    }
+
     return (
       <ScrollView
+        style={{ flex: 1 }}
         keyboardShouldPersistTaps="always"
-        contentContainerStyle={[
-          { paddingBottom: containerHeight },
-          contentContainerStyle,
-        ]}
+        contentContainerStyle={contentContainerStyle}
       >
         {contentJSX}
       </ScrollView>
@@ -107,19 +154,24 @@ export function ThemeAwareScreen<ItemT = unknown>(
 
   return (
     <ThemeAwareSurface {...absolutePositioning}>
-      {renderList()}
       <ThemeAwareSurface
-        {...absolutePositioning}
-        top="auto"
-        p="$1"
-        py={FORM_INTER_ITEM_SPACING}
-        onLayout={(event: any) => {
-          const height = event.nativeEvent?.layout?.height;
-          setContainerHeight(height || CONTAINER_HEIGHT_DEFAULT);
-        }}
+        flex={1}
+        style={{ marginBottom: hasBottomContent ? bottomContentHeight : 0 }}
       >
-        {absolutelyPositionedJsx}
+        {renderList()}
       </ThemeAwareSurface>
+      {hasBottomContent ? (
+        <ThemeAwareSurface
+          {...BOTTOM_CONTENT_POSITIONING}
+          p="$1"
+          py={FORM_INTER_ITEM_SPACING}
+          onLayout={(event: LayoutChangeEvent) => {
+            setBottomContentHeight(event.nativeEvent.layout.height);
+          }}
+        >
+          {bottomContent}
+        </ThemeAwareSurface>
+      ) : null}
     </ThemeAwareSurface>
   );
 }
