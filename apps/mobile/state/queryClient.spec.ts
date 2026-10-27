@@ -52,6 +52,17 @@ describe('query persistence policy', () => {
     ).toBe(false);
   });
 
+  it('caps retry delays at thirty seconds', () => {
+    const retryDelay = queryClient.getDefaultOptions().queries?.retryDelay;
+    if (typeof retryDelay !== 'function') {
+      throw new Error('Expected query retry delay to be a function');
+    }
+
+    const error = new Error('request failed');
+    expect(retryDelay(0, error)).toBe(1000);
+    expect(retryDelay(10, error)).toBe(30000);
+  });
+
   it('clears memory and persisted query data', async () => {
     queryClient.setQueryData(['account', 'profile'], { subject: 'user-1' });
     const removeItem = jest.spyOn(AsyncStorage, 'removeItem');

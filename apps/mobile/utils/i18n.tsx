@@ -97,6 +97,14 @@ const messages = {
     common: {
       loading: 'Loading...',
     },
+    datePicker: {
+      cancel: 'Cancel',
+      clear: 'Clear date',
+      confirm: 'Confirm',
+      open: 'Open date picker',
+      placeholder: 'Select date',
+      title: 'Select date',
+    },
     home: {
       eyebrow: 'YOUR SHARED SPACE',
       title: 'A little more us, every day.',
@@ -346,6 +354,14 @@ const messages = {
     common: {
       loading: 'Cargando...',
     },
+    datePicker: {
+      cancel: 'Cancelar',
+      clear: 'Borrar fecha',
+      confirm: 'Confirmar',
+      open: 'Abrir selector de fecha',
+      placeholder: 'Seleccionar fecha',
+      title: 'Seleccionar fecha',
+    },
     home: {
       eyebrow: 'VUESTRO ESPACIO COMPARTIDO',
       title: 'Un poco más de nosotros, cada día.',
@@ -540,6 +556,7 @@ export type TranslationKey =
   | `auth.${keyof typeof messages.en.auth}`
   | `checklist.${keyof typeof messages.en.checklist}`
   | `common.${keyof typeof messages.en.common}`
+  | `datePicker.${keyof typeof messages.en.datePicker}`
   | `errors.${keyof typeof messages.en.errors}`
   | `font.${keyof typeof messages.en.font}`
   | `home.${keyof typeof messages.en.home}`

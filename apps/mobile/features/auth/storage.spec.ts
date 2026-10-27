@@ -83,6 +83,16 @@ describe('access-token storage', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 
+  it('rejects a native read when its signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      loadAccessToken({ signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(SecureStore.isAvailableAsync).not.toHaveBeenCalled();
+  });
+
   it('skips a native read that is already stale when it leaves the queue', async () => {
     const read = loadAccessToken();
     const newerToken = {
@@ -135,14 +145,12 @@ describe('access-token storage', () => {
     'does not let a stale %s read clear a queued newer sign-in',
     async (_caseName, storedValue) => {
       let resolveTokenRead!: (value: string | null) => void;
-      jest
-        .mocked(SecureStore.getItemAsync)
-        .mockImplementationOnce(
-          () =>
-            new Promise((resolve) => {
-              resolveTokenRead = resolve;
-            }),
-        );
+      jest.mocked(SecureStore.getItemAsync).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveTokenRead = resolve;
+          }),
+      );
 
       const read = loadAccessToken();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -368,33 +376,30 @@ describe('access-token storage', () => {
     let resolveRefresh!: (response: Response) => void;
     const requestOrder: string[] = [];
     const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input) => {
-        const url = String(input);
-        if (url.endsWith('/auth/refresh')) {
-          requestOrder.push('refresh-started');
-          return new Promise((resolve) => {
-            resolveRefresh = (response) => {
-              cookie = 'rotated-refresh-cookie';
-              requestOrder.push('refresh-set-cookie');
-              resolve(response);
-            };
-          });
-        }
-        if (url.endsWith('/auth/logout')) {
-          requestOrder.push('logout');
-          cookie = '';
-          return Promise.resolve({ ok: true } as Response);
-        }
-        if (url.endsWith('/auth/session')) {
-          return Promise.resolve({ ok: cookie.length > 0 } as Response);
-        }
-        throw new Error(`Unexpected request: ${url}`);
-      });
+      const url = String(input);
+      if (url.endsWith('/auth/refresh')) {
+        requestOrder.push('refresh-started');
+        return new Promise((resolve) => {
+          resolveRefresh = (response) => {
+            cookie = 'rotated-refresh-cookie';
+            requestOrder.push('refresh-set-cookie');
+            resolve(response);
+          };
+        });
+      }
+      if (url.endsWith('/auth/logout')) {
+        requestOrder.push('logout');
+        cookie = '';
+        return Promise.resolve({ ok: true } as Response);
+      }
+      if (url.endsWith('/auth/session')) {
+        return Promise.resolve({ ok: cookie.length > 0 } as Response);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     try {
-      const refresh = refreshAccessToken(
-        undefined,
-        {} as DiscoveryDocument,
-      );
+      const refresh = refreshAccessToken(undefined, {} as DiscoveryDocument);
       const clearing = clearAccessToken();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -575,14 +580,12 @@ describe('access-token storage', () => {
   it('releases the native storage queue when a read is aborted', async () => {
     const controller = new AbortController();
     let resolveSessionRead!: (value: string | null) => void;
-    jest
-      .mocked(SecureStore.getItemAsync)
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSessionRead = resolve;
-          }),
-      );
+    jest.mocked(SecureStore.getItemAsync).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSessionRead = resolve;
+        }),
+    );
 
     const lookup = loadAccessToken({ signal: controller.signal });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -603,14 +606,12 @@ describe('access-token storage', () => {
   it('bounds a stalled native read so queued cleanup can run', async () => {
     jest.useFakeTimers();
     let resolveSessionRead!: (value: string | null) => void;
-    jest
-      .mocked(SecureStore.getItemAsync)
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSessionRead = resolve;
-          }),
-      );
+    jest.mocked(SecureStore.getItemAsync).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSessionRead = resolve;
+        }),
+    );
 
     try {
       const lookup = loadAccessToken();
@@ -655,8 +656,7 @@ describe('access-token storage', () => {
       .mockImplementation(async (key, value) => {
         if (
           key === accessTokenKey &&
-          value ===
-            JSON.stringify({ ...refreshedToken, storageVersion: 2 })
+          value === JSON.stringify({ ...refreshedToken, storageVersion: 2 })
         ) {
           await new Promise<void>((resolve) => {
             resolveLateWrite = resolve;
@@ -682,6 +682,95 @@ describe('access-token storage', () => {
     await expect(saveAccessToken(replacementToken)).resolves.toBeUndefined();
     resolveLateWrite();
     await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(loadAccessToken()).resolves.toEqual(replacementToken);
+    expect(secureStoreValues.get(accessTokenKey)).toBe(
+      JSON.stringify({ ...replacementToken, storageVersion: 2 }),
+    );
+  });
+
+  it('propagates native write failures and repairs incomplete storage', async () => {
+    const writeError = new Error('secure store write failed');
+    jest.mocked(SecureStore.setItemAsync).mockRejectedValueOnce(writeError);
+
+    await expect(saveAccessToken(token)).rejects.toBe(writeError);
+    await expect(loadAccessToken()).resolves.toBeNull();
+
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'expo50sdktemplate.oauth.access-token',
+    );
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'expo50sdktemplate.oauth.id-token',
+    );
+  });
+
+  it('does not expose an old token while a failed repair is retried', async () => {
+    const accessTokenKey = 'expo50sdktemplate.oauth.access-token';
+    const oldToken = {
+      ...token,
+      accessToken: 'old-access-token',
+      expiresAt: Date.now() + 60_000,
+    };
+    secureStoreValues.set(
+      accessTokenKey,
+      JSON.stringify({ ...oldToken, storageVersion: 2 }),
+    );
+    const writeError = new Error('secure store write failed');
+    const repairError = new Error('secure store cleanup failed');
+    const consoleWarn = jest
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    jest.mocked(SecureStore.setItemAsync).mockRejectedValueOnce(writeError);
+    jest.mocked(SecureStore.deleteItemAsync).mockRejectedValueOnce(repairError);
+
+    try {
+      await expect(saveAccessToken(token)).rejects.toBe(writeError);
+      await expect(loadAccessToken()).resolves.toBeNull();
+      await expect(loadAccessToken()).resolves.toBeNull();
+
+      expect(consoleWarn).toHaveBeenCalledWith(
+        expect.stringContaining('auth_access_token_storage_repair_failed'),
+      );
+      expect(secureStoreValues.has(accessTokenKey)).toBe(false);
+    } finally {
+      consoleWarn.mockRestore();
+    }
+  });
+
+  it('repairs a stale native write that fails after a newer sign-in', async () => {
+    const originalToken = { ...token, expiresAt: Date.now() + 60_000 };
+    const replacementToken = {
+      ...originalToken,
+      accessToken: 'replacement-access-token',
+      refreshToken: 'replacement-refresh-token',
+    };
+    const accessTokenKey = 'expo50sdktemplate.oauth.access-token';
+    const originalValue = JSON.stringify({
+      ...originalToken,
+      storageVersion: 2,
+    });
+    const writeError = new Error('stale secure store write failed');
+    let rejectOriginalWrite!: (error: Error) => void;
+
+    jest
+      .mocked(SecureStore.setItemAsync)
+      .mockImplementation(async (key, value) => {
+        if (key === accessTokenKey && value === originalValue) {
+          await new Promise<void>((_resolve, reject) => {
+            rejectOriginalWrite = reject;
+          });
+        }
+        secureStoreValues.set(key, value);
+      });
+
+    const originalSave = saveAccessToken(originalToken);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rejectOriginalWrite).toBeDefined();
+
+    const replacementSave = saveAccessToken(replacementToken);
+    rejectOriginalWrite(writeError);
+
+    await expect(originalSave).rejects.toBe(writeError);
+    await expect(replacementSave).resolves.toBeUndefined();
     await expect(loadAccessToken()).resolves.toEqual(replacementToken);
     expect(secureStoreValues.get(accessTokenKey)).toBe(
       JSON.stringify({ ...replacementToken, storageVersion: 2 }),
@@ -822,5 +911,35 @@ describe('access-token storage', () => {
         currentRevision - 1,
       ),
     ).resolves.toBe(false);
+  });
+
+  it('persists a refreshed token for the current matching session', async () => {
+    const originalToken = {
+      ...token,
+      expiresAt: Date.now() + 60_000,
+      refreshToken: 'refresh-token',
+    };
+    const refreshedToken = {
+      ...originalToken,
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+    };
+
+    await saveAccessToken(originalToken);
+    const expectedRevision = getAccessTokenSessionRevision();
+
+    await expect(
+      persistRefreshedAccessTokenIfCurrent(
+        refreshedToken,
+        originalToken,
+        expectedRevision,
+      ),
+    ).resolves.toBe(true);
+    await expect(loadAccessToken()).resolves.toEqual(refreshedToken);
+    expect(SecureStore.setItemAsync).toHaveBeenLastCalledWith(
+      'expo50sdktemplate.oauth.access-token',
+      JSON.stringify({ ...refreshedToken, storageVersion: 2 }),
+      { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
+    );
   });
 });

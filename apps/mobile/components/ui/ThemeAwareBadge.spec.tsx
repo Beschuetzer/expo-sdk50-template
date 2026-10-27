@@ -78,16 +78,32 @@ describe('ThemeAwareBadge', () => {
     expect(badgeText.props.fontFamily).toBe('test-font');
   });
 
-  it('uses default colors when no color overrides are provided', () => {
-    const tree = renderer.create(<ThemeAwareBadge>Member</ThemeAwareBadge>);
-    const badge = tree.root.find(
+  it('uses default colors when overrides are omitted', () => {
+    const lightTree = renderer.create(
+      <ThemeAwareBadge>Pending</ThemeAwareBadge>,
+    );
+    const lightBadge = lightTree.root.find(
       (instance) => String(instance.type) === 'Badge',
     );
-    const badgeText = tree.root.find(
+    const lightText = lightTree.root.find(
       (instance) => String(instance.type) === 'BadgeText',
     );
 
-    expect(badge.props.bg).toBe('$coolGray100');
-    expect(badgeText.props.color).toBe('$textLight900');
+    expect(lightBadge.props.bg).toBe('$coolGray100');
+    expect(lightText.props.color).toBe('$textLight900');
+
+    mockColorScheme = 'dark';
+    const darkTree = renderer.create(
+      <ThemeAwareBadge>Pending</ThemeAwareBadge>,
+    );
+    const darkBadge = darkTree.root.find(
+      (instance) => String(instance.type) === 'Badge',
+    );
+    const darkText = darkTree.root.find(
+      (instance) => String(instance.type) === 'BadgeText',
+    );
+
+    expect(darkBadge.props.bg).toBe('$backgroundDark800');
+    expect(darkText.props.color).toBe('$textDark50');
   });
 });

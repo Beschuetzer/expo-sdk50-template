@@ -108,7 +108,7 @@ describe('ThemeAwareDropdown', () => {
     expect(selectedItem.props.bg).toBe('$backgroundLight300');
   });
 
-  it('shows an empty label when the selected value is not in the options', () => {
+  it('shows an empty value when no option matches the selection', () => {
     const tree = renderer.create(
       <ThemeAwareDropdown
         onValueChange={jest.fn()}
