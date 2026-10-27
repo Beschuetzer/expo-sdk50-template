@@ -59,6 +59,7 @@ export type ThemeAwareMenuProps = {
   panelStyle?: StyleProp<ViewStyle>;
   quickActions?: readonly ThemeAwareMenuAction[];
   quickActionsAccessibilityLabel?: string;
+  quickActionsColorSchemeInversion?: boolean;
   side?: ThemeAwareMenuSide;
   triggerStyle?: StyleProp<ViewStyle>;
   width?: number | `${number}%`;
@@ -122,6 +123,7 @@ export function ThemeAwareMenu({
   panelStyle,
   quickActions,
   quickActionsAccessibilityLabel,
+  quickActionsColorSchemeInversion = true,
   side = 'left',
   triggerStyle,
   width,
@@ -144,8 +146,12 @@ export function ThemeAwareMenu({
   const iconColor = isDark ? darkIconColor : lightIconColor;
   const disabledColor = isDark ? darkDisabledColor : lightDisabledColor;
   const textColor = isDark ? darkTextColor : lightTextColor;
-  const quickActionsBackgroundColor = textColor;
-  const quickActionsTextColor = backgroundColor;
+  const quickActionsBackgroundColor = quickActionsColorSchemeInversion
+    ? textColor
+    : backgroundColor;
+  const quickActionsTextColor = quickActionsColorSchemeInversion
+    ? backgroundColor
+    : textColor;
   const triggerBackground = isDark
     ? darkTriggerBackground
     : lightTriggerBackground;

@@ -206,22 +206,85 @@ describe('ThemeAwareMenu', () => {
     ).toHaveLength(0);
   });
 
-  it('uses inverted theme colors for web quick actions', () => {
+  it.each([
+    {
+      label: 'defaults to inverted colors',
+      quickActionsColorSchemeInversion: undefined,
+      expectedBackgroundColor: '#fedcba',
+      expectedTextColor: '#123456',
+    },
+    {
+      label: 'matches menu colors when inversion is disabled',
+      quickActionsColorSchemeInversion: false,
+      expectedBackgroundColor: '#123456',
+      expectedTextColor: '#fedcba',
+    },
+  ])(
+    '$label for web quick actions',
+    ({
+      quickActionsColorSchemeInversion,
+      expectedBackgroundColor,
+      expectedTextColor,
+    }) => {
+      Object.defineProperty(Platform, 'OS', {
+        configurable: true,
+        value: 'web',
+      });
+      mockColorScheme = 'dark';
+      act(() => {
+        mountedTree = renderer.create(
+          <ThemeAwareMenu
+            darkBackground="#123456"
+            darkTextColor="#fedcba"
+            defaultOpen
+            quickActionsColorSchemeInversion={
+              quickActionsColorSchemeInversion
+            }
+            quickActions={[
+              { id: 'settings', label: 'Settings', onSelect: jest.fn() },
+            ]}
+            side="right"
+          >
+            <Text>Drawer content</Text>
+          </ThemeAwareMenu>,
+        );
+      });
+      const tree = mountedTree;
+      if (!tree) {
+        throw new Error('Expected the menu renderer to be initialized.');
+      }
+      const menuContent = tree.root.find(
+        (instance) => String(instance.type) === 'ZeegoContent',
+      );
+      const menuItem = tree.root.find(
+        (instance) => String(instance.type) === 'ZeegoItem',
+      );
+      const menuItemTitle = tree.root.find(
+        (instance) => String(instance.type) === 'ZeegoItemTitle',
+      );
+
+      expect(menuContent.props.side).toBe('left');
+      expect(menuContent.props.style.backgroundColor).toBe(
+        expectedBackgroundColor,
+      );
+      expect(menuItem.props.onSelect).toEqual(expect.any(Function));
+      expect(menuItemTitle.props.style.color).toBe(expectedTextColor);
+    },
+  );
+
+  it('uses menu colors for native quick actions when inversion is disabled', () => {
     Object.defineProperty(Platform, 'OS', {
       configurable: true,
-      value: 'web',
+      value: 'ios',
     });
-    mockColorScheme = 'dark';
     act(() => {
       mountedTree = renderer.create(
         <ThemeAwareMenu
-          darkBackground="#123456"
-          darkTextColor="#fedcba"
           defaultOpen
+          quickActionsColorSchemeInversion={false}
           quickActions={[
             { id: 'settings', label: 'Settings', onSelect: jest.fn() },
           ]}
-          side="right"
         >
           <Text>Drawer content</Text>
         </ThemeAwareMenu>,
@@ -231,19 +294,25 @@ describe('ThemeAwareMenu', () => {
     if (!tree) {
       throw new Error('Expected the menu renderer to be initialized.');
     }
-    const menuContent = tree.root.find(
-      (instance) => String(instance.type) === 'ZeegoContent',
-    );
-    const menuItem = tree.root.find(
-      (instance) => String(instance.type) === 'ZeegoItem',
-    );
-    const menuItemTitle = tree.root.find(
-      (instance) => String(instance.type) === 'ZeegoItemTitle',
-    );
+    const quickActionsTrigger = tree.root.findByProps({
+      accessibilityLabel: 'More menu actions',
+    });
 
-    expect(menuContent.props.side).toBe('left');
-    expect(menuContent.props.style.backgroundColor).toBe('#fedcba');
-    expect(menuItem.props.onSelect).toEqual(expect.any(Function));
-    expect(menuItemTitle.props.style.color).toBe('#123456');
+    act(() => {
+      quickActionsTrigger.props.onPress();
+    });
+
+    const quickActionsPanel = tree.root.findAllByType(View).find((instance) => {
+      const style = StyleSheet.flatten(instance.props.style);
+      return style?.minWidth === 180;
+    });
+    const actionLabel = tree.root
+      .findAllByType(Text)
+      .find((instance) => instance.props.children === 'Settings');
+
+    expect(
+      StyleSheet.flatten(quickActionsPanel?.props.style)?.backgroundColor,
+    ).toBe('#fff');
+    expect(actionLabel?.props.style).toEqual({ color: '#000' });
   });
 });
