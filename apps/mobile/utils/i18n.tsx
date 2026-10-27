@@ -125,6 +125,11 @@ const messages = {
     language: {
       label: 'Language',
     },
+    menu: {
+      close: 'Close menu',
+      moreActions: 'More menu actions',
+      open: 'Open menu',
+    },
     scanner: {
       allowCamera: 'Allow camera',
       permissionDenied:
@@ -280,6 +285,11 @@ const messages = {
     language: {
       label: 'Idioma',
     },
+    menu: {
+      close: 'Cerrar menú',
+      moreActions: 'Más acciones del menú',
+      open: 'Abrir menú',
+    },
     scanner: {
       allowCamera: 'Permitir cámara',
       permissionDenied:
@@ -332,6 +342,7 @@ export type TranslationKey =
   | `errors.${keyof typeof messages.en.errors}`
   | `font.${keyof typeof messages.en.font}`
   | `language.${keyof typeof messages.en.language}`
+  | `menu.${keyof typeof messages.en.menu}`
   | `scanner.${keyof typeof messages.en.scanner}`
   | `settings.${keyof typeof messages.en.settings}`
   | `status.${keyof typeof messages.en.status}`
