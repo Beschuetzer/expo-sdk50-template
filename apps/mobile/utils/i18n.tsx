@@ -126,9 +126,29 @@ const messages = {
       label: 'Language',
     },
     menu: {
+      accountAction: 'Open account',
       close: 'Close menu',
+      drawerDescription: 'A reusable drawer that adapts to your theme.',
+      drawerTitle: 'Explore',
+      explore: 'Explore the menu',
+      highlightsDescription:
+        'Use quick actions for Account and Settings, or close the drawer with the close button or backdrop.',
+      highlightsTitle: 'What this menu can do',
       moreActions: 'More menu actions',
       open: 'Open menu',
+      quickActionsDescription:
+        'Jump directly to Account or Settings from the quick actions.',
+      quickActionsTitle: 'Quick actions',
+      responsiveDescription:
+        'An animated drawer with adjustable width and left or right positioning.',
+      responsiveTitle: 'Flexible drawer',
+      settingsAction: 'Open settings',
+      showcaseDescription:
+        'See theme-aware styling, an animated drawer, and quick links to Account and Settings.',
+      showcaseTitle: 'Explore the menu',
+      themeAwareDescription:
+        'Colors follow the app’s current light or dark theme.',
+      themeAwareTitle: 'Theme-aware styling',
     },
     scanner: {
       allowCamera: 'Allow camera',
@@ -286,9 +306,29 @@ const messages = {
       label: 'Idioma',
     },
     menu: {
+      accountAction: 'Abrir cuenta',
       close: 'Cerrar menú',
+      drawerDescription: 'Un panel reutilizable que se adapta al tema.',
+      drawerTitle: 'Explorar',
+      explore: 'Explorar el menú',
+      highlightsDescription:
+        'Usa las acciones rápidas para ir a Cuenta o Configuración, o cierra el panel con el botón o tocando el fondo.',
+      highlightsTitle: 'Qué puedes hacer con este menú',
       moreActions: 'Más acciones del menú',
       open: 'Abrir menú',
+      quickActionsDescription:
+        'Ve directamente a Cuenta o Configuración desde las acciones rápidas.',
+      quickActionsTitle: 'Acciones rápidas',
+      responsiveDescription:
+        'Panel animado con ancho ajustable y apertura desde la izquierda o la derecha.',
+      responsiveTitle: 'Panel flexible',
+      settingsAction: 'Abrir configuración',
+      showcaseDescription:
+        'Prueba el estilo adaptado al tema, el panel animado y los accesos rápidos a Cuenta y Configuración.',
+      showcaseTitle: 'Explora el menú',
+      themeAwareDescription:
+        'Los colores siguen el tema claro u oscuro actual de la aplicación.',
+      themeAwareTitle: 'Estilo adaptado al tema',
     },
     scanner: {
       allowCamera: 'Permitir cámara',

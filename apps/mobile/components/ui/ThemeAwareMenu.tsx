@@ -370,7 +370,6 @@ export function ThemeAwareMenu({
               >
                 <View style={styles.headerContent}>{header}</View>
                 <View style={styles.headerActions}>
-                  {renderQuickActions()}
                   <Pressable
                     accessibilityLabel={closeLabel}
                     accessibilityRole="button"
@@ -383,6 +382,7 @@ export function ThemeAwareMenu({
                   >
                     <FontAwesome color={iconColor} name="close" size={20} />
                   </Pressable>
+                  {renderQuickActions()}
                 </View>
               </View>
               <View style={styles.body}>{children}</View>
@@ -427,6 +427,9 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 8,
     position: 'relative',
+    // Keep the overflowing quick-actions panel above the drawer body.
+    elevation: 1,
+    zIndex: 1,
   },
   headerContent: {
     flex: 1,
@@ -452,7 +455,7 @@ const styles = StyleSheet.create({
     minWidth: 180,
     overflow: 'hidden',
     position: 'absolute',
-    right: 48,
+    right: 0,
     top: 48,
     zIndex: 2,
   },

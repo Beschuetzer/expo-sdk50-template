@@ -1,5 +1,12 @@
 import React from 'react';
-import { Animated, Modal, Platform, StyleSheet, Text } from 'react-native';
+import {
+  Animated,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { ThemeAwareMenu } from './ThemeAwareMenu';
@@ -158,6 +165,26 @@ describe('ThemeAwareMenu', () => {
     act(() => {
       quickActionsTrigger.props.onPress();
     });
+
+    const header = tree.root.findAllByType(View).find((instance) => {
+      const style = StyleSheet.flatten(instance.props.style);
+      return style?.borderBottomWidth === StyleSheet.hairlineWidth;
+    });
+    const quickActionsPanel = tree.root.findAllByType(View).find((instance) => {
+      const style = StyleSheet.flatten(instance.props.style);
+      return style?.minWidth === 180;
+    });
+
+    expect(StyleSheet.flatten(header?.props.style)).toEqual(
+      expect.objectContaining({ elevation: 1, zIndex: 1 }),
+    );
+    expect(StyleSheet.flatten(quickActionsPanel?.props.style)).toEqual(
+      expect.objectContaining({
+        backgroundColor: '#fff',
+        elevation: 12,
+        zIndex: 2,
+      }),
+    );
 
     const actionButton = tree.root.findByProps({
       accessibilityLabel: 'Settings',
