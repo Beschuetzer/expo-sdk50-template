@@ -180,11 +180,15 @@ describe('ThemeAwareMenu', () => {
     );
     expect(StyleSheet.flatten(quickActionsPanel?.props.style)).toEqual(
       expect.objectContaining({
-        backgroundColor: '#fff',
+        backgroundColor: '#000',
         elevation: 12,
         zIndex: 2,
       }),
     );
+    const actionLabel = tree.root
+      .findAllByType(Text)
+      .find((instance) => instance.props.children === 'Settings');
+    expect(actionLabel?.props.style).toEqual({ color: '#fff' });
 
     const actionButton = tree.root.findByProps({
       accessibilityLabel: 'Settings',
@@ -202,14 +206,17 @@ describe('ThemeAwareMenu', () => {
     ).toHaveLength(0);
   });
 
-  it('uses Zeego for web quick actions', () => {
+  it('uses inverted theme colors for web quick actions', () => {
     Object.defineProperty(Platform, 'OS', {
       configurable: true,
       value: 'web',
     });
+    mockColorScheme = 'dark';
     act(() => {
       mountedTree = renderer.create(
         <ThemeAwareMenu
+          darkBackground="#123456"
+          darkTextColor="#fedcba"
           defaultOpen
           quickActions={[
             { id: 'settings', label: 'Settings', onSelect: jest.fn() },
@@ -230,8 +237,13 @@ describe('ThemeAwareMenu', () => {
     const menuItem = tree.root.find(
       (instance) => String(instance.type) === 'ZeegoItem',
     );
+    const menuItemTitle = tree.root.find(
+      (instance) => String(instance.type) === 'ZeegoItemTitle',
+    );
 
     expect(menuContent.props.side).toBe('left');
+    expect(menuContent.props.style.backgroundColor).toBe('#fedcba');
     expect(menuItem.props.onSelect).toEqual(expect.any(Function));
+    expect(menuItemTitle.props.style.color).toBe('#123456');
   });
 });

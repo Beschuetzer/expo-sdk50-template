@@ -144,6 +144,8 @@ export function ThemeAwareMenu({
   const iconColor = isDark ? darkIconColor : lightIconColor;
   const disabledColor = isDark ? darkDisabledColor : lightDisabledColor;
   const textColor = isDark ? darkTextColor : lightTextColor;
+  const quickActionsBackgroundColor = textColor;
+  const quickActionsTextColor = backgroundColor;
   const triggerBackground = isDark
     ? darkTriggerBackground
     : lightTriggerBackground;
@@ -235,7 +237,7 @@ export function ThemeAwareMenu({
             align="start"
             side={side === 'left' ? 'right' : 'left'}
             style={{
-              backgroundColor,
+              backgroundColor: quickActionsBackgroundColor,
               borderColor,
               borderRadius: 8,
               borderWidth: 1,
@@ -250,7 +252,9 @@ export function ThemeAwareMenu({
               >
                 <DropdownMenu.ItemTitle
                   style={{
-                    color: action.disabled ? disabledColor : textColor,
+                    color: action.disabled
+                      ? disabledColor
+                      : quickActionsTextColor,
                   }}
                 >
                   {action.label}
@@ -270,7 +274,7 @@ export function ThemeAwareMenu({
             style={[
               styles.nativeQuickActions,
               {
-                backgroundColor,
+                backgroundColor: quickActionsBackgroundColor,
                 borderColor,
               },
             ]}
@@ -291,7 +295,9 @@ export function ThemeAwareMenu({
                   { opacity: action.disabled ? 0.5 : pressed ? 0.65 : 1 },
                 ]}
               >
-                <Text style={{ color: textColor }}>{action.label}</Text>
+                <Text style={{ color: quickActionsTextColor }}>
+                  {action.label}
+                </Text>
               </Pressable>
             ))}
           </View>
