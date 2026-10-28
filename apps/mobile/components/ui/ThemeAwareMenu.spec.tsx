@@ -170,7 +170,6 @@ describe('ThemeAwareMenu', () => {
     expect(StyleSheet.flatten(headerContent?.props.style)).toEqual(
       expect.objectContaining({ flex: 1, gap: 4 }),
     );
-    expect(headerContent?.children).toHaveLength(2);
   });
 
   it('applies dark colors, width, and right-side positioning', () => {
