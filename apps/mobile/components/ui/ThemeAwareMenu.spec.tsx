@@ -15,11 +15,13 @@ import { ThemeAwareMenu } from './ThemeAwareMenu';
 
 let mockColorScheme = 'light';
 
-jest.mock('@expo/vector-icons/FontAwesome', () => {
-  const React = jest.requireActual('react') as typeof import('react');
+jest.mock('@react-native-vector-icons/fontawesome', () => {
+  const actualReact = jest.requireActual('react') as typeof import('react');
 
-  return ({ name, ...props }: Record<string, unknown>) =>
-    React.createElement(String(name), props);
+  return {
+    FontAwesome: ({ name, ...props }: Record<string, unknown>) =>
+      actualReact.createElement(String(name), props),
+  };
 });
 
 jest.mock('zeego/dropdown-menu', () => {
@@ -126,6 +128,49 @@ describe('ThemeAwareMenu', () => {
     expect(menuContent.props.style).toEqual({ flex: 1 });
     expect(menuContent.props.contentContainerStyle).toEqual({ flexGrow: 1 });
     expect(menuContent.props.keyboardShouldPersistTaps).toBe('handled');
+  });
+
+  it('provides default padding and spacing for the menu header', () => {
+    act(() => {
+      mountedTree = renderer.create(
+        <ThemeAwareMenu
+          defaultOpen
+          header={
+            <>
+              <Text>Menu title</Text>
+              <Text>Menu description</Text>
+            </>
+          }
+        >
+          <Text>Drawer content</Text>
+        </ThemeAwareMenu>,
+      );
+    });
+    const tree = mountedTree;
+    if (!tree) {
+      throw new Error('Expected the menu renderer to be initialized.');
+    }
+
+    const header = tree.root.findAllByType(View).find((instance) => {
+      const style = StyleSheet.flatten(instance.props.style);
+      return style?.borderBottomWidth === StyleSheet.hairlineWidth;
+    });
+    const headerContent = tree.root.findAllByType(View).find((instance) => {
+      const style = StyleSheet.flatten(instance.props.style);
+      return style?.gap === 4;
+    });
+
+    expect(StyleSheet.flatten(header?.props.style)).toEqual(
+      expect.objectContaining({
+        paddingLeft: 16,
+        paddingRight: 8,
+        paddingVertical: 8,
+      }),
+    );
+    expect(StyleSheet.flatten(headerContent?.props.style)).toEqual(
+      expect.objectContaining({ flex: 1, gap: 4 }),
+    );
+    expect(headerContent?.children).toHaveLength(2);
   });
 
   it('applies dark colors, width, and right-side positioning', () => {

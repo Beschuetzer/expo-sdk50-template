@@ -1,14 +1,12 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Spinner, VStack } from '@gluestack-ui/themed';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
 import { ThemeAwareHeading } from '@/components/ui/ThemeAwareHeading';
+import { ThemeAwareIcon } from '@/components/ui/ThemeAwareIcon';
 import { ThemeAwareScreen } from '@/components/ui/ThemeAwareScreen';
 import { ThemeAwareSurface } from '@/components/ui/ThemeAwareSurface';
 import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
-import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
-import { COLORS } from '@/constants/colors';
 import { Routes } from '@/constants/navigation';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { useI18n } from '@/utils/i18n';
@@ -16,7 +14,6 @@ import { useI18n } from '@/utils/i18n';
 export default function OAuthCallbackScreen() {
   const router = useRouter();
   const { t } = useI18n();
-  const { colorScheme } = useThemeAwareColors();
   const { isAuthenticated, state } = useOAuth2Auth();
 
   useEffect(() => {
@@ -49,11 +46,7 @@ export default function OAuthCallbackScreen() {
           lightBackground="$primary50"
           w="$20"
         >
-          <FontAwesome
-            name="shield"
-            color={COLORS[colorScheme].tint}
-            size={32}
-          />
+          <ThemeAwareIcon name="shield" size={32} />
         </ThemeAwareSurface>
         <VStack alignItems="center" maxWidth={360} space="md" width="100%">
           <ThemeAwareHeading size="2xl" textAlign="center">

@@ -1,4 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 
+import { ThemeAwareIcon } from '@/components/ui/ThemeAwareIcon';
 import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
 import { COLORS } from '@/constants/colors';
 import { useI18n } from '@/utils/i18n';
@@ -261,7 +261,7 @@ export function ThemeAwareMenu({
         onPress={Platform.OS === 'web' ? undefined : toggleNativeQuickActions}
         style={[styles.headerButton, { backgroundColor: triggerBackground }]}
       >
-        <FontAwesome color={iconColor} name="ellipsis-v" size={20} />
+        <ThemeAwareIcon color={iconColor} name="ellipsis-v" size={20} />
       </Pressable>
     );
 
@@ -358,7 +358,7 @@ export function ThemeAwareMenu({
           triggerStyle,
         ]}
       >
-        <FontAwesome color={iconColor} name="bars" size={iconSize} />
+        <ThemeAwareIcon color={iconColor} name="bars" size={iconSize} />
       </Pressable>
       <Modal
         animationType="none"
@@ -425,7 +425,7 @@ export function ThemeAwareMenu({
                       { backgroundColor: triggerBackground },
                     ]}
                   >
-                    <FontAwesome color={iconColor} name="close" size={20} />
+                    <ThemeAwareIcon color={iconColor} name="close" size={20} />
                   </Pressable>
                   {renderQuickActions()}
                 </View>

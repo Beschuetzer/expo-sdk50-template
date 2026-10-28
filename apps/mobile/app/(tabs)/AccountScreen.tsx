@@ -1,15 +1,12 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { ButtonText, HStack, VStack } from '@gluestack-ui/themed';
 import { Image } from 'expo-image';
-import type { ComponentProps } from 'react';
 
 import { ThemeAwareButton } from '@/components/ui/ThemeAwareButton';
 import { ThemeAwareHeading } from '@/components/ui/ThemeAwareHeading';
+import { ThemeAwareIcon } from '@/components/ui/ThemeAwareIcon';
 import { ThemeAwareScreen } from '@/components/ui/ThemeAwareScreen';
 import { ThemeAwareSurface } from '@/components/ui/ThemeAwareSurface';
 import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
-import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
-import { COLORS } from '@/constants/colors';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import {
   type AccountProvider,
@@ -31,10 +28,6 @@ const accountProviderTranslationKeys: Record<AccountProvider, TranslationKey> =
     microsoft: 'account.providerMicrosoft',
     x: 'account.providerX',
   };
-
-function AccountIcon(props: Omit<ComponentProps<typeof FontAwesome>, 'name'>) {
-  return <FontAwesome {...props} name="user-circle" />;
-}
 
 function getClaimText(
   claims: Record<string, unknown>,
@@ -67,8 +60,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function AccountScreen() {
   const { t } = useI18n();
-  const { colorScheme } = useThemeAwareColors();
-  const accountIconColor = COLORS[colorScheme].tint;
   const {
     callAuthenticatedEndpoint,
     isAuthenticated,
@@ -125,7 +116,7 @@ export default function AccountScreen() {
             style={{ borderRadius: 28, height: 56, width: 56 }}
           />
         ) : (
-          <AccountIcon color={accountIconColor} size={42} />
+          <ThemeAwareIcon name="user-circle" size={42} />
         )}
         <VStack flex={1} space="xs">
           <ThemeAwareHeading size="2xl">{t('account.title')}</ThemeAwareHeading>
@@ -141,7 +132,11 @@ export default function AccountScreen() {
         {isAuthenticated ? (
           <VStack space="md">
             <HStack space="sm" alignItems="center">
-              <FontAwesome name="check-circle" color="#27AE60" size={20} />
+              <ThemeAwareIcon
+                color="#27AE60"
+                name="check-circle"
+                size={20}
+              />
               <VStack flex={1} space="xs">
                 <ThemeAwareText fontWeight="$bold">
                   {t('account.signedInStatus')}
