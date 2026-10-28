@@ -26,6 +26,38 @@ const MENU_HIGHLIGHTS = [
     title: 'menu.responsiveTitle',
     description: 'menu.responsiveDescription',
   },
+  {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+  {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+  {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+  {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+   {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+   {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+   {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
+   {
+    title: 'menu.responsiveTitle',
+    description: 'menu.responsiveDescription',
+  },
 ] as const;
 
 export default function HomeScreen() {
@@ -89,7 +121,9 @@ export default function HomeScreen() {
                     p="$3"
                   >
                     <VStack space="xs">
-                      <ThemeAwareHeading size="sm">{t(title)}</ThemeAwareHeading>
+                      <ThemeAwareHeading size="sm">
+                        {t(title)}
+                      </ThemeAwareHeading>
                       <ThemeAwareText>{t(description)}</ThemeAwareText>
                     </VStack>
                   </ThemeAwareSurface>

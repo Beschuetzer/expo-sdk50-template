@@ -4,6 +4,7 @@ import {
   Modal,
   PanResponder,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -121,6 +122,10 @@ describe('ThemeAwareMenu', () => {
     expect(onOpenChange).toHaveBeenCalledWith(true);
     expect(tree.root.findByType(Modal).props.visible).toBe(true);
     expect(tree.root.findByType(Text).props.children).toBe('Menu content');
+    const menuContent = tree.root.findByType(ScrollView);
+    expect(menuContent.props.style).toEqual({ flex: 1 });
+    expect(menuContent.props.contentContainerStyle).toEqual({ flexGrow: 1 });
+    expect(menuContent.props.keyboardShouldPersistTaps).toBe('handled');
   });
 
   it('applies dark colors, width, and right-side positioning', () => {

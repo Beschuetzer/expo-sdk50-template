@@ -7,6 +7,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -429,7 +430,13 @@ export function ThemeAwareMenu({
                   {renderQuickActions()}
                 </View>
               </View>
-              <View style={styles.body}>{children}</View>
+              <ScrollView
+                contentContainerStyle={styles.bodyContent}
+                keyboardShouldPersistTaps="handled"
+                style={styles.body}
+              >
+                {children}
+              </ScrollView>
             </View>
           </Animated.View>
         </View>
@@ -491,6 +498,9 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  bodyContent: {
+    flexGrow: 1,
   },
   nativeQuickActions: {
     borderRadius: 8,
