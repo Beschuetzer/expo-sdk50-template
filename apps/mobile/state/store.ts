@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import type { TypedUseSelectorHook } from 'react-redux';
 import { persistStore, persistReducer } from 'redux-persist';
 
 import generalReducer, { generalSlice } from '@/state/slices/generalSlice';
@@ -13,7 +14,7 @@ const persistConfig = {
   whitelist: [generalSlice.name],
   serialize: true,
   writeFailHandler: (error: Error) => {
-    logWarn('redux_persist_write_failed', { error });
+    logWarn('redux_persistence_write_failed', { error });
   },
   debug: false,
   throttle: 200,
@@ -41,7 +42,8 @@ export const store = configureStore({
     const enhancers = getDefaultEnhancers();
     if (!__DEV__) return enhancers;
 
-    const devToolsEnhancer = require('redux-devtools-expo-dev-plugin').default;
+    const devToolsEnhancer =
+      require('redux-devtools-expo-dev-plugin').default;
     return enhancers.concat(devToolsEnhancer());
   },
   middleware: (getDefaultMiddleware) => {
@@ -59,8 +61,6 @@ export const persistor = persistStore(store);
 export type RootState = ReturnType<typeof store.getState>;
 // Inferred type: {posts: PostsState, comments: CommentsState, users: UsersState}
 export type AppDispatch = typeof store.dispatch;
-
-// app/hooks.ts
 
 // Use throughout your app instead of plain `useDispatch` and `useSelector`
 export const useAppDispatch = () => useDispatch<AppDispatch>();
