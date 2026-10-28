@@ -125,6 +125,55 @@ const messages = {
     language: {
       label: 'Language',
     },
+    menu: {
+      accountAction: 'Open account',
+      close: 'Close menu',
+      drawerDescription: 'A reusable drawer that adapts to your theme.',
+      drawerTitle: 'Explore',
+      explore: 'Explore the menu',
+      highlightsDescription:
+        'Use quick actions for Account and Settings, or close the drawer with the close button or backdrop.',
+      highlightsTitle: 'What this menu can do',
+      moreActions: 'More menu actions',
+      open: 'Open menu',
+      quickActionsDescription:
+        'Jump directly to Account or Settings from the quick actions.',
+      quickActionsTitle: 'Quick actions',
+      responsiveDescription:
+        'An animated drawer with adjustable width and left or right positioning.',
+      responsiveTitle: 'Flexible drawer',
+      settingsAction: 'Open settings',
+      showcaseDescription:
+        'See theme-aware styling, an animated drawer, and quick links to Account and Settings.',
+      showcaseTitle: 'Explore the menu',
+      themeAwareDescription:
+        'Colors follow the app’s current light or dark theme.',
+      themeAwareTitle: 'Theme-aware styling',
+    },
+    sampleContent: {
+      communityBoardDescription:
+        'Recommendations, announcements, and local stories.',
+      communityBoardTitle: 'Community board',
+      fieldNotesDescription:
+        'Observations and ideas captured throughout the day.',
+      fieldNotesTitle: 'Field notes',
+      morningBriefDescription:
+        "A quick look at today's weather and noteworthy updates.",
+      morningBriefTitle: 'Morning brief',
+      photoJournalDescription:
+        'Moments from recent outings and everyday life.',
+      photoJournalTitle: 'Photo journal',
+      readingListDescription:
+        'Articles and books saved to revisit when you have time.',
+      readingListTitle: 'Reading list',
+      recentActivityDescription:
+        'Updates from projects, shared spaces, and personal tasks.',
+      recentActivityTitle: 'Recent activity',
+      sectionTitle: 'Everyday examples',
+      weeklyPlanDescription:
+        'Upcoming events and priorities collected in one place.',
+      weeklyPlanTitle: 'Weekly plan',
+    },
     scanner: {
       allowCamera: 'Allow camera',
       permissionDenied:
@@ -280,6 +329,55 @@ const messages = {
     language: {
       label: 'Idioma',
     },
+    menu: {
+      accountAction: 'Abrir cuenta',
+      close: 'Cerrar menú',
+      drawerDescription: 'Un panel reutilizable que se adapta al tema.',
+      drawerTitle: 'Explorar',
+      explore: 'Explorar el menú',
+      highlightsDescription:
+        'Usa las acciones rápidas para ir a Cuenta o Configuración, o cierra el panel con el botón o tocando el fondo.',
+      highlightsTitle: 'Qué puedes hacer con este menú',
+      moreActions: 'Más acciones del menú',
+      open: 'Abrir menú',
+      quickActionsDescription:
+        'Ve directamente a Cuenta o Configuración desde las acciones rápidas.',
+      quickActionsTitle: 'Acciones rápidas',
+      responsiveDescription:
+        'Panel animado con ancho ajustable y apertura desde la izquierda o la derecha.',
+      responsiveTitle: 'Panel flexible',
+      settingsAction: 'Abrir configuración',
+      showcaseDescription:
+        'Prueba el estilo adaptado al tema, el panel animado y los accesos rápidos a Cuenta y Configuración.',
+      showcaseTitle: 'Explora el menú',
+      themeAwareDescription:
+        'Los colores siguen el tema claro u oscuro actual de la aplicación.',
+      themeAwareTitle: 'Estilo adaptado al tema',
+    },
+    sampleContent: {
+      communityBoardDescription:
+        'Recomendaciones, anuncios e historias locales.',
+      communityBoardTitle: 'Tablón comunitario',
+      fieldNotesDescription:
+        'Observaciones e ideas registradas a lo largo del día.',
+      fieldNotesTitle: 'Notas de campo',
+      morningBriefDescription:
+        'Un vistazo rápido al clima de hoy y a las novedades destacadas.',
+      morningBriefTitle: 'Resumen matutino',
+      photoJournalDescription:
+        'Momentos de paseos recientes y de la vida cotidiana.',
+      photoJournalTitle: 'Diario fotográfico',
+      readingListDescription:
+        'Artículos y libros guardados para volver a ellos cuando tengas tiempo.',
+      readingListTitle: 'Lista de lectura',
+      recentActivityDescription:
+        'Novedades de proyectos, espacios compartidos y tareas personales.',
+      recentActivityTitle: 'Actividad reciente',
+      sectionTitle: 'Ejemplos cotidianos',
+      weeklyPlanDescription:
+        'Próximos eventos y prioridades reunidos en un solo lugar.',
+      weeklyPlanTitle: 'Plan semanal',
+    },
     scanner: {
       allowCamera: 'Permitir cámara',
       permissionDenied:
@@ -332,6 +430,8 @@ export type TranslationKey =
   | `errors.${keyof typeof messages.en.errors}`
   | `font.${keyof typeof messages.en.font}`
   | `language.${keyof typeof messages.en.language}`
+  | `menu.${keyof typeof messages.en.menu}`
+  | `sampleContent.${keyof typeof messages.en.sampleContent}`
   | `scanner.${keyof typeof messages.en.scanner}`
   | `settings.${keyof typeof messages.en.settings}`
   | `status.${keyof typeof messages.en.status}`

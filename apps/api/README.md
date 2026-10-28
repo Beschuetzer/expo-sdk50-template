@@ -15,7 +15,9 @@ Node.js HTTP API for local development and production-oriented extension.
 ## Runtime configuration
 
 - `HOST`: bind address, default `0.0.0.0`.
-- `PORT`: TCP port from `1` to `65535`, default `4200`.
+- `PORT`: TCP port from `1` to `65535`, default `4200`. Set it in
+  `apps/api/.env` to change the API port during `npm run dev`; the same value is
+  used for the local Expo API URL.
 - `NODE_ENV`: runtime environment label, default `development`.
 - `DATABASE_URL`: MongoDB connection string for Prisma. Required for database access.
 - `AUTH_ISSUER_BASE_URL`: OAuth2/OIDC issuer base URL. Required for protected routes.

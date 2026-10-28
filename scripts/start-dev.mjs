@@ -12,6 +12,11 @@ if (fs.existsSync(apiEnvironmentFile)) {
   }
   process.loadEnvFile(apiEnvironmentFile);
 }
+const configuredApiPort = process.env.PORT?.trim();
+const apiPort = configuredApiPort ? Number(configuredApiPort) : 4200;
+if (!Number.isInteger(apiPort) || apiPort < 1 || apiPort > 65535) {
+  throw new Error('PORT must be an integer between 1 and 65535');
+}
 const IDP_URL = process.env.AUTH_ISSUER_BASE_URL?.trim().replace(/\/$/, '');
 if (!IDP_URL) {
   throw new Error('AUTH_ISSUER_BASE_URL must be set in apps/api/.env');
@@ -189,11 +194,13 @@ configuredDatabase.searchParams.set('serverSelectionTimeoutMS', '5000');
 configuredDatabase.searchParams.set('connectTimeoutMS', '5000');
 const sharedEnvironment = {
   NODE_ENV: 'development',
+  PORT: String(apiPort),
   AUTH_AUDIENCE: `${IDP_URL}/resources/api`,
   AUTH_CLIENT_ID: oauthClientId,
   AUTH_ISSUER_BASE_URL: IDP_URL,
   DATABASE_URL: configuredDatabase.toString(),
   EXPO_PUBLIC_IDP_URL: IDP_URL,
+  EXPO_PUBLIC_PORT_NUMBER: String(apiPort),
   EXPO_PUBLIC_OAUTH_AUDIENCE: `${IDP_URL}/resources/api`,
   EXPO_PUBLIC_OAUTH_CLIENT_ID: oauthClientId,
   EXPO_PUBLIC_OAUTH_SCOPES:

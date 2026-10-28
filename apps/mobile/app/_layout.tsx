@@ -1,4 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { config } from '@gluestack-ui/config';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -53,7 +52,10 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     TypeLightSans: require('../assets/fonts/TypeLightSans.otf'),
     Zomboid: require('../assets/fonts/Zomboid.ttf'),
-    ...FontAwesome.font,
+    // Expo SDK 50 needs this font registered through expo-font.
+    FontAwesome: require(
+      '@react-native-vector-icons/fontawesome/fonts/FontAwesome.ttf',
+    ),
   });
 
   useEffect(() => {

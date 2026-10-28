@@ -17,6 +17,20 @@ const API_ENV_FILE_PATH = path.resolve(
   '../api/.env',
 );
 
+function getBackendPort() {
+  const configuredPort = process.env.PORT?.trim();
+  if (!configuredPort) {
+    return BACKEND_PORT;
+  }
+
+  const port = Number(configuredPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PORT must be an integer between 1 and 65535');
+  }
+
+  return port;
+}
+
 async function addIpAddressToEnvFile() {
   if (fs.existsSync(API_ENV_FILE_PATH)) {
     if (typeof process.loadEnvFile !== 'function') {
@@ -35,10 +49,11 @@ async function addIpAddressToEnvFile() {
     process.env.AUTH_AUDIENCE?.trim() ||
     (identityProviderUrl ? `${identityProviderUrl}/resources/api` : undefined);
   let lines;
+  const backendPort = getBackendPort();
   const toWrite = [
     `${EXPO_PUBLIC_ENV_STRING}=development`,
     `${EXPO_PUBLIC_IP_ADDRESS_STRING}=${getIPAddress()}`,
-    `${EXPO_PUBLIC_PORT_NUMBER_STRING}=${BACKEND_PORT}`,
+    `${EXPO_PUBLIC_PORT_NUMBER_STRING}=${backendPort}`,
     ...(identityProviderUrl
       ? [`EXPO_PUBLIC_IDP_URL=${identityProviderUrl}`]
       : []),

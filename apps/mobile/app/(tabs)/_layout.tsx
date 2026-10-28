@@ -1,4 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Image } from 'expo-image';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
@@ -6,6 +5,7 @@ import { Pressable } from 'react-native';
 
 import { useClientOnlyValue } from '@/components/hooks/useClientOnlyValue';
 import { useColorScheme } from '@/components/hooks/useColorScheme';
+import { ThemeAwareIcon } from '@/components/ui/ThemeAwareIcon';
 import { COLORS } from '@/constants/colors';
 import { Routes } from '@/constants/navigation';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
@@ -13,10 +13,10 @@ import { getProfilePictureFromClaims } from '@/features/auth/client';
 import { useI18n } from '@/utils/i18n';
 
 function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
+  name: React.ComponentProps<typeof ThemeAwareIcon>['name'];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <ThemeAwareIcon size={28} style={{ marginBottom: -3 }} {...props} />;
 }
 
 export default function TabLayout() {
@@ -59,11 +59,7 @@ export default function TabLayout() {
                 padding: 8,
               })}
             >
-              <FontAwesome
-                name="cog"
-                size={20}
-                color={COLORS[colorScheme ?? 'light'].tint}
-              />
+              <ThemeAwareIcon name="cog" size={20} />
             </Pressable>
           ),
           tabBarIcon: ({ color }) =>
