@@ -89,14 +89,14 @@ export default function HomeScreen() {
           headerRight: () => (
             <ThemeAwareMenu
               header={
-                <VStack space="xs">
+                <>
                   <ThemeAwareHeading size="md">
                     {t('menu.drawerTitle')}
                   </ThemeAwareHeading>
                   <ThemeAwareText size="sm">
                     {t('menu.drawerDescription')}
                   </ThemeAwareText>
-                </VStack>
+                </>
               }
               onOpenChange={setIsMenuOpen}
               open={isMenuOpen}

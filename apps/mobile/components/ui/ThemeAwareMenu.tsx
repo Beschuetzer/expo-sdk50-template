@@ -477,6 +477,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingLeft: 16,
     paddingRight: 8,
+    paddingVertical: 8,
     position: 'relative',
     // Keep the overflowing quick-actions panel above the drawer body.
     elevation: 1,
@@ -484,6 +485,7 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
+    gap: 4,
   },
   headerActions: {
     alignItems: 'center',
