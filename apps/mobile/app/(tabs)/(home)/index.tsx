@@ -26,37 +26,36 @@ const MENU_HIGHLIGHTS = [
     title: 'menu.responsiveTitle',
     description: 'menu.responsiveDescription',
   },
+] as const;
+
+const SAMPLE_CONTENT_ITEMS = [
   {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
-  },
-  {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
-  },
-  {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
+    title: 'sampleContent.morningBriefTitle',
+    description: 'sampleContent.morningBriefDescription',
   },
   {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
+    title: 'sampleContent.readingListTitle',
+    description: 'sampleContent.readingListDescription',
   },
-   {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
+  {
+    title: 'sampleContent.recentActivityTitle',
+    description: 'sampleContent.recentActivityDescription',
   },
-   {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
+  {
+    title: 'sampleContent.weeklyPlanTitle',
+    description: 'sampleContent.weeklyPlanDescription',
   },
-   {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
+  {
+    title: 'sampleContent.fieldNotesTitle',
+    description: 'sampleContent.fieldNotesDescription',
   },
-   {
-    title: 'menu.responsiveTitle',
-    description: 'menu.responsiveDescription',
+  {
+    title: 'sampleContent.communityBoardTitle',
+    description: 'sampleContent.communityBoardDescription',
+  },
+  {
+    title: 'sampleContent.photoJournalTitle',
+    description: 'sampleContent.photoJournalDescription',
   },
 ] as const;
 
@@ -113,6 +112,25 @@ export default function HomeScreen() {
                   {t('menu.highlightsDescription')}
                 </ThemeAwareText>
                 {MENU_HIGHLIGHTS.map(({ title, description }) => (
+                  <ThemeAwareSurface
+                    key={title}
+                    darkBackground="$backgroundDark900"
+                    lightBackground="$backgroundLight50"
+                    borderRadius="$md"
+                    p="$3"
+                  >
+                    <VStack space="xs">
+                      <ThemeAwareHeading size="sm">
+                        {t(title)}
+                      </ThemeAwareHeading>
+                      <ThemeAwareText>{t(description)}</ThemeAwareText>
+                    </VStack>
+                  </ThemeAwareSurface>
+                ))}
+                <ThemeAwareHeading size="lg">
+                  {t('sampleContent.sectionTitle')}
+                </ThemeAwareHeading>
+                {SAMPLE_CONTENT_ITEMS.map(({ title, description }) => (
                   <ThemeAwareSurface
                     key={title}
                     darkBackground="$backgroundDark900"

@@ -124,7 +124,7 @@ describe('HomeScreen menu showcase', () => {
     mockRouterPush.mockClear();
   });
 
-  it('highlights the menu features and provides quick navigation actions', () => {
+  it('shows unique highlights and sample content with quick navigation actions', () => {
     const tree = renderer.create(<HomeScreen />);
     const menu = tree.root.find(
       (instance) => String(instance.type) === 'ThemeAwareMenu',
@@ -152,15 +152,38 @@ describe('HomeScreen menu showcase', () => {
       { id: 'account', label: 'menu.accountAction' },
       { id: 'settings', label: 'menu.settingsAction' },
     ]);
+    const expectedHighlightTitles = [
+      'menu.themeAwareTitle',
+      'menu.quickActionsTitle',
+      'menu.responsiveTitle',
+    ];
+    const expectedSampleTitles = [
+      'sampleContent.morningBriefTitle',
+      'sampleContent.readingListTitle',
+      'sampleContent.recentActivityTitle',
+      'sampleContent.weeklyPlanTitle',
+      'sampleContent.fieldNotesTitle',
+      'sampleContent.communityBoardTitle',
+      'sampleContent.photoJournalTitle',
+    ];
+    const highlightTitles = headings.filter((heading) =>
+      expectedHighlightTitles.includes(heading),
+    );
+    const sampleTitles = headings.filter((heading) =>
+      expectedSampleTitles.includes(heading),
+    );
+
     expect(headings).toEqual(
       expect.arrayContaining([
         'menu.showcaseTitle',
         'menu.highlightsTitle',
-        'menu.themeAwareTitle',
-        'menu.quickActionsTitle',
-        'menu.responsiveTitle',
+        'sampleContent.sectionTitle',
       ]),
     );
+    expect(highlightTitles).toEqual(expectedHighlightTitles);
+    expect(new Set(highlightTitles).size).toBe(highlightTitles.length);
+    expect(sampleTitles).toEqual(expectedSampleTitles);
+    expect(new Set(sampleTitles).size).toBe(sampleTitles.length);
   });
 
   it('opens from the home call to action and closes before navigation', () => {
