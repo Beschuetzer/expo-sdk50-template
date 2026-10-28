@@ -267,6 +267,7 @@ test('configuration uses defaults and validates the port', () => {
       requiredScopes: [],
     },
   });
+  assert.equal(loadTestConfig({ PORT: '4300' }).port, 4300);
   assert.throws(
     () => loadTestConfig({ PORT: 'invalid' }),
     /PORT must be an integer/,

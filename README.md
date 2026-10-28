@@ -20,7 +20,7 @@ For detailed repo instructions, see [AGENTS.md](AGENTS.md).
 - `shared-types`: source-only TypeScript contracts in `libs/shared-types`, consumed by both apps.
 
 The API currently exposes public `GET /health` and protected `GET /api/v1/me`
-on port `4200`.
+on port `4200` by default.
 
 The API validates tokens from the configured beta identity provider using its
 OIDC discovery and JWKS metadata. Set the issuer once in `apps/api/.env`; mobile
@@ -139,6 +139,8 @@ npm run dev
 On Windows, this opens separate PowerShell windows for Expo and the API so each
 process keeps its own logs and interactive output. Close either window to stop
 that process. On other platforms, both commands run in the current terminal.
+To change the local API port, set `PORT` in `apps/api/.env`; `npm run dev`
+passes that port to the API and uses it for the mobile app's API URL as well.
 
 Start either project independently:
 
@@ -171,11 +173,12 @@ phone's address:
     `192.168.4.39`.
 
 Before Metro starts, `apps/mobile/setup.mjs` detects a non-loopback IPv4 address
-and rewrites `EXPO_PUBLIC_IP_ADDRESS` and the backend port in
-`apps/mobile/.env`. Therefore, manually editing that IP is not persistent. To
-use a fixed address, set `EXPO_PUBLIC_API_URL` instead. Production and preview
-builds should use the deployed API URL; the production fallback is only a
-placeholder.
+and rewrites `EXPO_PUBLIC_IP_ADDRESS` and `EXPO_PUBLIC_PORT_NUMBER` in
+`apps/mobile/.env`. The port comes from `PORT` in `apps/api/.env` (default
+`4200`), keeping the mobile app and API in sync. Therefore, manually editing the
+IP is not persistent. To use a fixed address, set `EXPO_PUBLIC_API_URL` instead.
+Production and preview builds should use the deployed API URL; the production
+fallback is only a placeholder.
 
 The mobile client initiates OAuth: it discovers the identity provider and
 starts the PKCE authorization request. Native clients exchange the code with
