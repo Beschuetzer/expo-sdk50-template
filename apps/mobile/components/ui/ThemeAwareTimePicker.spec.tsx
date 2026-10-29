@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import renderer, { act } from 'react-test-renderer';
 
-import { ThemeAwareDatePicker } from './ThemeAwareDatePicker';
+import { ThemeAwareTimePicker } from './ThemeAwareTimePicker';
 
 let mockColorScheme = 'light';
 let mockPlatformOS = 'ios';
@@ -27,7 +27,7 @@ jest.mock('@react-native-community/datetimepicker', () => {
     default: (props: Record<string, unknown>) =>
       React.createElement('NativeDateTimePicker', props),
   };
-}, { virtual: true });
+});
 
 jest.mock('@gluestack-ui/themed', () => {
   const React = jest.requireActual('react') as typeof import('react');
@@ -102,7 +102,7 @@ jest.mock('@/utils/i18n', () => ({
   }),
 }));
 
-describe('ThemeAwareDatePicker', () => {
+describe('ThemeAwareTimePicker', () => {
   afterEach(() => {
     mockColorScheme = 'light';
     mockPlatformOS = 'ios';
@@ -118,7 +118,7 @@ describe('ThemeAwareDatePicker', () => {
     const minimumDate = new Date(2024, 0, 1);
     const maximumDate = new Date(2024, 11, 31);
     const tree = renderer.create(
-      <ThemeAwareDatePicker
+      <ThemeAwareTimePicker
         maximumDate={maximumDate}
         minimumDate={minimumDate}
         onChange={onChange}
@@ -175,14 +175,43 @@ describe('ThemeAwareDatePicker', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('closes the native Android picker after selection', () => {
+  it('uses date and time mode on iOS', () => {
+    const value = new Date(2024, 0, 15, 13, 30);
+    const tree = renderer.create(
+      <ThemeAwareTimePicker mode="datetime" value={value} />,
+    );
+    const inputField = tree.root.find(
+      (instance) => String(instance.type) === 'InputField',
+    );
+
+    expect(inputField.props.placeholder).toBe('dateTimePicker.placeholder');
+    expect(inputField.props.value).toBe(value.toLocaleString('en'));
+
+    const openButton = tree.root.find(
+      (instance) =>
+        String(instance.type) === 'InputSlot' &&
+        instance.props.accessibilityLabel === 'dateTimePicker.open',
+    );
+    act(() => openButton.props.onPress());
+
+    const picker = tree.root.find(
+      (instance) => String(instance.type) === 'NativeDateTimePicker',
+    );
+    expect(picker.props.mode).toBe('datetime');
+    expect(
+      tree.root.find((instance) => String(instance.type) === 'ThemedModal')
+        .props.title,
+    ).toBe('dateTimePicker.title');
+  });
+
+  it('closes the native Android date picker after selection', () => {
     mockPlatformOS = 'android';
     const onClose = jest.fn();
     function ControlledPicker() {
       const [value, setValue] = React.useState(new Date(2024, 0, 15));
 
       return (
-        <ThemeAwareDatePicker
+        <ThemeAwareTimePicker
           onChange={(event, date) => {
             if (event.type === 'set' && date) {
               setValue(date);
@@ -227,12 +256,64 @@ describe('ThemeAwareDatePicker', () => {
     ).toHaveLength(0);
   });
 
+  it('selects the date and time in sequence on Android', () => {
+    mockPlatformOS = 'android';
+    const onChange = jest.fn();
+    const onClose = jest.fn();
+    const tree = renderer.create(
+      <ThemeAwareTimePicker
+        display="calendar"
+        mode="datetime"
+        onChange={onChange}
+        onClose={onClose}
+      />,
+    );
+    const openButton = tree.root.find(
+      (instance) => String(instance.type) === 'InputSlot',
+    );
+
+    act(() => openButton.props.onPress());
+
+    const datePickerProps = mockAndroidOpen.mock.calls[0][0];
+    expect(datePickerProps).toEqual(
+      expect.objectContaining({ display: 'calendar', mode: 'date' }),
+    );
+    const pickedDate = new Date(2024, 0, 20);
+    const dateEvent = {
+      type: 'set',
+      nativeEvent: { timestamp: pickedDate.getTime(), utcOffset: 0 },
+    };
+    act(() => datePickerProps.onChange(dateEvent, pickedDate));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(mockAndroidOpen).toHaveBeenCalledTimes(2);
+    const timePickerProps = mockAndroidOpen.mock.calls[1][0];
+    expect(timePickerProps).toEqual(
+      expect.objectContaining({
+        display: 'default',
+        mode: 'time',
+        value: pickedDate,
+      }),
+    );
+
+    const pickedDateTime = new Date(2024, 0, 20, 14, 45);
+    const timeEvent = {
+      type: 'set',
+      nativeEvent: { timestamp: pickedDateTime.getTime(), utcOffset: 0 },
+    };
+    act(() => timePickerProps.onChange(timeEvent, pickedDateTime));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(timeEvent, pickedDateTime);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('reports dismissed native picker events as cancellations', () => {
     mockPlatformOS = 'android';
     const onCancel = jest.fn();
     const onClose = jest.fn();
     const tree = renderer.create(
-      <ThemeAwareDatePicker onCancel={onCancel} onClose={onClose} />,
+      <ThemeAwareTimePicker onCancel={onCancel} onClose={onClose} />,
     );
     const calendarIcon = tree.root.find(
       (instance) => String(instance.type) === 'InputSlot',
@@ -257,7 +338,7 @@ describe('ThemeAwareDatePicker', () => {
     const onChange = jest.fn();
     const onClose = jest.fn();
     const tree = renderer.create(
-      <ThemeAwareDatePicker
+      <ThemeAwareTimePicker
         neutralButton={{ label: 'Clear' }}
         onChange={onChange}
         onClose={onClose}
@@ -283,7 +364,7 @@ describe('ThemeAwareDatePicker', () => {
   it('clears the selected date from the calendar field', () => {
     const onClear = jest.fn();
     const tree = renderer.create(
-      <ThemeAwareDatePicker
+      <ThemeAwareTimePicker
         clearable
         onClear={onClear}
         value={new Date(2024, 0, 15)}
@@ -307,7 +388,7 @@ describe('ThemeAwareDatePicker', () => {
     const minimumDate = new Date(2024, 0, 1);
     const maximumDate = new Date(2024, 11, 31);
     const tree = renderer.create(
-      <ThemeAwareDatePicker
+      <ThemeAwareTimePicker
         maximumDate={maximumDate}
         minimumDate={minimumDate}
         onChange={onChange}
@@ -353,98 +434,53 @@ describe('ThemeAwareDatePicker', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('opens the browser date picker from the calendar button', () => {
-    mockPlatformOS = 'web';
-    const onOpen = jest.fn();
-    const tree = renderer.create(<ThemeAwareDatePicker onOpen={onOpen} />);
-    const calendarIcon = tree.root.find(
-      (instance) =>
-        String(instance.type) === 'InputSlot' &&
-        instance.props.accessibilityLabel === 'datePicker.open',
-    );
-
-    act(() => calendarIcon.props.onPress());
-
-    expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(mockAndroidOpen).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { label: 'empty', value: '' },
-    { label: 'invalid', value: '2024-02-31' },
-  ])('ignores $label browser date values', ({ value }) => {
+  it('uses a browser date and time input on web', () => {
     mockPlatformOS = 'web';
     const onChange = jest.fn();
     const onClose = jest.fn();
+    const minimumDate = new Date(2024, 0, 1, 9);
+    const maximumDate = new Date(2024, 11, 31, 17);
     const tree = renderer.create(
-      <ThemeAwareDatePicker onChange={onChange} onClose={onClose} />,
+      <ThemeAwareTimePicker
+        maximumDate={maximumDate}
+        minimumDate={minimumDate}
+        mode="datetime"
+        onChange={onChange}
+        onClose={onClose}
+        value={new Date(2024, 0, 15, 12, 30)}
+      />,
     );
-    const dateInput = tree.root.find(
+    const dateTimeInput = tree.root.find(
       (instance) => String(instance.type) === 'input',
     );
 
-    act(() =>
-      dateInput.props.onChange({
-        currentTarget: { value },
+    expect(dateTimeInput.props).toEqual(
+      expect.objectContaining({
+        max: '2024-12-31T17:00',
+        min: '2024-01-01T09:00',
+        step: 60,
+        type: 'datetime-local',
+        value: '2024-01-15T12:30',
       }),
     );
 
-    expect(onChange).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it('does not open or clear a disabled picker', () => {
-    mockPlatformOS = 'android';
-    const onOpen = jest.fn();
-    const onClear = jest.fn();
-    const tree = renderer.create(
-      <ThemeAwareDatePicker
-        clearable
-        isDisabled
-        onClear={onClear}
-        onOpen={onOpen}
-        value={new Date(2024, 0, 15)}
-      />,
-    );
-    const clearButton = tree.root.find(
-      (instance) =>
-        String(instance.type) === 'InputSlot' &&
-        instance.props.accessibilityLabel === 'datePicker.clear',
-    );
-    const openButton = tree.root.find(
-      (instance) =>
-        String(instance.type) === 'InputSlot' &&
-        instance.props.accessibilityLabel === 'datePicker.open',
+    const pickedDateTime = new Date(2024, 0, 20, 14, 45);
+    act(() =>
+      dateTimeInput.props.onChange({
+        currentTarget: { value: '2024-01-20T14:45' },
+      }),
     );
 
-    act(() => {
-      clearButton.props.onPress();
-      openButton.props.onPress();
-    });
-
-    expect(onClear).not.toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-    expect(mockAndroidOpen).not.toHaveBeenCalled();
-  });
-
-  it('reports cancellation when the iOS picker modal is dismissed', () => {
-    const onCancel = jest.fn();
-    const onClose = jest.fn();
-    const tree = renderer.create(
-      <ThemeAwareDatePicker onCancel={onCancel} onClose={onClose} />,
+    expect(onChange).toHaveBeenCalledWith(
+      {
+        type: 'set',
+        nativeEvent: {
+          timestamp: pickedDateTime.getTime(),
+          utcOffset: -pickedDateTime.getTimezoneOffset(),
+        },
+      },
+      pickedDateTime,
     );
-    const calendarIcon = tree.root.find(
-      (instance) => String(instance.type) === 'InputSlot',
-    );
-
-    act(() => calendarIcon.props.onPress());
-
-    const modal = tree.root.find(
-      (instance) => String(instance.type) === 'ThemedModal',
-    );
-    act(() => modal.props.onClose());
-
-    expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

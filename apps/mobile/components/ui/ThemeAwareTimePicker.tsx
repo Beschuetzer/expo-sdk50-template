@@ -38,19 +38,22 @@ type NativeDateTimePickerProps = Omit<
   | 'value'
 >;
 
-type DatePickerDisplay =
+export type ThemeAwareTimePickerMode = 'date' | 'datetime';
+
+type TimePickerDisplay =
   | NonNullable<IOSNativeProps['display']>
   | Extract<NonNullable<AndroidNativeProps['display']>, 'calendar'>;
 
-export type ThemeAwareDatePickerProps = NativeDateTimePickerProps & {
+export type ThemeAwareTimePickerProps = NativeDateTimePickerProps & {
   accessibilityLabel?: string;
   accentColor?: IOSNativeProps['accentColor'];
   clearable?: boolean;
-  display?: DatePickerDisplay;
+  display?: TimePickerDisplay;
   formatDate?: (date: Date, locale: Locale) => string;
   isDisabled?: boolean;
   locale?: IOSNativeProps['locale'];
   minuteInterval?: IOSNativeProps['minuteInterval'];
+  mode?: ThemeAwareTimePickerMode;
   negativeButton?: AndroidNativeProps['negativeButton'];
   neutralButton?: AndroidNativeProps['neutralButton'];
   onCancel?: () => void;
@@ -77,7 +80,40 @@ function formatInputDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export function ThemeAwareDatePicker({
+function formatInputDateTime(date: Date) {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${formatInputDate(date)}T${hours}:${minutes}`;
+}
+
+function formatInputValue(date: Date, mode: ThemeAwareTimePickerMode) {
+  return mode === 'datetime'
+    ? formatInputDateTime(date)
+    : formatInputDate(date);
+}
+
+function parseInputValue(
+  value: string,
+  mode: ThemeAwareTimePickerMode,
+): Date | undefined {
+  const [dateValue, timeValue] = value.split('T');
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const [hours, minutes] = timeValue?.split(':').map(Number) ?? [];
+  const date =
+    mode === 'datetime'
+      ? timeValue
+        ? new Date(year, month - 1, day, hours, minutes)
+        : undefined
+      : new Date(year, month - 1, day);
+
+  if (!isValidDate(date) || formatInputValue(date, mode) !== value) {
+    return undefined;
+  }
+
+  return date;
+}
+
+export function ThemeAwareTimePicker({
   accessibilityLabel,
   accentColor,
   clearable = false,
@@ -85,6 +121,7 @@ export function ThemeAwareDatePicker({
   formatDate,
   isDisabled = false,
   locale: pickerLocale,
+  mode = 'date',
   minuteInterval,
   negativeButton,
   neutralButton,
@@ -100,7 +137,7 @@ export function ThemeAwareDatePicker({
   themeVariant,
   value,
   ...nativePickerProps
-}: ThemeAwareDatePickerProps) {
+}: ThemeAwareTimePickerProps) {
   const { locale, t } = useI18n();
   const { colorScheme, textColor } = useThemeAwareColors();
   const { fontFamily } = useThemeAwareTypography();
@@ -110,8 +147,28 @@ export function ThemeAwareDatePicker({
   const pickerValue = selectedDate ?? new Date();
   const fieldValue = selectedDate
     ? formatDate?.(selectedDate, locale) ??
-      selectedDate.toLocaleDateString(locale)
+      (mode === 'datetime'
+        ? selectedDate.toLocaleString(locale)
+        : selectedDate.toLocaleDateString(locale))
     : '';
+  const pickerLabels =
+    mode === 'datetime'
+      ? {
+          cancel: t('dateTimePicker.cancel'),
+          clear: t('dateTimePicker.clear'),
+          confirm: t('dateTimePicker.confirm'),
+          open: t('dateTimePicker.open'),
+          placeholder: t('dateTimePicker.placeholder'),
+          title: t('dateTimePicker.title'),
+        }
+      : {
+          cancel: t('datePicker.cancel'),
+          clear: t('datePicker.clear'),
+          confirm: t('datePicker.confirm'),
+          open: t('datePicker.open'),
+          placeholder: t('datePicker.placeholder'),
+          title: t('datePicker.title'),
+        };
   const themeColors = COLORS[colorScheme];
   const resolvedTextColor = pickerTextColor ?? themeColors.text;
   const resolvedAccentColor = accentColor ?? themeColors.tint;
@@ -121,6 +178,8 @@ export function ThemeAwareDatePicker({
     display === 'compact' || display === 'inline'
       ? 'default'
       : display ?? 'default';
+  const androidTimeDisplay: AndroidNativeProps['display'] =
+    display === 'spinner' ? 'spinner' : 'default';
 
   function closePicker(wasCancelled: boolean) {
     setIsVisible(false);
@@ -132,16 +191,53 @@ export function ThemeAwareDatePicker({
 
   function handleChange(event: DateTimePickerEvent, date?: Date) {
     onChange?.(event, date);
+  }
 
-    if (Platform.OS === 'ios') return;
+  function handleAndroidChange(
+    event: DateTimePickerEvent,
+    date: Date | undefined,
+    pickerMode: 'date' | 'time',
+  ) {
+    if (
+      mode === 'datetime' &&
+      pickerMode === 'date' &&
+      event.type === 'set' &&
+      date
+    ) {
+      openAndroidPicker('time', date);
+      return;
+    }
 
-    if (event.type === 'set') {
+    onChange?.(event, date);
+
+    if (event.type === 'set' || event.type === 'neutralButtonPressed') {
       closePicker(false);
     } else if (event.type === 'dismissed') {
       closePicker(true);
-    } else if (event.type === 'neutralButtonPressed') {
-      closePicker(false);
     }
+  }
+
+  function openAndroidPicker(pickerMode: 'date' | 'time', value: Date) {
+    DateTimePickerAndroid.open({
+      ...nativePickerProps,
+      value,
+      onChange: (event, date) => handleAndroidChange(event, date, pickerMode),
+      mode: pickerMode,
+      display: pickerMode === 'time' ? androidTimeDisplay : androidDisplay,
+      minuteInterval,
+      positiveButton: {
+        label: pickerLabels.confirm,
+        textColor: resolvedAccentColor,
+        ...positiveButton,
+      },
+      negativeButton: {
+        label: pickerLabels.cancel,
+        textColor: resolvedTextColor,
+        ...negativeButton,
+      },
+      neutralButton,
+      onError,
+    });
   }
 
   function openPicker() {
@@ -153,43 +249,15 @@ export function ThemeAwareDatePicker({
       return;
     }
     if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        ...nativePickerProps,
-        value: pickerValue,
-        onChange: handleChange,
-        mode: 'date',
-        display: androidDisplay,
-        minuteInterval,
-        positiveButton: {
-          label: t('datePicker.confirm'),
-          textColor: resolvedAccentColor,
-          ...positiveButton,
-        },
-        negativeButton: {
-          label: t('datePicker.cancel'),
-          textColor: resolvedTextColor,
-          ...negativeButton,
-        },
-        neutralButton,
-        onError,
-      });
+      openAndroidPicker('date', pickerValue);
       return;
     }
     setIsVisible(true);
   }
 
-  function handleWebDateChange(event: ChangeEvent<HTMLInputElement>) {
-    const dateValue = event.currentTarget.value;
-    if (!dateValue) return;
-
-    const [year, month, day] = dateValue.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    if (
-      !Number.isFinite(date.getTime()) ||
-      formatInputDate(date) !== dateValue
-    ) {
-      return;
-    }
+  function handleWebInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const date = parseInputValue(event.currentTarget.value, mode);
+    if (!date) return;
 
     onChange?.(
       {
@@ -218,13 +286,13 @@ export function ThemeAwareDatePicker({
           editable={false}
           fontFamily={fontFamily}
           onPressIn={openPicker}
-          placeholder={placeholder ?? t('datePicker.placeholder')}
+          placeholder={placeholder ?? pickerLabels.placeholder}
           value={fieldValue}
           color={textColor}
         />
         {clearable && selectedDate && onClear ? (
           <InputSlot
-            accessibilityLabel={t('datePicker.clear')}
+            accessibilityLabel={pickerLabels.clear}
             accessibilityRole="button"
             disabled={isDisabled}
             onPress={clearSelection}
@@ -234,7 +302,7 @@ export function ThemeAwareDatePicker({
           </InputSlot>
         ) : null}
         <InputSlot
-          accessibilityLabel={accessibilityLabel ?? t('datePicker.open')}
+          accessibilityLabel={accessibilityLabel ?? pickerLabels.open}
           accessibilityRole="button"
           disabled={isDisabled}
           onPress={openPicker}
@@ -248,12 +316,12 @@ export function ThemeAwareDatePicker({
         ? createElement('input', {
             'aria-hidden': true,
             max: nativePickerProps.maximumDate
-              ? formatInputDate(nativePickerProps.maximumDate)
+              ? formatInputValue(nativePickerProps.maximumDate, mode)
               : undefined,
             min: nativePickerProps.minimumDate
-              ? formatInputDate(nativePickerProps.minimumDate)
+              ? formatInputValue(nativePickerProps.minimumDate, mode)
               : undefined,
-            onChange: handleWebDateChange,
+            onChange: handleWebInputChange,
             ref: webDateInputRef,
             style: {
               height: 1,
@@ -262,8 +330,9 @@ export function ThemeAwareDatePicker({
               width: 1,
             },
             tabIndex: -1,
-            type: 'date',
-            value: selectedDate ? formatInputDate(selectedDate) : '',
+            step: mode === 'datetime' ? 60 : undefined,
+            type: mode === 'datetime' ? 'datetime-local' : 'date',
+            value: selectedDate ? formatInputValue(selectedDate, mode) : '',
           })
         : null}
 
@@ -271,15 +340,15 @@ export function ThemeAwareDatePicker({
         <ThemedModal
           isVisible={isVisible}
           onClose={() => closePicker(true)}
-          title={t('datePicker.title')}
+          title={pickerLabels.title}
           scrollable={false}
           cancelButton={{
             isVisible: false,
-            text: t('datePicker.cancel'),
+            text: pickerLabels.cancel,
           }}
           confirmButton={{
             onPress: () => closePicker(false),
-            text: t('datePicker.confirm'),
+            text: pickerLabels.confirm,
           }}
         >
           {isVisible ? (
@@ -287,7 +356,7 @@ export function ThemeAwareDatePicker({
               {...nativePickerProps}
               value={pickerValue}
               onChange={handleChange}
-              mode="date"
+              mode={mode}
               display={iosDisplay}
               minuteInterval={minuteInterval}
               locale={pickerLocale ?? locale}
