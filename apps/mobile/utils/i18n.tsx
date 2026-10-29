@@ -135,6 +135,7 @@ const messages = {
         'Use quick actions for Account and Settings, or close the drawer with the close button or backdrop.',
       highlightsTitle: 'What this menu can do',
       moreActions: 'More menu actions',
+      navigation: 'Navigation',
       open: 'Open menu',
       quickActionsDescription:
         'Jump directly to Account or Settings from the quick actions.',
@@ -339,6 +340,7 @@ const messages = {
         'Usa las acciones rápidas para ir a Cuenta o Configuración, o cierra el panel con el botón o tocando el fondo.',
       highlightsTitle: 'Qué puedes hacer con este menú',
       moreActions: 'Más acciones del menú',
+      navigation: 'Navegación',
       open: 'Abrir menú',
       quickActionsDescription:
         'Ve directamente a Cuenta o Configuración desde las acciones rápidas.',
