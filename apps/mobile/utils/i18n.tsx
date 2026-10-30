@@ -74,6 +74,7 @@ const messages = {
       title: 'Welcome back',
     },
     common: {
+      backToTop: 'Back to top',
       loading: 'Loading...',
     },
     datePicker: {
@@ -270,6 +271,7 @@ const messages = {
       title: 'Te damos la bienvenida',
     },
     common: {
+      backToTop: 'Volver arriba',
       loading: 'Cargando...',
     },
     datePicker: {

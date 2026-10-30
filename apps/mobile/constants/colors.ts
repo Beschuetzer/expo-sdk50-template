@@ -30,6 +30,7 @@ export const COLORS = {
     muted: '#888',
     selected: '#27AE60',
     disabled: '#ccc',
+    border: '#ccc',
     noteBackground: '#FFFBEB',
   },
   dark: {
@@ -42,6 +43,7 @@ export const COLORS = {
     muted: '#888',
     selected: '#27AE60',
     disabled: '#ccc',
+    border: '#222',
     noteBackground: '#FFFBEB',
   },
 };

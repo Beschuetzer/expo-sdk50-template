@@ -15,6 +15,8 @@ import { ThemeAwareButton } from './ThemeAwareButton';
 import { ThemeAwareButtonPaletteProvider } from './ThemeAwareButtonPalette';
 import { ThemeAwareSurface } from './ThemeAwareSurface';
 
+import { useColorScheme } from '@/components/hooks/useColorScheme';
+import { COLORS } from '@/constants/colors';
 import { THEME_AWARE_CONTENT_HORIZONTAL_GUTTER } from '@/constants/layout';
 import { absolutePositioning } from '@/constants/styles';
 import { useI18n } from '@/utils/i18n';
@@ -78,6 +80,8 @@ export function ThemeAwareScreen<ItemT = unknown>(
     py,
     ...contentProps
   } = props;
+  const colorScheme = useColorScheme() ?? 'light';
+  const sectionBorderColor = COLORS[colorScheme].border;
   const [bottomContentHeight, setBottomContentHeight] = useState(0);
   const [isStickyHeaderVisible, setIsStickyHeaderVisible] = useState(false);
   const flashListRef = useRef<FlashList<ItemT>>(null);
@@ -148,6 +152,7 @@ export function ThemeAwareScreen<ItemT = unknown>(
   const stickyHeaderComponent = hasStickyHeader ? (
     <ThemeAwareSurface
       borderBottomWidth="$1"
+      borderColor={sectionBorderColor}
       onLayout={handleStickyHeaderLayout}
     >
       {renderSectionContent(stickyHeaderContent)}
@@ -160,7 +165,11 @@ export function ThemeAwareScreen<ItemT = unknown>(
     }
 
     return (
-      <ThemeAwareSurface {...LIST_OVERLAY_POSITIONING} borderBottomWidth="$1">
+      <ThemeAwareSurface
+        {...LIST_OVERLAY_POSITIONING}
+        borderBottomWidth="$1"
+        borderColor={sectionBorderColor}
+      >
         {renderSectionContent(stickyHeaderContent)}
       </ThemeAwareSurface>
     );
@@ -264,7 +273,10 @@ export function ThemeAwareScreen<ItemT = unknown>(
     const contentJSX = renderContent(children);
     const fixedHeaderJSX =
       fixedHeaderContent === undefined ? undefined : (
-        <ThemeAwareSurface borderBottomWidth="$1">
+        <ThemeAwareSurface
+          borderBottomWidth="$1"
+          borderColor={sectionBorderColor}
+        >
           {renderSectionContent(fixedHeaderContent)}
         </ThemeAwareSurface>
       );
@@ -274,7 +286,10 @@ export function ThemeAwareScreen<ItemT = unknown>(
         return (
           <ThemeAwareSurface flex={1}>
             {fixedHeaderJSX}
-            <ThemeAwareSurface borderBottomWidth="$1">
+            <ThemeAwareSurface
+              borderBottomWidth="$1"
+              borderColor={sectionBorderColor}
+            >
               {renderSectionContent(
                 isDefaultBackToTopHeaderPinned ? (
                   <>
@@ -334,6 +349,7 @@ export function ThemeAwareScreen<ItemT = unknown>(
           <ThemeAwareSurface
             {...BOTTOM_CONTENT_POSITIONING}
             borderTopWidth="$1"
+            borderColor={sectionBorderColor}
             onLayout={(event: LayoutChangeEvent) => {
               setBottomContentHeight(event.nativeEvent.layout.height);
             }}
