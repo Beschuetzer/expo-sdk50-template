@@ -21,9 +21,11 @@ type InfiniteScrollFlashListProps<ItemT> = Omit<
   | 'keyExtractor'
   | 'onEndReached'
   | 'onEndReachedThreshold'
+  | 'onRefresh'
   | 'ListEmptyComponent'
   | 'ListFooterComponent'
   | 'ListHeaderComponent'
+  | 'refreshing'
   | 'stickyHeaderIndices'
 >;
 
@@ -46,7 +48,9 @@ export type ThemeAwareInfiniteScrollListProps<ItemT> = Omit<
   ListEmptyComponent?: FlashListProps<ItemT>['ListEmptyComponent'];
   ListFooterComponent?: FlashListProps<ItemT>['ListFooterComponent'];
   loadingSpinner?: ReactNode;
+  onRefresh?: FlashListProps<ItemT>['onRefresh'];
   onEndReachedThreshold?: number;
+  refreshing?: FlashListProps<ItemT>['refreshing'];
   renderItem: NonNullable<FlashListProps<ItemT>['renderItem']>;
   stickyHeader?: ThemeAwareInfiniteScrollListHeader;
   flashListProps?: InfiniteScrollFlashListProps<ItemT>;
@@ -66,7 +70,9 @@ export function ThemeAwareInfiniteScrollList<ItemT>(
     ListEmptyComponent,
     ListFooterComponent,
     loadingSpinner,
+    onRefresh,
     onEndReachedThreshold = 0.5,
+    refreshing = false,
     renderItem,
     stickyHeader,
     backToTop = true,
@@ -102,6 +108,8 @@ export function ThemeAwareInfiniteScrollList<ItemT>(
         ListFooterComponent: listFooterComponent,
         onEndReached: handleEndReached,
         onEndReachedThreshold,
+        onRefresh,
+        refreshing,
         renderItem,
       }}
     >

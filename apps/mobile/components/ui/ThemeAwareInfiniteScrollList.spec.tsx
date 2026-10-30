@@ -72,7 +72,24 @@ describe('ThemeAwareInfiniteScrollList', () => {
     );
     expect(flashListProps.keyExtractor(items[0], 0)).toBe('item-1');
     expect(flashListProps.onEndReachedThreshold).toBe(0.5);
+    expect(flashListProps.refreshing).toBe(false);
     expect(flashListProps.stickyHeaderIndices).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('passes pull-to-refresh props through to FlashList', () => {
+    const onRefresh = jest.fn();
+    const tree = renderList({ onRefresh, refreshing: true });
+    const flashListProps = getFlashListProps(tree);
+
+    expect(flashListProps.onRefresh).toBe(onRefresh);
+    expect(flashListProps.refreshing).toBe(true);
+
+    act(() => {
+      flashListProps.onRefresh();
+    });
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
     act(() => tree.unmount());
   });
 
@@ -208,6 +225,8 @@ function renderList({
   loadingSpinner,
   ListEmptyComponent,
   ListFooterComponent,
+  onRefresh,
+  refreshing,
   stickyHeader,
 }: {
   fetchNextPage?: () => void | Promise<unknown>;
@@ -219,6 +238,8 @@ function renderList({
   loadingSpinner?: React.ReactNode;
   ListEmptyComponent?: React.ReactElement | null;
   ListFooterComponent?: React.ReactElement | null;
+  onRefresh?: () => void;
+  refreshing?: boolean;
   stickyHeader?:
     | React.ReactNode
     | ((actions: { scrollToTop: () => void }) => React.ReactNode);
@@ -239,6 +260,8 @@ function renderList({
         loadingSpinner={loadingSpinner}
         ListEmptyComponent={ListEmptyComponent}
         ListFooterComponent={ListFooterComponent}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
         stickyHeader={stickyHeader}
         flashListProps={{ estimatedItemSize: 64 }}
         renderItem={renderTestItem}
