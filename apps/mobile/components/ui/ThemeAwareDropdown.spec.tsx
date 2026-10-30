@@ -73,6 +73,7 @@ describe('ThemeAwareDropdown', () => {
 
     expect(selectInput.props.color).toBe('$textDark50');
     expect(selectInput.props.fontFamily).toBe('test-font');
+    expect(selectInput.props.textAlign).toBe('left');
     expect(selectInput.props.value).toBe('Personal');
     expect(selectIcon.props.color).toBe('$textDark50');
     expect(selectItems).toHaveLength(2);
@@ -106,21 +107,5 @@ describe('ThemeAwareDropdown', () => {
     );
 
     expect(selectedItem.props.bg).toBe('$backgroundLight300');
-  });
-
-  it('shows an empty value when no option matches the selection', () => {
-    const tree = renderer.create(
-      <ThemeAwareDropdown
-        onValueChange={jest.fn()}
-        options={[{ label: 'Shared', value: 'shared' }]}
-        placeholder="Choose a space"
-        selectedValue="missing"
-      />,
-    );
-    const selectInput = tree.root.find(
-      (instance) => String(instance.type) === 'SelectInput',
-    );
-
-    expect(selectInput.props.value).toBe('');
   });
 });

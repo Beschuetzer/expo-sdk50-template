@@ -11,7 +11,7 @@ export type ThemeAwareCheckboxProps = Omit<
   'color' | 'onValueChange' | 'value'
 > & {
   checkboxPosition?: 'left' | 'right';
-  label: string;
+  label?: string;
   onValueChange: (value: boolean) => void;
   value: boolean;
 };
@@ -19,7 +19,7 @@ export type ThemeAwareCheckboxProps = Omit<
 export function ThemeAwareCheckbox({
   accessibilityLabel,
   checkboxPosition = 'left',
-  label,
+  label = '',
   onValueChange,
   value,
   ...checkboxProps

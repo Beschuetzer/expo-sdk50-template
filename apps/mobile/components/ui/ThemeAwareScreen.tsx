@@ -12,8 +12,10 @@ import type {
 } from 'react-native';
 
 import { ThemeAwareButton } from './ThemeAwareButton';
+import { ThemeAwareButtonPaletteProvider } from './ThemeAwareButtonPalette';
 import { ThemeAwareSurface } from './ThemeAwareSurface';
 
+import { THEME_AWARE_CONTENT_HORIZONTAL_GUTTER } from '@/constants/layout';
 import { absolutePositioning } from '@/constants/styles';
 import { useI18n } from '@/utils/i18n';
 
@@ -39,13 +41,16 @@ export type ThemeAwareScreenHeaderActions = {
 export type ThemeAwareScreenStickyHeader =
   | ReactNode
   | ((actions: ThemeAwareScreenHeaderActions) => ReactNode);
+export type ThemeAwareScreenBottomContent =
+  | ReactNode
+  | ((actions: ThemeAwareScreenHeaderActions) => ReactNode);
 
 export type ThemeAwareScreenProps<ItemT> = Omit<
   ComponentProps<typeof VStack>,
   'children'
 > & {
   backToTop?: boolean;
-  bottomContent?: ReactNode;
+  bottomContent?: ThemeAwareScreenBottomContent;
   children: ReactNode | ReactNode[];
   contentContainerStyle?: ComponentProps<
     typeof ScrollView
@@ -73,10 +78,6 @@ export function ThemeAwareScreen<ItemT = unknown>(
     py,
     ...contentProps
   } = props;
-  const hasBottomContent =
-    bottomContent !== undefined &&
-    bottomContent !== null &&
-    bottomContent !== false;
   const [bottomContentHeight, setBottomContentHeight] = useState(0);
   const [isStickyHeaderVisible, setIsStickyHeaderVisible] = useState(false);
   const flashListRef = useRef<FlashList<ItemT>>(null);
@@ -92,6 +93,14 @@ export function ThemeAwareScreen<ItemT = unknown>(
 
     scrollViewRef.current?.scrollTo({ animated: true, y: 0 });
   }, []);
+  const bottomContentNode =
+    typeof bottomContent === 'function'
+      ? bottomContent({ scrollToTop })
+      : bottomContent;
+  const hasBottomContent =
+    bottomContentNode !== undefined &&
+    bottomContentNode !== null &&
+    bottomContentNode !== false;
 
   const updateStickyHeaderVisibility = useCallback((offset: number) => {
     if (stickyHeaderEndOffset.current === null) {
@@ -162,7 +171,9 @@ export function ThemeAwareScreen<ItemT = unknown>(
       <ThemeAwareSurface>
         <VStack
           p={p}
-          px={p === undefined ? px ?? '$4' : px}
+          px={
+            p === undefined ? px ?? THEME_AWARE_CONTENT_HORIZONTAL_GUTTER : px
+          }
           py={p === undefined ? py ?? '$2' : py}
           {...contentProps}
         >
@@ -176,7 +187,7 @@ export function ThemeAwareScreen<ItemT = unknown>(
     return (
       <VStack
         p={p}
-        px={p === undefined ? px ?? '$4' : px}
+        px={p === undefined ? px ?? THEME_AWARE_CONTENT_HORIZONTAL_GUTTER : px}
         py={p === undefined ? py ?? '$2' : py}
         {...contentProps}
       >
@@ -311,25 +322,27 @@ export function ThemeAwareScreen<ItemT = unknown>(
   }
 
   return (
-    <ThemeAwareSurface {...absolutePositioning}>
-      <ThemeAwareSurface
-        flex={1}
-        style={{ marginBottom: hasBottomContent ? bottomContentHeight : 0 }}
-      >
-        {renderList()}
-      </ThemeAwareSurface>
-      {hasBottomContent ? (
+    <ThemeAwareButtonPaletteProvider>
+      <ThemeAwareSurface {...absolutePositioning}>
         <ThemeAwareSurface
-          {...BOTTOM_CONTENT_POSITIONING}
-          borderTopWidth="$1"
-          onLayout={(event: LayoutChangeEvent) => {
-            setBottomContentHeight(event.nativeEvent.layout.height);
-          }}
+          flex={1}
+          style={{ marginBottom: hasBottomContent ? bottomContentHeight : 0 }}
         >
-          {renderSectionContent(bottomContent)}
+          {renderList()}
         </ThemeAwareSurface>
-      ) : null}
-    </ThemeAwareSurface>
+        {hasBottomContent ? (
+          <ThemeAwareSurface
+            {...BOTTOM_CONTENT_POSITIONING}
+            borderTopWidth="$1"
+            onLayout={(event: LayoutChangeEvent) => {
+              setBottomContentHeight(event.nativeEvent.layout.height);
+            }}
+          >
+            {renderSectionContent(bottomContentNode)}
+          </ThemeAwareSurface>
+        ) : null}
+      </ThemeAwareSurface>
+    </ThemeAwareButtonPaletteProvider>
   );
 }
 

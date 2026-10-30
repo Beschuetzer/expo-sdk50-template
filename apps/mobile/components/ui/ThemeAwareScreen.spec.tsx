@@ -142,7 +142,7 @@ describe('ThemeAwareScreen', () => {
     expect(
       headerSurface.find((instance) => String(instance.type) === 'VStack')
         .props,
-    ).toEqual(expect.objectContaining({ px: '$4', py: '$2' }));
+    ).toEqual(expect.objectContaining({ px: '$6', py: '$2' }));
   });
 
   it('keeps regular content inside the scroll view when there is no fixed header', () => {
@@ -161,7 +161,7 @@ describe('ThemeAwareScreen', () => {
     expect(
       scrollView
         .findAll((instance) => String(instance.type) === 'VStack')
-        .every(({ props }) => props.px === '$4' && props.py === '$2'),
+        .every(({ props }) => props.px === '$6' && props.py === '$2'),
     ).toBe(true);
   });
 
@@ -357,7 +357,7 @@ describe('ThemeAwareScreen', () => {
     expect(
       bottomSurface.find((instance) => String(instance.type) === 'VStack')
         .props,
-    ).toEqual(expect.objectContaining({ px: '$4', py: '$2' }));
+    ).toEqual(expect.objectContaining({ px: '$6', py: '$2' }));
     expect(mainSurface(0)).toBeDefined();
 
     act(() => {
@@ -371,6 +371,24 @@ describe('ThemeAwareScreen', () => {
       tree.root.find((instance) => String(instance.type) === 'ScrollView').props
         .style,
     ).toEqual({ flex: 1 });
+  });
+
+  it('passes scroll actions to render-function bottom content', () => {
+    const bottomContent = jest.fn(() => <FooterHost />);
+    const tree = renderer.create(
+      <ThemeAwareScreen bottomContent={bottomContent}>
+        <BodyHost />
+      </ThemeAwareScreen>,
+    );
+
+    expect(bottomContent).toHaveBeenCalledWith({
+      scrollToTop: expect.any(Function),
+    });
+    expect(
+      tree.root.find((instance) => String(instance.type) === 'FooterHost'),
+    ).toBeDefined();
+
+    act(() => tree.unmount());
   });
 });
 

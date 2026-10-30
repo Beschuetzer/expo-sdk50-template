@@ -1,18 +1,20 @@
+import { VStack } from '@gluestack-ui/themed';
 import type { FlashListProps } from '@shopify/flash-list';
 import type { ReactNode } from 'react';
 import { useCallback } from 'react';
 import { ActivityIndicator } from 'react-native';
 
-import { ThemeAwareScreen } from './ThemeAwareScreen';
-import type {
-  ThemeAwareScreenHeaderActions,
-  ThemeAwareScreenProps,
-  ThemeAwareScreenStickyHeader,
+import {
+  ThemeAwareScreen,
+  type ThemeAwareScreenHeaderActions,
+  type ThemeAwareScreenProps,
+  type ThemeAwareScreenStickyHeader,
 } from './ThemeAwareScreen';
 import { ThemeAwareSurface } from './ThemeAwareSurface';
 
 import { useColorScheme } from '@/components/hooks/useColorScheme';
 import { COLORS } from '@/constants/colors';
+import { THEME_AWARE_CONTENT_HORIZONTAL_GUTTER } from '@/constants/layout';
 
 type InfiniteScrollFlashListProps<ItemT> = Omit<
   FlashListProps<ItemT>,
@@ -75,7 +77,9 @@ export function ThemeAwareInfiniteScrollList<ItemT>(
     refreshing = false,
     renderItem,
     stickyHeader,
-    backToTop = true,
+    backToTop = false,
+    p,
+    px,
     flashListProps,
     ...screenProps
   } = props;
@@ -94,10 +98,20 @@ export function ThemeAwareInfiniteScrollList<ItemT>(
     ListFooterComponent
   );
   const listEmptyComponent = isFetchingNextPage ? null : ListEmptyComponent;
+  const itemHorizontalGutter =
+    p === undefined ? px ?? THEME_AWARE_CONTENT_HORIZONTAL_GUTTER : p;
+  const renderGutteredItem = useCallback<
+    NonNullable<FlashListProps<ItemT>['renderItem']>
+  >(
+    (info) => <VStack px={itemHorizontalGutter}>{renderItem(info)}</VStack>,
+    [itemHorizontalGutter, renderItem],
+  );
 
   return (
     <ThemeAwareScreen
       {...screenProps}
+      p={p}
+      px={px}
       backToTop={backToTop}
       stickyHeader={stickyHeader}
       flashListProps={{
@@ -110,7 +124,7 @@ export function ThemeAwareInfiniteScrollList<ItemT>(
         onEndReachedThreshold,
         onRefresh,
         refreshing,
-        renderItem,
+        renderItem: renderGutteredItem,
       }}
     >
       {children}

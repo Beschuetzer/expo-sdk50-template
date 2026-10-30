@@ -1,10 +1,20 @@
 import { Button, ButtonSpinner, ButtonText } from '@gluestack-ui/themed';
 import type { ComponentProps, ReactNode } from 'react';
-import { useRef, useState, useEffect } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { GestureResponderEvent } from 'react-native';
 
+import { useThemeAwareButtonPaletteIndex } from '@/components/ui/ThemeAwareButtonPalette';
 import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
 import { useThemeAwareTypography } from '@/components/ui/useThemeAwareTypography';
+import { COLORS } from '@/constants/colors';
+
+const BUTTON_MIN_HEIGHTS = {
+  xs: '$8',
+  sm: '$9',
+  md: '$10',
+  lg: '$11',
+  xl: '$12',
+} as const;
 
 type ThemeAwareButtonProps = Omit<ComponentProps<typeof Button>, 'onPress'> & {
   children: ReactNode;
@@ -15,28 +25,54 @@ type ThemeAwareButtonProps = Omit<ComponentProps<typeof Button>, 'onPress'> & {
 
 export function ThemeAwareButton({
   children,
-  darkBackground = '$primary600',
-  lightBackground = '$primary500',
+  darkBackground,
+  lightBackground,
   variant = 'solid',
   bg,
   onPress,
   disabled,
   isDisabled,
+  size = 'md',
+  h,
+  height,
+  minHeight,
+  py,
   ...props
 }: ThemeAwareButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const isPressInProgress = useRef(false);
+  const buttonId = useId();
+  const paletteIndex = useThemeAwareButtonPaletteIndex(buttonId);
   const { colorScheme, getTextColor } = useThemeAwareColors();
   const { fontFamily } = useThemeAwareTypography();
-  const shouldApplyDefaultBackground =
-    variant !== 'outline' && variant !== 'link';
+  const resolvedVariant = variant === 'outline' ? 'solid' : variant;
+  const shouldApplyDefaultBackground = resolvedVariant !== 'link';
+  const buttonBackgrounds = COLORS[colorScheme].buttonBackgrounds;
   const background = colorScheme === 'dark' ? darkBackground : lightBackground;
+  const paletteBackground =
+    buttonBackgrounds[paletteIndex % buttonBackgrounds.length];
   const resolvedBackground =
-    bg ?? (shouldApplyDefaultBackground ? background : '$transparent');
-  const textColor = getTextColor(shouldApplyDefaultBackground);
+    bg ??
+    (shouldApplyDefaultBackground
+      ? background ?? paletteBackground
+      : '$transparent');
+  const resolvedHeight = height ?? h ?? 'auto';
+  const resolvedMinHeight =
+    minHeight ??
+    (resolvedHeight === 'auto'
+      ? BUTTON_MIN_HEIGHTS[size] ?? BUTTON_MIN_HEIGHTS.md
+      : resolvedHeight);
+  const textColor = shouldApplyDefaultBackground
+    ? getTextColor(true)
+    : paletteBackground;
   const buttonChildren =
     typeof children === 'string' || typeof children === 'number' ? (
-      <ButtonText color={textColor} fontFamily={fontFamily}>
+      <ButtonText
+        color={textColor}
+        flexShrink={1}
+        fontFamily={fontFamily}
+        textAlign="center"
+      >
         {children}
       </ButtonText>
     ) : (
@@ -70,7 +106,11 @@ export function ThemeAwareButton({
   return (
     <Button
       {...props}
-      variant={variant}
+      size={size}
+      height={resolvedHeight}
+      minHeight={resolvedMinHeight}
+      py={py ?? '$2'}
+      variant={resolvedVariant}
       bg={resolvedBackground}
       disabled={isButtonDisabled}
       isDisabled={isButtonDisabled}

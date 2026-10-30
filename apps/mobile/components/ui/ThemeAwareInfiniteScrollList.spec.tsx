@@ -2,8 +2,13 @@ import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
 import { ThemeAwareInfiniteScrollList } from './ThemeAwareInfiniteScrollList';
+import type { ThemeAwareScreenProps } from './ThemeAwareScreen';
 
 let mockColorScheme: 'light' | 'dark' = 'light';
+
+jest.mock('@gluestack-ui/themed', () => ({
+  VStack: 'VStackHost',
+}));
 
 jest.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
@@ -67,13 +72,44 @@ describe('ThemeAwareInfiniteScrollList', () => {
         data: items,
         estimatedItemSize: 64,
         keyExtractor: expect.any(Function),
-        renderItem: renderTestItem,
+        renderItem: expect.any(Function),
       }),
     );
     expect(flashListProps.keyExtractor(items[0], 0)).toBe('item-1');
     expect(flashListProps.onEndReachedThreshold).toBe(0.5);
     expect(flashListProps.refreshing).toBe(false);
     expect(flashListProps.stickyHeaderIndices).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('applies the shared horizontal gutter to every list item', () => {
+    const tree = renderList();
+    const renderedItem = getFlashListProps(tree).renderItem({
+      item: items[0],
+      index: 0,
+    });
+
+    expect(renderedItem.type).toBe('VStackHost');
+    expect(renderedItem.props.px).toBe('$6');
+    expect(renderedItem.props.children).toEqual(
+      expect.objectContaining({
+        type: 'ItemHost',
+        props: { id: 'item-1' },
+      }),
+    );
+
+    act(() => tree.unmount());
+  });
+
+  it('uses explicit screen padding for list items when provided', () => {
+    const tree = renderList({ px: '$4' });
+    const renderedItem = getFlashListProps(tree).renderItem({
+      item: items[0],
+      index: 0,
+    });
+
+    expect(renderedItem.props.px).toBe('$4');
+
     act(() => tree.unmount());
   });
 
@@ -228,6 +264,8 @@ function renderList({
   onRefresh,
   refreshing,
   stickyHeader,
+  p,
+  px,
 }: {
   fetchNextPage?: () => void | Promise<unknown>;
   hasNextPage?: boolean;
@@ -243,6 +281,8 @@ function renderList({
   stickyHeader?:
     | React.ReactNode
     | ((actions: { scrollToTop: () => void }) => React.ReactNode);
+  p?: ThemeAwareScreenProps<unknown>['p'];
+  px?: ThemeAwareScreenProps<unknown>['px'];
 } = {}) {
   let tree: renderer.ReactTestRenderer;
 
@@ -256,6 +296,8 @@ function renderList({
         isFetchingNextPage={isFetchingNextPage}
         fixedHeader={fixedHeader}
         backToTop={backToTop}
+        p={p}
+        px={px}
         keyExtractor={(item) => item.id}
         loadingSpinner={loadingSpinner}
         ListEmptyComponent={ListEmptyComponent}
