@@ -43,6 +43,7 @@ export function ThemeAwareDropdown({
           editable={false}
           fontFamily={fontFamily}
           placeholder={placeholder}
+          textAlign="left"
           value={selectedLabel}
           color={textColor}
         />

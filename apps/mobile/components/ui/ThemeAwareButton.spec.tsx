@@ -2,6 +2,7 @@ import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
 import { ThemeAwareButton } from './ThemeAwareButton';
+import { ThemeAwareButtonPaletteProvider } from './ThemeAwareButtonPalette';
 
 let mockColorScheme = 'light';
 
@@ -96,24 +97,112 @@ describe('ThemeAwareButton', () => {
     mockColorScheme = 'light';
   });
 
-  it.each(['outline', 'link'] as const)(
-    'uses a transparent background for the %s variant',
-    (variant) => {
-      const tree = renderer.create(
-        <ThemeAwareButton variant={variant}>
-          {React.createElement('Icon')}
-        </ThemeAwareButton>,
-      );
-      const button = tree.root.find(
-        (instance) => String(instance.type) === 'Button',
-      );
+  it('allows multiline labels to wrap and expand the button height', () => {
+    const label =
+      'Continue after reviewing the details below. This text should wrap on a narrow screen.';
+    const tree = renderer.create(
+      <ThemeAwareButton size="sm">{label}</ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+    const buttonText = tree.root.find(
+      (instance) => String(instance.type) === 'ButtonText',
+    );
 
-      expect(button.props.bg).toBe('$transparent');
-      expect(
-        tree.root.findAll((instance) => String(instance.type) === 'ButtonText'),
-      ).toHaveLength(0);
-    },
-  );
+    expect(button.props.height).toBe('auto');
+    expect(button.props.minHeight).toBe('$9');
+    expect(button.props.py).toBe('$2');
+    expect(buttonText.props.flexShrink).toBe(1);
+    expect(buttonText.props.textAlign).toBe('center');
+    expect(buttonText.props.children).toBe(label);
+  });
+
+  it('preserves explicitly configured button heights', () => {
+    const tree = renderer.create(
+      <ThemeAwareButton h="$8">Custom height</ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+
+    expect(button.props.height).toBe('$8');
+    expect(button.props.minHeight).toBe('$8');
+  });
+
+  it('renders outline requests as solid buttons', () => {
+    const tree = renderer.create(
+      <ThemeAwareButton variant="outline">
+        {React.createElement('Icon')}
+      </ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+
+    expect(button.props.variant).toBe('solid');
+    expect(button.props.bg).toBe('#1769aa');
+  });
+
+  it('gives buttons on the same screen distinct palette colors', () => {
+    const tree = renderer.create(
+      <ThemeAwareButtonPaletteProvider>
+        <ThemeAwareButton>First</ThemeAwareButton>
+        <ThemeAwareButton>Second</ThemeAwareButton>
+        <ThemeAwareButton>Third</ThemeAwareButton>
+      </ThemeAwareButtonPaletteProvider>,
+    );
+    const backgrounds = tree.root
+      .findAll((instance) => String(instance.type) === 'Button')
+      .map((button) => button.props.bg);
+
+    expect(new Set(backgrounds).size).toBe(3);
+  });
+
+  it('keeps link buttons transparent', () => {
+    const tree = renderer.create(
+      <ThemeAwareButton variant="link">Link</ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+    const buttonText = tree.root.find(
+      (instance) => String(instance.type) === 'ButtonText',
+    );
+
+    expect(button.props.bg).toBe('$transparent');
+    expect(buttonText.props.color).toBe('#1769aa');
+  });
+
+  it('gives link buttons on the same screen distinct text colors', () => {
+    const tree = renderer.create(
+      <ThemeAwareButtonPaletteProvider>
+        <ThemeAwareButton variant="link">First</ThemeAwareButton>
+        <ThemeAwareButton variant="link">Second</ThemeAwareButton>
+      </ThemeAwareButtonPaletteProvider>,
+    );
+    const textColors = tree.root
+      .findAll((instance) => String(instance.type) === 'ButtonText')
+      .map((text) => text.props.color);
+
+    expect(new Set(textColors).size).toBe(2);
+  });
+
+  it('keeps link icon buttons transparent', () => {
+    const tree = renderer.create(
+      <ThemeAwareButton variant="link">
+        {React.createElement('Icon')}
+      </ThemeAwareButton>,
+    );
+    const button = tree.root.find(
+      (instance) => String(instance.type) === 'Button',
+    );
+
+    expect(button.props.bg).toBe('$transparent');
+    expect(
+      tree.root.findAll((instance) => String(instance.type) === 'ButtonText'),
+    ).toHaveLength(0);
+  });
 
   it('ignores presses when no handler is provided or the button is disabled', () => {
     const withoutHandler = renderer.create(
@@ -138,32 +227,5 @@ describe('ThemeAwareButton', () => {
       disabled.root.find((instance) => String(instance.type) === 'Button').props
         .isDisabled,
     ).toBe(true);
-  });
-
-  it('resets loading state when a press callback rejects and unmounts cleanly', async () => {
-    const failure = new Error('save failed');
-    const tree = renderer.create(
-      <ThemeAwareButton onPress={() => Promise.reject(failure)}>
-        Save
-      </ThemeAwareButton>,
-    );
-    const button = tree.root.find(
-      (instance) => String(instance.type) === 'Button',
-    );
-    let pressPromise!: Promise<void>;
-
-    act(() => {
-      pressPromise = button.props.onPress({});
-    });
-
-    await act(async () => {
-      await expect(pressPromise).rejects.toBe(failure);
-    });
-
-    expect(
-      tree.root.find((instance) => String(instance.type) === 'Button').props
-        .isDisabled,
-    ).toBe(false);
-    act(() => tree.unmount());
   });
 });

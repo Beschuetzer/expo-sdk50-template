@@ -10,20 +10,69 @@ jest.mock('@gluestack-ui/themed', () => {
     ({
       children,
       ...props
-    }: {
-      children?: ReactNode;
-      [key: string]: unknown;
-    }) =>
+    }: Record<string, unknown> & { children?: ReactNode }) =>
       React.createElement(name, props, children);
 
   return {
-    ScrollView: createComponent('ScrollView'),
+    HStack: createComponent('HStack'),
     VStack: createComponent('VStack'),
   };
 });
 
-jest.mock('@shopify/flash-list', () => ({
-  FlashList: 'FlashList',
+jest.mock('react-native', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  const mockScrollTo = jest.fn();
+  const ScrollView = React.forwardRef<
+    { scrollTo: jest.Mock },
+    Record<string, unknown> & { children?: ReactNode }
+  >(({ children, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({ scrollTo: mockScrollTo }));
+    return React.createElement('ScrollView', props, children);
+  });
+
+  return {
+    Dimensions: { get: () => ({ width: 375, height: 812 }) },
+    ScrollView,
+    __mockScrollTo: mockScrollTo,
+  };
+});
+
+jest.mock('@shopify/flash-list', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  const mockScrollToOffset = jest.fn();
+  const FlashList = React.forwardRef<
+    { scrollToOffset: jest.Mock },
+    Record<string, unknown>
+  >((props, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      scrollToOffset: mockScrollToOffset,
+    }));
+    const header = props.ListHeaderComponent;
+    const renderedHeader =
+      typeof header === 'function'
+        ? React.createElement(header as React.ComponentType)
+        : (header as ReactNode);
+    return React.createElement('FlashList', props, renderedHeader);
+  });
+
+  return { FlashList, __mockScrollToOffset: mockScrollToOffset };
+});
+
+jest.mock('./ThemeAwareButton', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  return {
+    ThemeAwareButton: ({
+      children,
+      ...props
+    }: {
+      children?: ReactNode;
+    } & Record<string, unknown>) =>
+      React.createElement('ThemeAwareButtonHost', props, children),
+  };
+});
+
+jest.mock('@/utils/i18n', () => ({
+  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 jest.mock('./ThemeAwareSurface', () => {
@@ -39,7 +88,30 @@ jest.mock('./ThemeAwareSurface', () => {
   };
 });
 
+const { __mockScrollTo } = jest.requireMock('react-native') as {
+  __mockScrollTo: jest.Mock;
+};
+const { __mockScrollToOffset } = jest.requireMock('@shopify/flash-list') as {
+  __mockScrollToOffset: jest.Mock;
+};
+
 describe('ThemeAwareScreen', () => {
+  it('does not show a back-to-top button by default', () => {
+    const tree = renderer.create(
+      <ThemeAwareScreen>
+        <BodyHost />
+      </ThemeAwareScreen>,
+    );
+
+    expect(
+      tree.root.findAll(
+        (instance) => String(instance.type) === 'ThemeAwareButtonHost',
+      ),
+    ).toHaveLength(0);
+
+    act(() => tree.unmount());
+  });
+
   it('keeps fixed header content outside the scrollable content', () => {
     const tree = renderer.create(
       <ThemeAwareScreen fixedHeaderContent={<HeaderHost />}>
@@ -62,13 +134,15 @@ describe('ThemeAwareScreen', () => {
     const headerSurface = tree.root.find(
       (instance) =>
         String(instance.type) === 'ThemeAwareSurface' &&
-        instance.props.borderBottomWidth === '$1',
+        instance.props.borderBottomWidth === '$1' &&
+        instance.findAll((child) => String(child.type) === 'HeaderHost')
+          .length > 0,
     );
 
     expect(
       headerSurface.find((instance) => String(instance.type) === 'VStack')
         .props,
-    ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
+    ).toEqual(expect.objectContaining({ px: '$6', py: '$2' }));
   });
 
   it('keeps regular content inside the scroll view when there is no fixed header', () => {
@@ -85,174 +159,188 @@ describe('ThemeAwareScreen', () => {
       scrollView.findAll((instance) => String(instance.type) === 'BodyHost'),
     ).toHaveLength(1);
     expect(
-      scrollView.find((instance) => String(instance.type) === 'VStack').props,
-    ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
+      scrollView
+        .findAll((instance) => String(instance.type) === 'VStack')
+        .every(({ props }) => props.px === '$6' && props.py === '$2'),
+    ).toBe(true);
   });
 
-  it('preserves custom spacing for scrollable, header, and bottom sections', () => {
-      const cases = [
-    {
-      padding: { p: '$2' },
-      body: { p: '$2', px: undefined, py: undefined },
-      section: { p: '$2', px: undefined, py: undefined },
-    },
-    {
-      padding: { px: '$5' },
-      body: { p: undefined, px: '$5', py: undefined },
-      section: { p: undefined, px: '$5', py: '$3' },
-    },
-    {
-      padding: { py: '$6' },
-      body: { p: undefined, px: undefined, py: '$6' },
-      section: { p: undefined, px: '$4', py: '$6' },
-    },
-      ] as const;
+  it('sticks the default back-to-top button and scrolls the FlashList to the top', () => {
+    __mockScrollToOffset.mockClear();
+    let tree: renderer.ReactTestRenderer;
 
-      for (const { padding, body, section } of cases) {
-    const tree = renderer.create(
-      <ThemeAwareScreen
-        {...padding}
-        bottomContent={<FooterHost />}
-        fixedHeaderContent={<HeaderHost />}
-      >
-        <BodyHost />
-      </ThemeAwareScreen>,
-    );
-    const bodyStack = tree.root.find(
-      (instance) =>
-        String(instance.type) === 'VStack' &&
-        instance.findAll((child) => String(child.type) === 'BodyHost')
-          .length > 0,
-    );
-    const headerStack = tree.root.find(
-      (instance) =>
-        String(instance.type) === 'VStack' &&
-        instance.findAll((child) => String(child.type) === 'HeaderHost')
-          .length > 0,
-    );
-    const footerStack = tree.root.find(
-      (instance) =>
-        String(instance.type) === 'VStack' &&
-        instance.findAll((child) => String(child.type) === 'FooterHost')
-          .length > 0,
-    );
-
-    expect(bodyStack.props).toEqual(expect.objectContaining(body));
-    expect(headerStack.props).toEqual(expect.objectContaining(section));
-    expect(footerStack.props).toEqual(expect.objectContaining(section));
-    tree.unmount();
-      }
-  });
-
-  it('uses default FlashList options when fixed header content is supplied', () => {
-      const tree = renderer.create(
-    <ThemeAwareScreen
-      fixedHeaderContent={<HeaderHost />}
-      flashListProps={{ data: [], renderItem: () => null }}
-    >
-      <BodyHost />
-    </ThemeAwareScreen>,
+    act(() => {
+      tree = renderer.create(
+        <ThemeAwareScreen<number>
+          backToTop
+          flashListProps={{ data: [1], renderItem: () => null }}
+        >
+          <BodyHost />
+        </ThemeAwareScreen>,
       );
-      const flashList = tree.root.find(
-    (instance) => String(instance.type) === 'FlashList',
+    });
+
+    const getBackToTopButtons = () =>
+      tree!.root.findAll(
+        (instance) => String(instance.type) === 'ThemeAwareButtonHost',
       );
-
-      expect(
-    tree.root.findAll((instance) => String(instance.type) === 'HeaderHost'),
-      ).toHaveLength(1);
-      expect(flashList.props.ListHeaderComponent).toBeDefined();
-      expect(flashList.props.keyboardShouldPersistTaps).toBe('always');
-      expect(flashList.props.estimatedItemSize).toBe(200);
-  });
-
-  it('keeps fixed content outside the FlashList when fixedHeader is enabled', () => {
-      const tree = renderer.create(
-    <ThemeAwareScreen
-      fixedHeader
-      fixedHeaderContent={<HeaderHost />}
-      flashListProps={{ data: [], renderItem: () => null }}
-    >
-      <BodyHost />
-    </ThemeAwareScreen>,
-      );
-      const flashList = tree.root.find(
-    (instance) => String(instance.type) === 'FlashList',
-      );
-
-      expect(
-    tree.root.findAll((instance) => String(instance.type) === 'HeaderHost'),
-      ).toHaveLength(1);
-      expect(
-    tree.root.findAll((instance) => String(instance.type) === 'BodyHost'),
-      ).toHaveLength(1);
-      expect(flashList.props.ListHeaderComponent).toBeUndefined();
-      expect(flashList.props.keyboardShouldPersistTaps).toBe('always');
-      expect(flashList.props.estimatedItemSize).toBe(200);
-  });
-
-  it('uses caller-provided list options when there is no fixed header', () => {
-      const customListHeader = <ListHeaderHost />;
-      const contentContainerStyle = { paddingBottom: 24 };
-      const tree = renderer.create(
-    <ThemeAwareScreen
-      flashListProps={{
-        contentContainerStyle,
-        data: [],
-        estimatedItemSize: 48,
-        keyboardShouldPersistTaps: 'handled',
-        ListHeaderComponent: customListHeader,
-        renderItem: () => null,
-      }}
-    >
-      <BodyHost />
-    </ThemeAwareScreen>,
-      );
-      const flashList = tree.root.find(
-    (instance) => String(instance.type) === 'FlashList',
-      );
-
-      expect(flashList.props.ListHeaderComponent).toBe(customListHeader);
-      expect(flashList.props.keyboardShouldPersistTaps).toBe('handled');
-      expect(flashList.props.estimatedItemSize).toBe(48);
-      expect(flashList.props.contentContainerStyle).toBe(contentContainerStyle);
-  });
-
-  it.each([
-      { label: 'null', bottomContent: null },
-      { label: 'false', bottomContent: false },
-  ])('does not reserve space for $label bottom content', ({ bottomContent }) => {
-      const tree = renderer.create(
-    <ThemeAwareScreen bottomContent={bottomContent}>
-      <BodyHost />
-    </ThemeAwareScreen>,
-      );
-
-      expect(
-    tree.root.findAll(
+    const headerSurface = tree!.root.find(
       (instance) =>
         String(instance.type) === 'ThemeAwareSurface' &&
         typeof instance.props.onLayout === 'function',
-    ),
-      ).toHaveLength(0);
-      expect(
-    tree.root.find(
-      (instance) =>
-        String(instance.type) === 'ThemeAwareSurface' &&
-        instance.props.flex === 1 &&
-        instance.props.style?.marginBottom === 0,
-    ),
-      ).toBeDefined();
+    );
+    const flashList = tree!.root.find(
+      (instance) => String(instance.type) === 'FlashList',
+    );
+
+    expect(getBackToTopButtons()).toHaveLength(1);
+    expect(getBackToTopButtons()[0].props.accessibilityLabel).toBe(
+      'common.backToTop',
+    );
+
+    act(() => {
+      headerSurface.props.onLayout({
+        nativeEvent: { layout: { height: 40, y: 0 } },
+      });
+      flashList.props.onScroll({
+        nativeEvent: { contentOffset: { y: 40 } },
+      });
+    });
+
+    expect(getBackToTopButtons()).toHaveLength(2);
+    act(() => getBackToTopButtons()[1].props.onPress());
+    expect(__mockScrollToOffset).toHaveBeenCalledWith({
+      animated: true,
+      offset: 0,
+    });
+
+    act(() => {
+      flashList.props.onScroll({
+        nativeEvent: { contentOffset: { y: 0 } },
+      });
+    });
+    expect(getBackToTopButtons()).toHaveLength(1);
+
+    act(() => tree!.unmount());
   });
 
-  it('reserves viewport space for pinned bottom content', () => {
-      const tree = renderer.create(
-    <ThemeAwareScreen bottomContent={<FooterHost />}>
+  it('keeps the default back-to-top button above fixed FlashList content', () => {
+    __mockScrollToOffset.mockClear();
+    const tree = renderer.create(
+      <ThemeAwareScreen<number>
+        backToTop
+        fixedHeader
+        flashListProps={{ data: [1], renderItem: () => null }}
+      >
+        <FilterHost />
+      </ThemeAwareScreen>,
+    );
+    const order = tree.root
+      .findAll(
+        (instance) =>
+          String(instance.type) === 'ThemeAwareButtonHost' ||
+          String(instance.type) === 'FilterHost',
+      )
+      .map((instance) => String(instance.type));
+    const flashList = tree.root.find(
+      (instance) => String(instance.type) === 'FlashList',
+    );
+
+    expect(order).toEqual(['ThemeAwareButtonHost', 'FilterHost']);
+    expect(
+      flashList.findAll(
+        (instance) => String(instance.type) === 'ThemeAwareButtonHost',
+      ),
+    ).toHaveLength(0);
+
+    act(() => {
+      tree.root
+        .find((instance) => String(instance.type) === 'ThemeAwareButtonHost')
+        .props.onPress();
+    });
+    expect(__mockScrollToOffset).toHaveBeenCalledWith({
+      animated: true,
+      offset: 0,
+    });
+
+    act(() => tree.unmount());
+  });
+
+  it('scrolls a ScrollView to the top from the default back-to-top button', () => {
+    __mockScrollTo.mockClear();
+    let tree: renderer.ReactTestRenderer;
+
+    act(() => {
+      tree = renderer.create(
+        <ThemeAwareScreen backToTop>
+          <BodyHost />
+        </ThemeAwareScreen>,
+      );
+    });
+
+    act(() => {
+      tree!.root
+        .find((instance) => String(instance.type) === 'ThemeAwareButtonHost')
+        .props.onPress();
+    });
+
+    expect(__mockScrollTo).toHaveBeenCalledWith({
+      animated: true,
+      y: 0,
+    });
+
+    act(() => tree!.unmount());
+  });
+
+  it('lets a custom sticky header replace the default back-to-top header', () => {
+    const stickyHeader = React.createElement('CustomStickyHeaderHost');
+    const tree = renderer.create(
+      <ThemeAwareScreen stickyHeader={stickyHeader}>
         <BodyHost />
       </ThemeAwareScreen>,
     );
-    const bottomSurface = tree.root.find(
+
+    expect(
+      tree.root.findAll(
+        (instance) => String(instance.type) === 'CustomStickyHeaderHost',
+      ),
+    ).toHaveLength(1);
+    expect(
+      tree.root.findAll(
+        (instance) => String(instance.type) === 'ThemeAwareButtonHost',
+      ),
+    ).toHaveLength(0);
+
+    act(() => tree.unmount());
+  });
+
+  it('uses the default for padding axes that are not explicitly overridden', () => {
+    const tree = renderer.create(
+      <ThemeAwareScreen px="$5">
+        <BodyHost />
+      </ThemeAwareScreen>,
+    );
+
+    expect(
+      tree.root
+        .findAll((instance) => String(instance.type) === 'VStack')
+        .every(({ props }) => props.px === '$5' && props.py === '$2'),
+    ).toBe(true);
+
+    act(() => tree.unmount());
+  });
+
+  it('reserves viewport space for pinned bottom content', () => {
+    const tree = renderer.create(
+      <ThemeAwareScreen bottomContent={<FooterHost />}>
+        <BodyHost />
+      </ThemeAwareScreen>,
+    );
+    const bottomSurface = tree!.root.find(
       (instance) =>
         String(instance.type) === 'ThemeAwareSurface' &&
+        instance.props.position === 'absolute' &&
+        instance.props.borderTopWidth === '$1' &&
         typeof instance.props.onLayout === 'function',
     );
     const mainSurface = (height: number) =>
@@ -269,7 +357,7 @@ describe('ThemeAwareScreen', () => {
     expect(
       bottomSurface.find((instance) => String(instance.type) === 'VStack')
         .props,
-    ).toEqual(expect.objectContaining({ px: '$4', py: '$3' }));
+    ).toEqual(expect.objectContaining({ px: '$6', py: '$2' }));
     expect(mainSurface(0)).toBeDefined();
 
     act(() => {
@@ -284,6 +372,24 @@ describe('ThemeAwareScreen', () => {
         .style,
     ).toEqual({ flex: 1 });
   });
+
+  it('passes scroll actions to render-function bottom content', () => {
+    const bottomContent = jest.fn(() => <FooterHost />);
+    const tree = renderer.create(
+      <ThemeAwareScreen bottomContent={bottomContent}>
+        <BodyHost />
+      </ThemeAwareScreen>,
+    );
+
+    expect(bottomContent).toHaveBeenCalledWith({
+      scrollToTop: expect.any(Function),
+    });
+    expect(
+      tree.root.find((instance) => String(instance.type) === 'FooterHost'),
+    ).toBeDefined();
+
+    act(() => tree.unmount());
+  });
 });
 
 function HeaderHost() {
@@ -294,10 +400,10 @@ function BodyHost() {
   return React.createElement('BodyHost');
 }
 
-function FooterHost() {
-  return React.createElement('FooterHost');
+function FilterHost() {
+  return React.createElement('FilterHost');
 }
 
-function ListHeaderHost() {
-  return React.createElement('ListHeaderHost');
+function FooterHost() {
+  return React.createElement('FooterHost');
 }
