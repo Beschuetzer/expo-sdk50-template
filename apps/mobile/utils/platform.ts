@@ -20,10 +20,12 @@ export function getBackendUrl() {
     : 'https://your-production-api.example.com';
 }
 
-export function getIdentityProviderUrl() {
-  const configuredUrl = process.env.EXPO_PUBLIC_IDP_URL?.trim();
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/$/, '');
+export function getIdentityProviderUrl(
+  configuredUrl: string | undefined = process.env.EXPO_PUBLIC_IDP_URL,
+) {
+  const normalizedUrl = configuredUrl?.trim();
+  if (normalizedUrl) {
+    return normalizedUrl.replace(/\/$/, '');
   }
 
   throw new Error(

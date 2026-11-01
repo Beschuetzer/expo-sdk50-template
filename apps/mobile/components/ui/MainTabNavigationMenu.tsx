@@ -1,6 +1,5 @@
 import { VStack } from '@gluestack-ui/themed';
-import type { NavigationProp, ParamListBase } from '@react-navigation/native';
-import { useNavigation, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
 
@@ -20,8 +19,6 @@ const NAVIGATION_ITEMS = [
 export function MainTabNavigationMenu() {
   const { t } = useI18n();
   const router = useRouter();
-  const tabsNavigation =
-    useNavigation<NavigationProp<ParamListBase>>('/(tabs)');
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -38,15 +35,7 @@ export function MainTabNavigationMenu() {
               key={item.id}
               onPress={() => {
                 setIsOpen(false);
-                if ('tab' in item) {
-                  // Keep the tab's index route under the destination for back navigation.
-                  tabsNavigation.navigate(item.tab, {
-                    initial: false,
-                    screen: item.screen,
-                  });
-                } else {
-                  router.push(item.route);
-                }
+                router.push(item.route);
               }}
               variant="outline"
               width="100%"

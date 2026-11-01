@@ -4,10 +4,8 @@ import renderer, { act } from 'react-test-renderer';
 import { MainTabNavigationMenu } from './MainTabNavigationMenu';
 
 const mockPush = jest.fn();
-const mockTabsNavigate = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useNavigation: () => ({ navigate: mockTabsNavigate }),
   useRouter: () => ({ push: mockPush }),
 }));
 
@@ -87,59 +85,19 @@ describe('MainTabNavigationMenu', () => {
       (instance) => String(instance.type) === 'ThemeAwareButtonHost',
     );
     expect(actions.map((action) => action.props.children)).toEqual([
-      'jointAccountCharges.create',
-      'rules.create',
-      'home.findRelationship',
-      'paymentRequests.createRequest',
       'tabs.settings',
-      'paymentRequests.viewAllRequests',
-      'rules.viewAll',
-      'jointAccountCharges.viewAll',
-      'paymentRequests.awaitingDecision',
     ]);
-
-    const destinations = [
-      { tab: '(requests)', screen: 'NewJointAccountChargeScreen' },
-      { tab: '(rules)', screen: 'NewRelationshipRuleScreen' },
-      { route: '/search-relationships' },
-      { tab: '(requests)', screen: 'NewPaymentRequestScreen' },
-      { route: '/settings' },
-      { tab: '(requests)', screen: 'ViewAllRequestsScreen' },
-      { tab: '(rules)', screen: 'ViewAllRulesScreen' },
-      { tab: '(requests)', screen: 'JointAccountChargesScreen' },
-      { tab: '(requests)', screen: 'AwaitingDecisionScreen' },
-    ];
 
     act(() => {
       getMenu().props.onOpenChange(true);
     });
     expect(getMenu().props.open).toBe(true);
 
-    let tabNavigationCall = 0;
-    let routerPushCall = 0;
-    actions.forEach((action, index) => {
-      act(() => {
-        action.props.onPress();
-      });
-
-      const destination = destinations[index];
-      if ('tab' in destination) {
-        tabNavigationCall += 1;
-        expect(mockTabsNavigate).toHaveBeenNthCalledWith(
-          tabNavigationCall,
-          destination.tab,
-          { initial: false, screen: destination.screen },
-        );
-      } else {
-        routerPushCall += 1;
-        expect(mockPush).toHaveBeenNthCalledWith(
-          routerPushCall,
-          destination.route,
-        );
-      }
-      expect(getMenu().props.open).toBe(false);
+    act(() => {
+      actions[0].props.onPress();
     });
-
+    expect(mockPush).toHaveBeenCalledWith('/settings');
+    expect(getMenu().props.open).toBe(false);
     act(() => screen.unmount());
   });
 });

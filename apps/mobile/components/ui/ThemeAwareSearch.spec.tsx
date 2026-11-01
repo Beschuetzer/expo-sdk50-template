@@ -8,6 +8,8 @@ import {
 import type {
   ThemeAwareSearchLoadMoreConfig,
   ThemeAwareSearchSortConfig,
+  ThemeAwareSearchSortValue,
+  ThemeAwareSearchSortOrder,
 } from './ThemeAwareSearch';
 
 let mockKeyboardDidHide: (() => void) | undefined;
@@ -53,6 +55,45 @@ const initialSearchTestFilters: SearchTestFilters = {
   minimumAmount: '',
   toDate: null,
 };
+
+type SortValueItem = {
+  id: string;
+  value: ThemeAwareSearchSortValue;
+};
+
+function createSortConfig(
+  compareValues?: (
+    left: ThemeAwareSearchSortValue,
+    right: ThemeAwareSearchSortValue,
+  ) => number,
+  tieBreaker?: (left: SortValueItem, right: SortValueItem) => number,
+): ThemeAwareSearchSortConfig<SortValueItem> {
+  return {
+    field: {
+      label: 'Value',
+      initialValue: 'value',
+      placeholder: 'Value',
+      options: [
+        {
+          label: 'Value',
+          value: 'value',
+          getValue: (item) => item.value,
+          compareValues,
+        },
+      ],
+    },
+    order: {
+      label: 'Order',
+      initialValue: 'ascending',
+      placeholder: 'Order',
+      options: [
+        { label: 'Ascending', value: 'ascending' },
+        { label: 'Descending', value: 'descending' },
+      ],
+    },
+    tieBreaker,
+  };
+}
 
 jest.mock('react-native', () => ({
   Keyboard: {
@@ -368,6 +409,8 @@ describe('ThemeAwareSearch', () => {
     );
     act(() => sortField.props.onValueChange('amount'));
     expect(getResults().ids).toEqual(['gamma', 'alpha']);
+    act(() => sortField.props.onValueChange('unknown'));
+    expect(sortField.props.selectedValue).toBe('amount');
 
     const sortOrder = screen!.root.find(
       (instance) =>
@@ -376,17 +419,21 @@ describe('ThemeAwareSearch', () => {
     );
     act(() => sortOrder.props.onValueChange('descending'));
     expect(getResults().ids).toEqual(['alpha', 'gamma']);
+    act(() => sortOrder.props.onValueChange('unknown'));
+    expect(sortOrder.props.selectedValue).toBe('descending');
 
     const fromDate = screen!.root.find(
       (instance) =>
         String(instance.type) === 'DatePickerHost' &&
         instance.props.accessibilityLabel === 'From date',
     );
+    const selectedDate = new Date('2025-02-01T00:00:00.000Z');
+    act(() => fromDate.props.onChange({ type: 'dismissed' }, selectedDate));
+    expect(getResults().ids).toEqual(['alpha', 'gamma']);
+    act(() => fromDate.props.onChange({ type: 'set' }));
+    expect(getResults().ids).toEqual(['alpha', 'gamma']);
     act(() =>
-      fromDate.props.onChange(
-        { type: 'set' },
-        new Date('2025-02-01T00:00:00.000Z'),
-      ),
+        fromDate.props.onChange({ type: 'set' }, selectedDate),
     );
     expect(getResults().ids).toEqual(['gamma']);
     expect(getResults().hasActiveFilters).toBe(true);
@@ -635,5 +682,124 @@ describe('ThemeAwareSearch', () => {
       'request-2',
       'request-1',
     ]);
+  });
+
+  it('sorts nullable and equal values stably', () => {
+    const items: SortValueItem[] = [
+      { id: 'first-null', value: null },
+      { id: 'one-a', value: 1 },
+      { id: 'one-b', value: 1 },
+      { id: 'last-null', value: null },
+    ];
+
+    expect(
+      sortThemeAwareSearchItems(items, createSortConfig()).map(({ id }) => id),
+    ).toEqual(['one-a', 'one-b', 'first-null', 'last-null']);
+  });
+
+  it('rejects unknown sort options and invalid comparison values', () => {
+    const config = createSortConfig();
+
+    expect(() =>
+      sortThemeAwareSearchItems([], config, 'missing'),
+    ).toThrow('ThemeAwareSearch has no sort option for "missing".');
+    expect(() =>
+      sortThemeAwareSearchItems(
+        [],
+        config,
+        'value',
+        'sideways' as ThemeAwareSearchSortOrder,
+      ),
+    ).toThrow('ThemeAwareSearch has no sort order for "sideways".');
+    expect(() =>
+      sortThemeAwareSearchItems(
+        [
+          { id: 'invalid', value: new Date(Number.NaN) },
+          { id: 'valid', value: new Date('2025-01-01T00:00:00.000Z') },
+        ],
+        config,
+      ),
+    ).toThrow('ThemeAwareSearch sort values must be valid dates.');
+    expect(() =>
+      sortThemeAwareSearchItems(
+        [
+          { id: 'invalid', value: Number.NaN },
+          { id: 'valid', value: 1 },
+        ],
+        config,
+      ),
+    ).toThrow('ThemeAwareSearch sort values must be finite.');
+    expect(() =>
+      sortThemeAwareSearchItems(
+        [
+          { id: 'number', value: 1 },
+          { id: 'string', value: '1' },
+        ],
+        config,
+      ),
+    ).toThrow(
+      'ThemeAwareSearch sort values must use a consistent supported type.',
+    );
+  });
+
+  it('validates custom comparators and tie breakers', () => {
+    const equalItems = [
+      { id: 'first', value: 1 },
+      { id: 'second', value: 1 },
+    ];
+    const zeroComparator = () => 0;
+
+    expect(
+      sortThemeAwareSearchItems(
+        equalItems,
+        createSortConfig(zeroComparator, zeroComparator),
+      ).map(({ id }) => id),
+    ).toEqual(['first', 'second']);
+    expect(() =>
+      sortThemeAwareSearchItems(
+        equalItems,
+        createSortConfig(() => Number.NaN),
+      ),
+    ).toThrow(
+      'ThemeAwareSearch sort comparators must return finite numbers.',
+    );
+    expect(() =>
+      sortThemeAwareSearchItems(
+        equalItems,
+        createSortConfig(zeroComparator, () => Number.POSITIVE_INFINITY),
+      ),
+    ).toThrow(
+      'ThemeAwareSearch sort tie-breakers must return finite numbers.',
+    );
+  });
+
+  it('uses defaults when optional filter and sort configuration is omitted', () => {
+    let screen: ReactTestRenderer;
+    act(() => {
+      screen = renderer.create(
+        <ThemeAwareSearch<SearchTestItem, Record<string, never>>
+          items={searchTestItems}
+          initialFilters={{}}
+          filterItems={(items) => items}
+          search={{ label: 'Search', placeholder: 'Search by name' }}
+        >
+          {({ items }) =>
+            React.createElement('ResultsHost', {
+              ids: items.map(({ id }) => id),
+            })
+          }
+        </ThemeAwareSearch>,
+      );
+    });
+
+    expect(
+      screen!.root.find((instance) => String(instance.type) === 'ResultsHost')
+        .props.ids,
+    ).toEqual(['alpha', 'beta', 'gamma']);
+    expect(
+      screen!.root.findAll((instance) => String(instance.type) === 'DropdownHost'),
+    ).toHaveLength(0);
+
+    act(() => screen!.unmount());
   });
 });

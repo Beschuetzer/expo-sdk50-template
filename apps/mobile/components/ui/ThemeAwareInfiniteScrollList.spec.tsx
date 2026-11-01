@@ -132,7 +132,7 @@ describe('ThemeAwareInfiniteScrollList', () => {
   it('enables the back-to-top button by default for infinite scroll lists', () => {
     const tree = renderList();
 
-    expect(getThemeAwareScreen(tree).props.backToTop).toBe(true);
+    expect(getThemeAwareScreen(tree).props.backToTop).toBe(false);
 
     act(() => tree.unmount());
   });

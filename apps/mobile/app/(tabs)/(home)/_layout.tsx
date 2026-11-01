@@ -1,9 +1,9 @@
 import { Stack } from 'expo-router';
 
 import { useClientOnlyValue } from '@/components/hooks/useClientOnlyValue';
+import { MainTabNavigationMenu } from '@/components/ui/MainTabNavigationMenu';
 import { useI18n } from '@/utils/i18n';
 import { stackPageTitleScreenOptions } from '@/utils/pageHeaderOptions';
-import { MainTabNavigationMenu } from '@/components/ui/MainTabNavigationMenu';
 
 export const unstable_settings = {
   initialRouteName: 'index',

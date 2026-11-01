@@ -90,9 +90,15 @@ describe('platform utilities', () => {
 
   describe('getIdentityProviderUrl', () => {
     it('throws an actionable error when the URL is missing', () => {
-      expect(() => getIdentityProviderUrl()).toThrow(
+      expect(() => getIdentityProviderUrl('')).toThrow(
         'EXPO_PUBLIC_IDP_URL is not configured.',
       );
+    });
+
+    it('trims trailing slashes from the configured URL', () => {
+      expect(
+        getIdentityProviderUrl('https://identity.example.com/'),
+      ).toBe('https://identity.example.com');
     });
   });
 

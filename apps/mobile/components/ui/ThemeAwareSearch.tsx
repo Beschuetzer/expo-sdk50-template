@@ -552,15 +552,20 @@ export function ThemeAwareSearch<ItemT, FilterValuesT extends object>({
       );
     }
 
+    const handleDateChange: NonNullable<
+      ThemeAwareDatePickerProps['onChange']
+    > = (event, date) => {
+      if (event.type === 'set' && date) {
+        updateFilterValue(filterKey, date as FilterValuesT[typeof filterKey]);
+      }
+    };
+
     return {
       ...fieldProps,
+      label: field.label,
       type: 'date',
       value: selectedDate,
-      onChange: (event, date) => {
-        if (event.type === 'set' && date) {
-          updateFilterValue(filterKey, date as FilterValuesT[typeof filterKey]);
-        }
-      },
+      onChange: handleDateChange,
       onClear: () =>
         updateFilterValue(filterKey, null as FilterValuesT[typeof filterKey]),
     };

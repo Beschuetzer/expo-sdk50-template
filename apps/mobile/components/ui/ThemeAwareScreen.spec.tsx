@@ -75,6 +75,10 @@ jest.mock('@/utils/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
+jest.mock('@/components/hooks/useColorScheme', () => ({
+  useColorScheme: () => 'light',
+}));
+
 jest.mock('./ThemeAwareSurface', () => {
   const React = jest.requireActual('react') as typeof import('react');
   return {
