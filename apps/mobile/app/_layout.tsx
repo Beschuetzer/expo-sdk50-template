@@ -12,7 +12,6 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { MenuProvider } from 'react-native-popup-menu';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 
@@ -26,8 +25,8 @@ import { queryClient, queryPersistOptions } from '@/state/queryClient';
 import { persistor, store } from '@/state/store';
 import { FontProvider } from '@/utils/font';
 import { I18nProvider, useI18n } from '@/utils/i18n';
-import { ThemeModeProvider, useThemeMode } from '@/utils/theme';
 import { stackPageTitleScreenOptions } from '@/utils/pageHeaderOptions';
+import { ThemeModeProvider, useThemeMode } from '@/utils/theme';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -106,26 +105,24 @@ function RootLayoutNav() {
               >
                 <OAuth2AuthProvider>
                   <GestureHandlerRootView style={{ flex: 1 }}>
-                    <MenuProvider>
-                      <BottomSheetModalProvider>
-                        <Stack
-                          screenOptions={{
-                            ...stackPageTitleScreenOptions,
-                            headerShown: true,
+                    <BottomSheetModalProvider>
+                      <Stack
+                        screenOptions={{
+                          ...stackPageTitleScreenOptions,
+                          headerShown: true,
+                          headerTitleAlign: 'center',
+                        }}
+                      >
+                        <Stack.Screen
+                          name="(tabs)"
+                          options={{
+                            headerShown: false,
                             headerTitleAlign: 'center',
                           }}
-                        >
-                          <Stack.Screen
-                            name="(tabs)"
-                            options={{
-                              headerShown: false,
-                              headerTitleAlign: 'center',
-                            }}
-                          />
-                        </Stack>
-                        <ErrorModal />
-                      </BottomSheetModalProvider>
-                    </MenuProvider>
+                        />
+                      </Stack>
+                      <ErrorModal />
+                    </BottomSheetModalProvider>
                   </GestureHandlerRootView>
                 </OAuth2AuthProvider>
               </PersistGate>

@@ -4,7 +4,7 @@ This repository is a monorepo template for a mobile app and API, using a deploye
 
 ## Purpose of the repo
 
-- `apps/mobile`: Expo SDK 50 React Native application using Expo Router, Redux Toolkit, Redux Persist, TanStack Query, and Gluestack UI v1.
+- `apps/mobile`: Expo SDK 58 React Native 0.88 application using Expo Router, Redux Toolkit, Redux Persist, TanStack Query, and Gluestack UI v1.
 - `apps/api`: Express OAuth2 resource server with TypeScript, Prisma-ready MongoDB configuration, and lightweight health/auth endpoints.
 - `libs/shared-types`: platform-neutral TypeScript contracts that are shared across apps.
 
@@ -44,9 +44,12 @@ This repository is a monorepo template for a mobile app and API, using a deploye
 
 ## Repo-specific gotchas to avoid
 
-- Expo SDK 50 is pinned to older package APIs. Do not assume the latest expo-camera API exists in this repo.
-  - `expo-camera` v14 has no `CameraView` and no QR scanning APIs.
-  - This project uses `expo-barcode-scanner` for scanning flows.
+- Expo packages must match SDK 58. Use `npx expo install` and `npx expo install --fix` to select compatible native-module versions.
+  - Barcode scanning uses `CameraView` and `useCameraPermissions` from `expo-camera`; `expo-barcode-scanner` is not used.
+  - Reanimated 4 uses `react-native-worklets/plugin` in `babel.config.js`.
+  - FlashList v2 estimates item sizes automatically; do not pass the removed `estimatedItemSize` prop.
+- React Native 0.88 uses the strict TypeScript API. Use exported instance/event types instead of removed legacy types or deep imports.
+- React 19 tests using `react-test-renderer` should create and update render trees inside `act`.
 - Gluestack UI v1 is not the same as the newer Tailwind/className-based versions.
   - Use the v1 compound component patterns and semantic sizing tokens, not the v2/v5 docs.
 - The workspace uses Nx. Prefer the project-level commands in `package.json` and `apps/*/project.json` instead of inventing ad hoc build scripts.

@@ -4,6 +4,8 @@ const REQUIRED_ENV_KEYS = [
   'EXPO_PUBLIC_PORT_NUMBER',
 ] as const;
 
+type EnvironmentVariables = Record<string, string | undefined>;
+
 export type EnvironmentConfig = {
   env: string;
   ipAddress: string;
@@ -11,7 +13,7 @@ export type EnvironmentConfig = {
 };
 
 export function getRequiredEnvironment(
-  envVars: NodeJS.ProcessEnv = process.env,
+  envVars: EnvironmentVariables = process.env,
 ): EnvironmentConfig {
   const env = envVars.EXPO_PUBLIC_ENV?.trim();
   const ipAddress = envVars.EXPO_PUBLIC_IP_ADDRESS?.trim();
@@ -41,12 +43,14 @@ export function getRequiredEnvironment(
   } as EnvironmentConfig;
 }
 
-export function getIsDevelopmentMode(envVars: NodeJS.ProcessEnv = process.env) {
+export function getIsDevelopmentMode(
+  envVars: EnvironmentVariables = process.env,
+) {
   return !!envVars.EXPO_PUBLIC_ENV?.match(/dev|development/i);
 }
 
 export function getEnvironmentOrDefault(
-  envVars: NodeJS.ProcessEnv = process.env,
+  envVars: EnvironmentVariables = process.env,
 ) {
   try {
     return getRequiredEnvironment(envVars);

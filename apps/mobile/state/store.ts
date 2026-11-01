@@ -1,15 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { useDispatch, useSelector } from 'react-redux';
 import type { TypedUseSelectorHook } from 'react-redux';
 import { persistStore, persistReducer } from 'redux-persist';
 
+import { persistenceStorage } from '@/state/persistenceStorage';
 import generalReducer, { generalSlice } from '@/state/slices/generalSlice';
 import { logWarn } from '@/utils/logging';
 
 const persistConfig = {
   key: 'root',
-  storage: AsyncStorage,
+  storage: persistenceStorage,
   version: 1,
   whitelist: [generalSlice.name],
   serialize: true,

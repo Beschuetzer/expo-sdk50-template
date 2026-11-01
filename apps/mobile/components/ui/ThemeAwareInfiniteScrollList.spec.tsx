@@ -70,7 +70,6 @@ describe('ThemeAwareInfiniteScrollList', () => {
     expect(flashListProps).toEqual(
       expect.objectContaining({
         data: items,
-        estimatedItemSize: 64,
         keyExtractor: expect.any(Function),
         renderItem: expect.any(Function),
       }),
@@ -305,7 +304,6 @@ function renderList({
         onRefresh={onRefresh}
         refreshing={refreshing}
         stickyHeader={stickyHeader}
-        flashListProps={{ estimatedItemSize: 64 }}
         renderItem={renderTestItem}
       >
         {React.createElement('HeaderHost')}

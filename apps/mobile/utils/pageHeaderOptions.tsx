@@ -1,27 +1,30 @@
 import { HeaderBackButton, HeaderTitle } from '@react-navigation/elements';
-import type { HeaderTitleProps } from '@react-navigation/elements';
 import { useNavigation } from '@react-navigation/native';
+import type {
+  NativeStackHeaderBackProps,
+  NativeStackNavigationOptions,
+} from 'expo-router';
+import type { ColorValue } from 'react-native';
 
 export const MAX_PAGE_TITLE_LENGTH = 30;
 
 const TRUNCATION_SUFFIX = '...';
 
-type StackHeaderLeftProps = {
-  canGoBack: boolean;
-  label?: string;
-  tintColor?: string;
+type NavigationPageTitleProps = {
+  children: string;
+  tintColor?: ColorValue;
 };
 
 function NavigationBackButton({
   label,
   tintColor,
-}: Omit<StackHeaderLeftProps, 'canGoBack'>) {
+}: Omit<NativeStackHeaderBackProps, 'canGoBack'>) {
   const navigation = useNavigation();
 
   return (
     <HeaderBackButton
       label={label ? truncatePageTitle(label) : undefined}
-      tintColor={tintColor}
+      tintColor={typeof tintColor === 'string' ? tintColor : undefined}
       onPress={() => navigation.goBack()}
     />
   );
@@ -30,7 +33,7 @@ function NavigationBackButton({
 function renderNavigationBackButton({
   canGoBack,
   ...props
-}: StackHeaderLeftProps) {
+}: NativeStackHeaderBackProps) {
   return canGoBack ? <NavigationBackButton {...props} /> : null;
 }
 
@@ -47,18 +50,23 @@ export function truncatePageTitle(title: string): string {
   return `${characters.slice(0, visibleCharacterCount).join('')}${TRUNCATION_SUFFIX}`;
 }
 
-function NavigationPageTitle(props: HeaderTitleProps) {
-  const { children, ...headerTitleProps } = props;
-
+function NavigationPageTitle({ children, tintColor }: NavigationPageTitleProps) {
   return (
-    <HeaderTitle {...headerTitleProps}>
+    <HeaderTitle
+      tintColor={typeof tintColor === 'string' ? tintColor : undefined}
+    >
       {truncatePageTitle(children)}
     </HeaderTitle>
   );
 }
 
+const nativeStackHeaderTitle =
+  NavigationPageTitle satisfies NonNullable<
+    NativeStackNavigationOptions['headerTitle']
+  >;
+
 export const pageTitleScreenOptions = {
-  headerTitle: NavigationPageTitle,
+  headerTitle: nativeStackHeaderTitle,
 };
 
 export const stackPageTitleScreenOptions = {

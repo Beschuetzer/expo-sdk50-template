@@ -13,6 +13,8 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { ThemeAwareMenu } from './ThemeAwareMenu';
 
+import { COLORS } from '@/constants/colors';
+
 let mockColorScheme = 'light';
 
 jest.mock('@react-native-vector-icons/fontawesome', () => {
@@ -21,22 +23,6 @@ jest.mock('@react-native-vector-icons/fontawesome', () => {
   return {
     FontAwesome: ({ name, ...props }: Record<string, unknown>) =>
       actualReact.createElement(String(name), props),
-  };
-});
-
-jest.mock('zeego/dropdown-menu', () => {
-  const React = jest.requireActual('react') as typeof import('react');
-  const createComponent =
-    (name: string) =>
-    ({ children, ...props }: Record<string, unknown>) =>
-      React.createElement(name, props, children as React.ReactNode);
-
-  return {
-    Content: createComponent('ZeegoContent'),
-    Item: createComponent('ZeegoItem'),
-    ItemTitle: createComponent('ZeegoItemTitle'),
-    Root: createComponent('ZeegoRoot'),
-    Trigger: createComponent('ZeegoTrigger'),
   };
 });
 
@@ -323,11 +309,20 @@ describe('ThemeAwareMenu', () => {
       value: 'ios',
     });
     const onSelect = jest.fn();
+    const onDisabledSelect = jest.fn();
     act(() => {
       mountedTree = renderer.create(
         <ThemeAwareMenu
           defaultOpen
-          quickActions={[{ id: 'settings', label: 'Settings', onSelect }]}
+          quickActions={[
+            { id: 'settings', label: 'Settings', onSelect },
+            {
+              disabled: true,
+              id: 'disabled-setting',
+              label: 'Disabled setting',
+              onSelect: onDisabledSelect,
+            },
+          ]}
         >
           <Text>Drawer content</Text>
         </ThemeAwareMenu>,
@@ -368,6 +363,12 @@ describe('ThemeAwareMenu', () => {
       .findAllByType(Text)
       .find((instance) => instance.props.children === 'Settings');
     expect(actionLabel?.props.style).toEqual({ color: '#fff' });
+    const disabledActionLabel = tree.root
+      .findAllByType(Text)
+      .find((instance) => instance.props.children === 'Disabled setting');
+    expect(disabledActionLabel?.props.style).toEqual({
+      color: COLORS.light.disabled,
+    });
 
     const actionButton = tree.root.findByProps({
       accessibilityLabel: 'Settings',
@@ -432,22 +433,28 @@ describe('ThemeAwareMenu', () => {
       if (!tree) {
         throw new Error('Expected the menu renderer to be initialized.');
       }
-      const menuContent = tree.root.find(
-        (instance) => String(instance.type) === 'ZeegoContent',
-      );
-      const menuItem = tree.root.find(
-        (instance) => String(instance.type) === 'ZeegoItem',
-      );
-      const menuItemTitle = tree.root.find(
-        (instance) => String(instance.type) === 'ZeegoItemTitle',
-      );
+      const quickActionsTrigger = tree.root.findByProps({
+        accessibilityLabel: 'More menu actions',
+      });
 
-      expect(menuContent.props.side).toBe('left');
-      expect(menuContent.props.style.backgroundColor).toBe(
-        expectedBackgroundColor,
-      );
-      expect(menuItem.props.onSelect).toEqual(expect.any(Function));
-      expect(menuItemTitle.props.style.color).toBe(expectedTextColor);
+      act(() => quickActionsTrigger.props.onPress());
+
+      const quickActionsPanel = tree.root
+        .findAllByType(View)
+        .find((instance) => {
+          const style = StyleSheet.flatten(instance.props.style);
+          return style?.minWidth === 180;
+        });
+      const actionLabel = tree.root
+        .findAllByType(Text)
+        .find((instance) => instance.props.children === 'Settings');
+
+      expect(
+        StyleSheet.flatten(quickActionsPanel?.props.style)?.backgroundColor,
+      ).toBe(expectedBackgroundColor);
+      expect(actionLabel?.props.style).toEqual({
+        color: expectedTextColor,
+      });
     },
   );
 

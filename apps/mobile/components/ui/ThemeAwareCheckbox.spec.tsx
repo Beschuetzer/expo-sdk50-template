@@ -1,7 +1,9 @@
 import React from 'react';
-import renderer, { act } from 'react-test-renderer';
+import { act } from 'react-test-renderer';
 
 import { ThemeAwareCheckbox } from './ThemeAwareCheckbox';
+
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 let mockColorScheme = 'light';
 
@@ -47,7 +49,7 @@ describe('ThemeAwareCheckbox', () => {
 
   it('places the checkbox to the left of the label by default', () => {
     const onValueChange = jest.fn();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareCheckbox label="Alex" onValueChange={onValueChange} value />,
     );
     const children = tree.root
@@ -73,7 +75,7 @@ describe('ThemeAwareCheckbox', () => {
 
   it('can place the checkbox to the right of the label with the dark theme tint', () => {
     mockColorScheme = 'dark';
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareCheckbox
         checkboxPosition="right"
         label="Alex"

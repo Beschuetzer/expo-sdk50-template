@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
-import renderer from 'react-test-renderer';
 
 import HomeScreen from '@/app/(tabs)/(home)/index';
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 jest.mock('expo-router', () => ({
   Stack: {
@@ -116,7 +116,7 @@ jest.mock('@/utils/i18n', () => ({
 
 describe('HomeScreen landing page', () => {
   it('renders the localized starter content without a menu', () => {
-    const tree = renderer.create(<HomeScreen />);
+    const tree = renderWithAct(<HomeScreen />);
     const stackScreen = tree.root.find(
       (instance) => String(instance.type) === 'StackScreen',
     );

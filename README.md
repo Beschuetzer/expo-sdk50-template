@@ -1,6 +1,6 @@
-## Expo 50 Nx Starter Monorepo
+## Expo SDK 58 Nx Starter Monorepo
 
-A neutral Expo SDK 50 starter shell managed by Nx, with a minimal Node.js backend and an external beta OIDC provider.
+A neutral Expo SDK 58 starter shell managed by Nx, with a minimal Node.js backend and an external beta OIDC provider.
 
 ## AI / LLM onboarding
 
@@ -15,7 +15,7 @@ For detailed repo instructions, see [AGENTS.md](AGENTS.md).
 
 ## Projects
 
-- `mobile`: Expo Router app in `apps/mobile`, preserving the existing Expo SDK 50 and gluestack UI v1 setup.
+- `mobile`: Expo Router app in `apps/mobile`, using Expo SDK 58 and gluestack UI v1.
 - `api`: Express-based OAuth2 resource server in `apps/api`.
 - `shared-types`: source-only TypeScript contracts in `libs/shared-types`, consumed by both apps.
 
@@ -94,21 +94,21 @@ Cache` to remove it. Reading the cache after clearing should report a cache
 miss.
 
 Redux DevTools are enabled in development through
-`redux-devtools-expo-dev-plugin@0.2.1`, the newest release compatible with this
-Expo SDK 50 template. After starting the mobile app, press `Shift+M` in the
+`redux-devtools-expo-dev-plugin@2.0.0`, compatible with this Expo SDK 58
+template. After starting the mobile app, press `Shift+M` in the
 Expo CLI and choose `Open devtools plugin - redux-devtools-expo-dev-plugin`.
 The enhancer is disabled in production builds.
 
 ### Lists
 
-`@shopify/flash-list` is already installed and used by the home screen. Use it
-for data-driven lists, provide a stable `keyExtractor`, and set an
-`estimatedItemSize`. Prefer the shared theme-aware primitives for list rows so
-light and dark mode behavior stays consistent across screens.
+`@shopify/flash-list` v2 is installed and used by the home screen. Use it for
+data-driven lists and provide a stable `keyExtractor`; v2 measures item sizes
+automatically. Prefer the shared theme-aware primitives for list rows so light
+and dark mode behavior stays consistent across screens.
 
 ## Local Development
 
-Use Node.js 20.12.0+, 21, 22, or 23 for this workspace. The required range is `>=20.12.0 <23`.
+Expo SDK 58 requires Node.js `^22.13.0 || ^24.3.0 || ^26.0.0 || >=27.0.0`.
 
 Install dependencies once:
 

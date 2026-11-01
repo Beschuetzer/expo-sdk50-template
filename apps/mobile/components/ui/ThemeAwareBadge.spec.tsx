@@ -1,7 +1,8 @@
 import React from 'react';
-import renderer from 'react-test-renderer';
 
 import { ThemeAwareBadge } from './ThemeAwareBadge';
+
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 let mockColorScheme = 'light';
 
@@ -33,7 +34,7 @@ describe('ThemeAwareBadge', () => {
 
   it('uses dark background and text colors', () => {
     mockColorScheme = 'dark';
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareBadge
         darkBackground="$error900"
         darkTextColor="$error100"
@@ -56,7 +57,7 @@ describe('ThemeAwareBadge', () => {
   });
 
   it('uses light background and text colors', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareBadge
         darkBackground="$error900"
         darkTextColor="$error100"
@@ -79,7 +80,7 @@ describe('ThemeAwareBadge', () => {
   });
 
   it('uses default colors when overrides are omitted', () => {
-    const lightTree = renderer.create(
+    const lightTree = renderWithAct(
       <ThemeAwareBadge>Pending</ThemeAwareBadge>,
     );
     const lightBadge = lightTree.root.find(
@@ -93,7 +94,7 @@ describe('ThemeAwareBadge', () => {
     expect(lightText.props.color).toBe('$textLight900');
 
     mockColorScheme = 'dark';
-    const darkTree = renderer.create(
+    const darkTree = renderWithAct(
       <ThemeAwareBadge>Pending</ThemeAwareBadge>,
     );
     const darkBadge = darkTree.root.find(

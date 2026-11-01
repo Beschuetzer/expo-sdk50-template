@@ -1,7 +1,9 @@
 import React, { type ReactNode } from 'react';
-import renderer, { act } from 'react-test-renderer';
+import { act } from 'react-test-renderer';
 
 import { ThemeAwareTimePicker } from './ThemeAwareTimePicker';
+
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 let mockColorScheme = 'light';
 let mockPlatformOS = 'ios';
@@ -117,7 +119,7 @@ describe('ThemeAwareTimePicker', () => {
     const onClose = jest.fn();
     const minimumDate = new Date(2024, 0, 1);
     const maximumDate = new Date(2024, 11, 31);
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker
         maximumDate={maximumDate}
         minimumDate={minimumDate}
@@ -177,7 +179,7 @@ describe('ThemeAwareTimePicker', () => {
 
   it('uses date and time mode on iOS', () => {
     const value = new Date(2024, 0, 15, 13, 30);
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker mode="datetime" value={value} />,
     );
     const inputField = tree.root.find(
@@ -222,7 +224,7 @@ describe('ThemeAwareTimePicker', () => {
         />
       );
     }
-    const tree = renderer.create(<ControlledPicker />);
+    const tree = renderWithAct(<ControlledPicker />);
     const calendarIcon = tree.root.find(
       (instance) => String(instance.type) === 'InputSlot',
     );
@@ -260,7 +262,7 @@ describe('ThemeAwareTimePicker', () => {
     mockPlatformOS = 'android';
     const onChange = jest.fn();
     const onClose = jest.fn();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker
         display="calendar"
         mode="datetime"
@@ -312,7 +314,7 @@ describe('ThemeAwareTimePicker', () => {
     mockPlatformOS = 'android';
     const onCancel = jest.fn();
     const onClose = jest.fn();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker onCancel={onCancel} onClose={onClose} />,
     );
     const calendarIcon = tree.root.find(
@@ -337,7 +339,7 @@ describe('ThemeAwareTimePicker', () => {
     mockPlatformOS = 'android';
     const onChange = jest.fn();
     const onClose = jest.fn();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker
         neutralButton={{ label: 'Clear' }}
         onChange={onChange}
@@ -363,7 +365,7 @@ describe('ThemeAwareTimePicker', () => {
 
   it('clears the selected date from the calendar field', () => {
     const onClear = jest.fn();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker
         clearable
         onClear={onClear}
@@ -387,7 +389,7 @@ describe('ThemeAwareTimePicker', () => {
     const onClose = jest.fn();
     const minimumDate = new Date(2024, 0, 1);
     const maximumDate = new Date(2024, 11, 31);
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker
         maximumDate={maximumDate}
         minimumDate={minimumDate}
@@ -440,7 +442,7 @@ describe('ThemeAwareTimePicker', () => {
     const onClose = jest.fn();
     const minimumDate = new Date(2024, 0, 1, 9);
     const maximumDate = new Date(2024, 11, 31, 17);
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareTimePicker
         maximumDate={maximumDate}
         minimumDate={minimumDate}

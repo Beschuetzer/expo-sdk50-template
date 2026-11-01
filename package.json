@@ -71,26 +71,26 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@babel/plugin-transform-class-static-block": "^7.29.7",
-    "@expo/server": "^0.3.0",
-    "expo-router": "~3.4.10",
+    "@react-native/jest-preset": "^0.88.1",
+    "expo-router": "~58.0.29",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
-    "@types/react": "~18.2.45",
-    "@types/react-test-renderer": "^18.0.7",
+    "@types/react": "~19.3.0",
+    "@types/react-test-renderer": "^19.3.0",
     "@typescript-eslint/eslint-plugin": "8.72.0",
     "@typescript-eslint/parser": "8.72.0",
     "eslint": "^8.57.1",
     "eslint-config-universe": "^16.1.2",
     "eslint-plugin-react-hooks": "^4.6.0",
-    "expo-doctor": "^1.11.0",
+    "expo-doctor": "^1.21.5",
     "jest": "^29.7.0",
-    "jest-expo": "~50.0.4",
+    "jest-expo": "~58.0.13",
     "nx": "23.3.1",
     "patch-package": "^8.0.0",
     "postcss": "8.5.31",
     "prettier": "^3.2.5",
-    "react-test-renderer": "18.2.0",
+    "react-test-renderer": "19.3.0",
     "tar": "7.5.22",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
@@ -109,11 +109,11 @@
   },
   "private": true,
   "engines": {
-    "node": ">=20.12.0 <23",
+    "node": "^22.13.0 || ^24.3.0 || ^26.0.0 || >=27.0.0",
     "npm": ">=10"
   },
   "template": {
-    "description": "Expo SDK 50 starter shell with reusable app architecture and a neutral landing/settings flow.",
+    "description": "Expo SDK 58 starter shell with reusable app architecture and a neutral landing/settings flow.",
     "sampleDomain": [
       "starter home screen",
       "starter settings screen",
@@ -128,7 +128,6 @@
     ],
     "appSpecificPackages": [
       "expo-camera",
-      "expo-barcode-scanner",
       "expo-share-intent",
       "sample task-domain modules"
     ]

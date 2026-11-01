@@ -1,7 +1,9 @@
 import React, { type ReactNode } from 'react';
-import renderer, { act } from 'react-test-renderer';
+import { act } from 'react-test-renderer';
 
 import { MainTabNavigationMenu } from './MainTabNavigationMenu';
+
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 const mockPush = jest.fn();
 
@@ -71,7 +73,7 @@ describe('MainTabNavigationMenu', () => {
   });
 
   it('lists additional destinations alphabetically and closes before navigating', () => {
-    const screen = renderer.create(<MainTabNavigationMenu />);
+    const screen = renderWithAct(<MainTabNavigationMenu />);
     const getMenu = () =>
       screen.root.find(
         (instance) => String(instance.type) === 'ThemeAwareMenuHost',

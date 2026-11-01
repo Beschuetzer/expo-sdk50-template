@@ -9,7 +9,7 @@
       "distribution": "internal",
       "environment": "development",
       "autoIncrement": true,
-      "node": "20.19.4"
+      "node": "22.13.0"
     },
     "preview": {
       "environment": "preview",
@@ -23,7 +23,7 @@
       },
       "distribution": "internal",
       "autoIncrement": true,
-      "node": "20.19.4"
+      "node": "22.13.0"
     },
     "production": {
       "env": {
@@ -35,7 +35,7 @@
         "EXPO_PUBLIC_OAUTH_SCOPES": "openid profile email offline_access"
       },
       "autoIncrement": true,
-      "node": "20.19.4"
+      "node": "22.13.0"
     }
   },
   "submit": {

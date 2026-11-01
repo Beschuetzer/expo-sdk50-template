@@ -1,8 +1,10 @@
 import React from 'react';
-import renderer, { act } from 'react-test-renderer';
+import { act } from 'react-test-renderer';
 
 import { ThemeAwareButton } from './ThemeAwareButton';
 import { ThemeAwareButtonPaletteProvider } from './ThemeAwareButtonPalette';
+
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 let mockColorScheme = 'light';
 
@@ -38,7 +40,7 @@ describe('ThemeAwareButton', () => {
           resolveCallback = resolve;
         }),
     );
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButton onPress={onPress}>Save</ThemeAwareButton>,
     );
     const findButton = () =>
@@ -77,7 +79,7 @@ describe('ThemeAwareButton', () => {
 
   it('uses dark-theme backgrounds and supports custom button backgrounds', () => {
     mockColorScheme = 'dark';
-    const darkTree = renderer.create(
+    const darkTree = renderWithAct(
       <ThemeAwareButton darkBackground="$dark-custom">Dark</ThemeAwareButton>,
     );
     const darkButton = darkTree.root.find(
@@ -86,7 +88,7 @@ describe('ThemeAwareButton', () => {
 
     expect(darkButton.props.bg).toBe('$dark-custom');
 
-    const customTree = renderer.create(
+    const customTree = renderWithAct(
       <ThemeAwareButton bg="$explicit">Custom</ThemeAwareButton>,
     );
     const customButton = customTree.root.find(
@@ -100,7 +102,7 @@ describe('ThemeAwareButton', () => {
   it('allows multiline labels to wrap and expand the button height', () => {
     const label =
       'Continue after reviewing the details below. This text should wrap on a narrow screen.';
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButton size="sm">{label}</ThemeAwareButton>,
     );
     const button = tree.root.find(
@@ -119,7 +121,7 @@ describe('ThemeAwareButton', () => {
   });
 
   it('preserves explicitly configured button heights', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButton h="$8">Custom height</ThemeAwareButton>,
     );
     const button = tree.root.find(
@@ -131,7 +133,7 @@ describe('ThemeAwareButton', () => {
   });
 
   it('renders outline requests as solid buttons', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButton variant="outline">
         {React.createElement('Icon')}
       </ThemeAwareButton>,
@@ -145,7 +147,7 @@ describe('ThemeAwareButton', () => {
   });
 
   it('gives buttons on the same screen distinct palette colors', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButtonPaletteProvider>
         <ThemeAwareButton>First</ThemeAwareButton>
         <ThemeAwareButton>Second</ThemeAwareButton>
@@ -160,7 +162,7 @@ describe('ThemeAwareButton', () => {
   });
 
   it('keeps link buttons transparent', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButton variant="link">Link</ThemeAwareButton>,
     );
     const button = tree.root.find(
@@ -175,7 +177,7 @@ describe('ThemeAwareButton', () => {
   });
 
   it('gives link buttons on the same screen distinct text colors', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButtonPaletteProvider>
         <ThemeAwareButton variant="link">First</ThemeAwareButton>
         <ThemeAwareButton variant="link">Second</ThemeAwareButton>
@@ -189,7 +191,7 @@ describe('ThemeAwareButton', () => {
   });
 
   it('keeps link icon buttons transparent', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareButton variant="link">
         {React.createElement('Icon')}
       </ThemeAwareButton>,
@@ -205,10 +207,10 @@ describe('ThemeAwareButton', () => {
   });
 
   it('ignores presses when no handler is provided or the button is disabled', () => {
-    const withoutHandler = renderer.create(
+    const withoutHandler = renderWithAct(
       <ThemeAwareButton>Static</ThemeAwareButton>,
     );
-    const disabled = renderer.create(
+    const disabled = renderWithAct(
       <ThemeAwareButton disabled onPress={jest.fn()}>
         Disabled
       </ThemeAwareButton>,

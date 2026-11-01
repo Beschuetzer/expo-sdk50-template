@@ -5,6 +5,8 @@ import renderer, { act } from 'react-test-renderer';
 
 import { I18nProvider, getMessage, locales, useI18n } from './i18n';
 
+import { renderWithAct } from '@/test-utils/renderWithAct';
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve(null)),
   setItem: jest.fn(() => Promise.resolve()),
@@ -114,8 +116,9 @@ describe('i18n', () => {
       return null;
     };
 
+    let tree!: renderer.ReactTestRenderer;
     await act(async () => {
-      const tree = renderer.create(
+      tree = renderer.create(
         React.createElement(
           I18nProvider,
           null,
@@ -124,20 +127,16 @@ describe('i18n', () => {
       );
       await Promise.resolve();
       await Promise.resolve();
-      act(() => {
-        current?.setLocale('es');
-      });
-      tree.update(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(TestConsumer, null),
-        ),
-      );
+    });
+
+    await act(async () => {
+      current?.setLocale('es');
+      await Promise.resolve();
     });
 
     expect(current?.locale).toBe('es');
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('@mobile/locale', 'es');
+    act(() => tree.unmount());
   });
 
   it('throws when useI18n is called outside a provider', () => {
@@ -151,7 +150,7 @@ describe('i18n', () => {
 
     try {
       expect(() => {
-        renderer.create(React.createElement(TestConsumer));
+        renderWithAct(React.createElement(TestConsumer));
       }).toThrow('useI18n must be used within an I18nProvider');
     } finally {
       consoleError.mockRestore();
@@ -199,8 +198,9 @@ describe('i18n', () => {
       return null;
     };
 
+    let tree!: renderer.ReactTestRenderer;
     await act(async () => {
-      const tree = renderer.create(
+      tree = renderer.create(
         React.createElement(
           I18nProvider,
           null,
@@ -209,17 +209,15 @@ describe('i18n', () => {
       );
       await Promise.resolve();
       await Promise.resolve();
+    });
+
+    await act(async () => {
       expect(() => current?.setLocale('es')).not.toThrow();
-      tree.update(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(TestConsumer, null),
-        ),
-      );
+      await Promise.resolve();
     });
 
     expect(current?.locale).toBe('es');
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('@mobile/locale', 'es');
+    act(() => tree.unmount());
   });
 });

@@ -1,7 +1,8 @@
 import React from 'react';
-import renderer from 'react-test-renderer';
 
 import { ThemeAwareDropdown } from './ThemeAwareDropdown';
+
+import { renderWithAct } from '@/test-utils/renderWithAct';
 
 let mockTextColor = '$textLight900';
 let mockColorScheme = 'light';
@@ -47,7 +48,7 @@ describe('ThemeAwareDropdown', () => {
     mockTextColor = '$textDark50';
     mockColorScheme = 'dark';
     const onValueChange = jest.fn();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareDropdown
         onValueChange={onValueChange}
         options={[
@@ -89,7 +90,7 @@ describe('ThemeAwareDropdown', () => {
   });
 
   it('uses the light checked background for the selected option', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareDropdown
         onValueChange={jest.fn()}
         options={[

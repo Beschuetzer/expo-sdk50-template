@@ -1,6 +1,7 @@
 import { HeaderBackButton } from '@react-navigation/elements';
 import { Image } from 'expo-image';
-import { Tabs, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { Tabs } from 'expo-router/js-tabs';
 import React from 'react';
 import { Pressable } from 'react-native';
 
@@ -12,11 +13,10 @@ import { Routes } from '@/constants/navigation';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { getProfilePictureFromClaims } from '@/features/auth/client';
 import { useI18n } from '@/utils/i18n';
-import { stackPageTitleScreenOptions } from '@/utils/pageHeaderOptions';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof ThemeAwareIcon>['name'];
-  color: string;
+  color: React.ComponentProps<typeof ThemeAwareIcon>['color'];
 }) {
   return <ThemeAwareIcon size={28} style={{ marginBottom: -3 }} {...props} />;
 }
@@ -86,7 +86,9 @@ export default function TabLayout() {
               onPress={() =>
                 router.canGoBack() ? router.back() : router.replace('/')
               }
-              tintColor={tintColor}
+              tintColor={
+                typeof tintColor === 'string' ? tintColor : undefined
+              }
             />
           ),
           headerTitleAlign: 'center',

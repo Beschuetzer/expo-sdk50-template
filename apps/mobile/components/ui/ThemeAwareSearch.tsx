@@ -2,10 +2,7 @@ import { HStack, VStack } from '@gluestack-ui/themed';
 import type { ComponentProps, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Keyboard } from 'react-native';
-import type {
-  NativeSyntheticEvent,
-  TextInputFocusEventData,
-} from 'react-native';
+import type { TextInputFocusEvent } from 'react-native';
 
 import { ThemeAwareButton } from '@/components/ui/ThemeAwareButton';
 import { ThemeAwareDatePicker } from '@/components/ui/ThemeAwareDatePicker';
@@ -336,7 +333,7 @@ function SearchField({
       ...inputProps
     } = field;
     const handleFocus = (
-      event: NativeSyntheticEvent<TextInputFocusEventData>,
+      event: TextInputFocusEvent,
     ) => {
       inputFieldProps?.onFocus?.(event);
       onKeyboardGroupFocus(keyboardGroup);

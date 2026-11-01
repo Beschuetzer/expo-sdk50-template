@@ -10,6 +10,8 @@ import {
   useThemeMode,
 } from './theme';
 
+import { renderWithAct } from '@/test-utils/renderWithAct';
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve(null)),
   setItem: jest.fn(() => Promise.resolve()),
@@ -75,8 +77,9 @@ describe('theme', () => {
       return null;
     };
 
+    let tree!: renderer.ReactTestRenderer;
     await act(async () => {
-      const tree = renderer.create(
+      tree = renderer.create(
         React.createElement(
           ThemeModeProvider,
           null,
@@ -85,16 +88,11 @@ describe('theme', () => {
       );
       await Promise.resolve();
       await Promise.resolve();
-      act(() => {
-        current?.setMode('dark');
-      });
-      tree.update(
-        React.createElement(
-          ThemeModeProvider,
-          null,
-          React.createElement(TestConsumer, null),
-        ),
-      );
+    });
+
+    await act(async () => {
+      current?.setMode('dark');
+      await Promise.resolve();
     });
 
     expect(current?.mode).toBe('dark');
@@ -103,6 +101,7 @@ describe('theme', () => {
       '@mobile/theme-mode',
       'dark',
     );
+    act(() => tree.unmount());
   });
 
   it('provides the system fallback when no provider is present', () => {
@@ -115,7 +114,7 @@ describe('theme', () => {
       return null;
     };
 
-    renderer.create(React.createElement(TestConsumer));
+    renderWithAct(React.createElement(TestConsumer));
 
     expect(current).toEqual({
       colorScheme: 'light',
@@ -232,7 +231,7 @@ describe('theme', () => {
       return null;
     };
 
-    renderer.create(React.createElement(FallbackConsumer));
+    renderWithAct(React.createElement(FallbackConsumer));
 
     expect(fallback).toEqual({
       colorScheme: 'light',
@@ -285,8 +284,9 @@ describe('theme', () => {
       return null;
     };
 
+    let tree!: renderer.ReactTestRenderer;
     await act(async () => {
-      const tree = renderer.create(
+      tree = renderer.create(
         React.createElement(
           ThemeModeProvider,
           null,
@@ -295,14 +295,11 @@ describe('theme', () => {
       );
       await Promise.resolve();
       await Promise.resolve();
+    });
+
+    await act(async () => {
       expect(() => current?.setMode('dark')).not.toThrow();
-      tree.update(
-        React.createElement(
-          ThemeModeProvider,
-          null,
-          React.createElement(TestConsumer, null),
-        ),
-      );
+      await Promise.resolve();
     });
 
     expect(current?.mode).toBe('dark');
@@ -311,5 +308,6 @@ describe('theme', () => {
       '@mobile/theme-mode',
       'dark',
     );
+    act(() => tree.unmount());
   });
 });

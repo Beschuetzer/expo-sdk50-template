@@ -3,6 +3,8 @@ import renderer, { act } from 'react-test-renderer';
 
 import { ThemeAwareScreen } from './ThemeAwareScreen';
 
+import { renderWithAct } from '@/test-utils/renderWithAct';
+
 jest.mock('@gluestack-ui/themed', () => {
   const React = jest.requireActual('react') as typeof import('react');
   const createComponent =
@@ -27,7 +29,7 @@ jest.mock('react-native', () => {
     Record<string, unknown> & { children?: ReactNode }
   >(({ children, ...props }, ref) => {
     React.useImperativeHandle(ref, () => ({ scrollTo: mockScrollTo }));
-    return React.createElement('ScrollView', props, children);
+    return React.createElement('ScrollView', { ...props, children });
   });
 
   return {
@@ -101,7 +103,7 @@ const { __mockScrollToOffset } = jest.requireMock('@shopify/flash-list') as {
 
 describe('ThemeAwareScreen', () => {
   it('does not show a back-to-top button by default', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen>
         <BodyHost />
       </ThemeAwareScreen>,
@@ -117,7 +119,7 @@ describe('ThemeAwareScreen', () => {
   });
 
   it('keeps fixed header content outside the scrollable content', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen fixedHeaderContent={<HeaderHost />}>
         <BodyHost />
       </ThemeAwareScreen>,
@@ -150,7 +152,7 @@ describe('ThemeAwareScreen', () => {
   });
 
   it('keeps regular content inside the scroll view when there is no fixed header', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen>
         <BodyHost />
       </ThemeAwareScreen>,
@@ -230,7 +232,7 @@ describe('ThemeAwareScreen', () => {
 
   it('keeps the default back-to-top button above fixed FlashList content', () => {
     __mockScrollToOffset.mockClear();
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen<number>
         backToTop
         fixedHeader
@@ -298,7 +300,7 @@ describe('ThemeAwareScreen', () => {
 
   it('lets a custom sticky header replace the default back-to-top header', () => {
     const stickyHeader = React.createElement('CustomStickyHeaderHost');
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen stickyHeader={stickyHeader}>
         <BodyHost />
       </ThemeAwareScreen>,
@@ -319,7 +321,7 @@ describe('ThemeAwareScreen', () => {
   });
 
   it('uses the default for padding axes that are not explicitly overridden', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen px="$5">
         <BodyHost />
       </ThemeAwareScreen>,
@@ -335,7 +337,7 @@ describe('ThemeAwareScreen', () => {
   });
 
   it('reserves viewport space for pinned bottom content', () => {
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen bottomContent={<FooterHost />}>
         <BodyHost />
       </ThemeAwareScreen>,
@@ -379,7 +381,7 @@ describe('ThemeAwareScreen', () => {
 
   it('passes scroll actions to render-function bottom content', () => {
     const bottomContent = jest.fn(() => <FooterHost />);
-    const tree = renderer.create(
+    const tree = renderWithAct(
       <ThemeAwareScreen bottomContent={bottomContent}>
         <BodyHost />
       </ThemeAwareScreen>,

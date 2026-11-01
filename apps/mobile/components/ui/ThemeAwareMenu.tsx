@@ -4,7 +4,6 @@ import {
   Animated,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +13,6 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import * as DropdownMenu from 'zeego/dropdown-menu';
 
 import { ThemeAwareIcon } from '@/components/ui/ThemeAwareIcon';
 import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
@@ -140,8 +138,7 @@ export function ThemeAwareMenu({
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isOpen = open ?? internalOpen;
   const [isModalVisible, setIsModalVisible] = useState(isOpen);
-  const [isNativeQuickActionsOpen, setIsNativeQuickActionsOpen] =
-    useState(false);
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
   const menuWidth = resolveMenuWidth(width, viewportWidth);
   const isDark = colorScheme === 'dark';
@@ -235,12 +232,12 @@ export function ThemeAwareMenu({
 
   useEffect(() => {
     if (!isOpen) {
-      setIsNativeQuickActionsOpen(false);
+      setIsQuickActionsOpen(false);
     }
   }, [isOpen]);
 
-  function toggleNativeQuickActions() {
-    setIsNativeQuickActionsOpen((currentValue) => !currentValue);
+  function toggleQuickActions() {
+    setIsQuickActionsOpen((currentValue) => !currentValue);
   }
 
   function renderQuickActions() {
@@ -252,65 +249,22 @@ export function ThemeAwareMenu({
       <Pressable
         accessibilityLabel={quickActionsLabel}
         accessibilityRole="button"
-        accessibilityState={
-          Platform.OS === 'web'
-            ? undefined
-            : { expanded: isNativeQuickActionsOpen }
-        }
+        accessibilityState={{ expanded: isQuickActionsOpen }}
         hitSlop={8}
-        onPress={Platform.OS === 'web' ? undefined : toggleNativeQuickActions}
+        onPress={toggleQuickActions}
         style={[styles.headerButton, { backgroundColor: triggerBackground }]}
       >
         <ThemeAwareIcon color={iconColor} name="ellipsis-v" size={20} />
       </Pressable>
     );
 
-    if (Platform.OS === 'web') {
-      return (
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            {quickActionsButton}
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content
-            align="start"
-            side={side === 'left' ? 'right' : 'left'}
-            style={{
-              backgroundColor: quickActionsBackgroundColor,
-              borderColor,
-              borderRadius: 8,
-              borderWidth: 1,
-              padding: 4,
-            }}
-          >
-            {quickActions.map((action) => (
-              <DropdownMenu.Item
-                key={action.id}
-                disabled={action.disabled}
-                onSelect={action.onSelect}
-              >
-                <DropdownMenu.ItemTitle
-                  style={{
-                    color: action.disabled
-                      ? disabledColor
-                      : quickActionsTextColor,
-                  }}
-                >
-                  {action.label}
-                </DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-            ))}
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      );
-    }
-
     return (
       <>
         {quickActionsButton}
-        {isNativeQuickActionsOpen ? (
+        {isQuickActionsOpen ? (
           <View
             style={[
-              styles.nativeQuickActions,
+              styles.quickActions,
               {
                 backgroundColor: quickActionsBackgroundColor,
                 borderColor,
@@ -325,15 +279,21 @@ export function ThemeAwareMenu({
                 accessibilityState={{ disabled: action.disabled }}
                 disabled={action.disabled}
                 onPress={() => {
-                  setIsNativeQuickActionsOpen(false);
+                  setIsQuickActionsOpen(false);
                   action.onSelect();
                 }}
                 style={({ pressed }) => [
-                  styles.nativeQuickAction,
+                  styles.quickAction,
                   { opacity: action.disabled ? 0.5 : pressed ? 0.65 : 1 },
                 ]}
               >
-                <Text style={{ color: quickActionsTextColor }}>
+                <Text
+                  style={{
+                    color: action.disabled
+                      ? disabledColor
+                      : quickActionsTextColor,
+                  }}
+                >
                   {action.label}
                 </Text>
               </Pressable>
@@ -370,7 +330,7 @@ export function ThemeAwareMenu({
           <Animated.View
             pointerEvents="box-none"
             style={[
-              StyleSheet.absoluteFillObject,
+              StyleSheet.absoluteFill,
               { backgroundColor: backdropColor, opacity: progress },
             ]}
           >
@@ -504,7 +464,7 @@ const styles = StyleSheet.create({
   bodyContent: {
     flexGrow: 1,
   },
-  nativeQuickActions: {
+  quickActions: {
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     elevation: 12,
@@ -515,7 +475,7 @@ const styles = StyleSheet.create({
     top: 48,
     zIndex: 2,
   },
-  nativeQuickAction: {
+  quickAction: {
     minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 16,

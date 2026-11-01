@@ -1,0 +1,19 @@
+diff --git a/node_modules/expo-modules-core/android/cmake/common.cmake b/node_modules/expo-modules-core/android/cmake/common.cmake
+index af09faf..0037fea 100644
+--- a/node_modules/expo-modules-core/android/cmake/common.cmake
++++ b/node_modules/expo-modules-core/android/cmake/common.cmake
+@@ -22,6 +22,7 @@ target_compile_options(
+ target_link_libraries(
+   EXPO_COMMON
+   INTERFACE
++  c++_shared
+   ReactAndroid::jsi
+   fbjni::fbjni
+   ReactAndroid::reactnative
+diff --git a/node_modules/expo-modules-core/android/cmake/modulesV2.cmake b/node_modules/expo-modules-core/android/cmake/modulesV2.cmake
+index 85ac526..b85d338 100644
+--- a/node_modules/expo-modules-core/android/cmake/modulesV2.cmake
++++ b/node_modules/expo-modules-core/android/cmake/modulesV2.cmake
+@@ -1 +1,2 @@
+ add_subdirectory(${EXPO_MODULES_V2_CPP_DIR} expo-modules-v2-build)
++target_link_libraries(expo-modules-v2 PRIVATE c++_shared)

@@ -1,6 +1,6 @@
 import { HStack, VStack } from '@gluestack-ui/themed';
 import { FlashList } from '@shopify/flash-list';
-import type { FlashListProps } from '@shopify/flash-list';
+import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
 import { createElement, useCallback, useRef, useState } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { ScrollView } from 'react-native';
@@ -8,7 +8,7 @@ import type {
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  ScrollView as NativeScrollView,
+  ScrollViewInstance,
 } from 'react-native';
 
 import { ThemeAwareButton } from './ThemeAwareButton';
@@ -84,8 +84,8 @@ export function ThemeAwareScreen<ItemT = unknown>(
   const sectionBorderColor = COLORS[colorScheme].border;
   const [bottomContentHeight, setBottomContentHeight] = useState(0);
   const [isStickyHeaderVisible, setIsStickyHeaderVisible] = useState(false);
-  const flashListRef = useRef<FlashList<ItemT>>(null);
-  const scrollViewRef = useRef<NativeScrollView>(null);
+  const flashListRef = useRef<FlashListRef<ItemT>>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const scrollOffset = useRef(0);
   const stickyHeaderEndOffset = useRef<number | null>(null);
 
@@ -236,7 +236,6 @@ export function ThemeAwareScreen<ItemT = unknown>(
         keyboardShouldPersistTaps={
           flashListProps?.keyboardShouldPersistTaps ?? 'always'
         }
-        estimatedItemSize={flashListProps?.estimatedItemSize ?? 200}
         contentContainerStyle={flashListProps?.contentContainerStyle}
         onScroll={hasStickyHeader ? handleScroll : listProps.onScroll}
       />

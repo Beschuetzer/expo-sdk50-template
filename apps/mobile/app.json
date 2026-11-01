@@ -1,18 +1,12 @@
 {
-  "icon": "./assets/images/icon.png",
   "expo": {
-    "name": "Expo SDK 50 Template",
+    "name": "Expo SDK 58 Template",
     "slug": "expo-50sdk-template",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "expo50sdktemplate",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
@@ -27,6 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.example.expo50sdktemplate",
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
       "intentFilters": [
         {
           "action": "android.intent.action.SEND",
@@ -46,9 +41,32 @@
     },
     "plugins": [
       "expo-localization",
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": false
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-secure-store",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash.png",
+          "imageWidth": 100,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
       [
         "expo-location",
         {
@@ -59,8 +77,8 @@
         "expo-build-properties",
         {
           "android": {
-            "buildToolsVersion": "36.0.0",
-            "compileSdkVersion": 36,
+            "buildToolsVersion": "37.0.0",
+            "compileSdkVersion": 37,
             "enableProguardInReleaseBuilds": true,
             "extraProguardRules": "-keep public class com.horcrux.svg.** {*;}",
             "minSdkVersion": 24,

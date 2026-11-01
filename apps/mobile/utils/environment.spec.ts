@@ -10,7 +10,7 @@ describe('environment helpers', () => {
       EXPO_PUBLIC_ENV: 'development',
       EXPO_PUBLIC_IP_ADDRESS: '192.168.1.5',
       EXPO_PUBLIC_PORT_NUMBER: '4200',
-    } as NodeJS.ProcessEnv;
+    };
 
     expect(getRequiredEnvironment(env)).toEqual({
       env: 'development',

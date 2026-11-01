@@ -1,7 +1,8 @@
 import {
-  BarCodeScanner,
-  type BarCodeScannerResult,
-} from 'expo-barcode-scanner';
+  CameraView,
+  useCameraPermissions,
+  type BarcodeScanningResult,
+} from 'expo-camera';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
   Pressable,
@@ -15,11 +16,15 @@ import { ThemeAwareText } from '@/components/ui/ThemeAwareText';
 import { useThemeAwareColors } from '@/components/ui/useThemeAwareColors';
 import { useI18n } from '@/utils/i18n';
 
-export type { BarCodeScannerResult };
+type BarcodeScannerSettings = NonNullable<
+  ComponentProps<typeof CameraView>['barcodeScannerSettings']
+>;
+
+export type BarCodeScannerResult = BarcodeScanningResult;
 
 export type BarcodeScannerProps = {
-  onScanned: (result: BarCodeScannerResult) => void;
-  barCodeTypes?: ComponentProps<typeof BarCodeScanner>['barCodeTypes'];
+  onScanned: (result: BarcodeScanningResult) => void;
+  barCodeTypes?: BarcodeScannerSettings['barcodeTypes'];
   isActive?: boolean;
   autoRequestPermission?: boolean;
   resetKey?: string | number;
@@ -40,7 +45,7 @@ export function BarcodeScanner({
 }: BarcodeScannerProps) {
   const { t } = useI18n();
   const { colorScheme, getTextColor } = useThemeAwareColors();
-  const [permission, requestPermission] = BarCodeScanner.usePermissions();
+  const [permission, requestPermission] = useCameraPermissions();
   const [hasScanned, setHasScanned] = useState(false);
   const scanLock = useRef(false);
 
@@ -62,7 +67,7 @@ export function BarcodeScanner({
     }
   };
 
-  const handleBarCodeScanned = (result: BarCodeScannerResult) => {
+  const handleBarCodeScanned = (result: BarcodeScanningResult) => {
     if (!isActive || scanLock.current) {
       return;
     }
@@ -84,9 +89,11 @@ export function BarcodeScanner({
       ]}
     >
       {showScanner ? (
-        <BarCodeScanner
-          barCodeTypes={barCodeTypes}
-          onBarCodeScanned={handleBarCodeScanned}
+        <CameraView
+          barcodeScannerSettings={
+            barCodeTypes ? { barcodeTypes: barCodeTypes } : undefined
+          }
+          onBarcodeScanned={handleBarCodeScanned}
           style={[styles.scanner, scannerStyle]}
         />
       ) : null}
@@ -153,7 +160,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   scanner: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   scanFrame: {
     alignSelf: 'center',
