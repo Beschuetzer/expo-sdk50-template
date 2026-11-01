@@ -60,97 +60,11 @@ const SAMPLE_CONTENT_ITEMS = [
 ] as const;
 
 export default function HomeScreen() {
-  const router = useRouter();
   const { t } = useI18n();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const quickActions = [
-    {
-      id: 'account',
-      label: t('menu.accountAction'),
-      onSelect: () => {
-        setIsMenuOpen(false);
-        router.push(`/${Routes.AccountScreen}`);
-      },
-    },
-    {
-      id: 'settings',
-      label: t('menu.settingsAction'),
-      onSelect: () => {
-        setIsMenuOpen(false);
-        router.push('/settings');
-      },
-    },
-  ];
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerRight: () => (
-            <ThemeAwareMenu
-              header={
-                <>
-                  <ThemeAwareHeading size="md">
-                    {t('menu.drawerTitle')}
-                  </ThemeAwareHeading>
-                  <ThemeAwareText size="sm">
-                    {t('menu.drawerDescription')}
-                  </ThemeAwareText>
-                </>
-              }
-              onOpenChange={setIsMenuOpen}
-              open={isMenuOpen}
-              quickActions={quickActions}
-              side="right"
-              width="85%"
-            >
-              <VStack p="$4" space="md">
-                <ThemeAwareHeading size="lg">
-                  {t('menu.highlightsTitle')}
-                </ThemeAwareHeading>
-                <ThemeAwareText>
-                  {t('menu.highlightsDescription')}
-                </ThemeAwareText>
-                {MENU_HIGHLIGHTS.map(({ title, description }) => (
-                  <ThemeAwareSurface
-                    key={title}
-                    darkBackground="$backgroundDark900"
-                    lightBackground="$backgroundLight50"
-                    borderRadius="$md"
-                    p="$3"
-                  >
-                    <VStack space="xs">
-                      <ThemeAwareHeading size="sm">
-                        {t(title)}
-                      </ThemeAwareHeading>
-                      <ThemeAwareText>{t(description)}</ThemeAwareText>
-                    </VStack>
-                  </ThemeAwareSurface>
-                ))}
-                <ThemeAwareHeading size="lg">
-                  {t('sampleContent.sectionTitle')}
-                </ThemeAwareHeading>
-                {SAMPLE_CONTENT_ITEMS.map(({ title, description }) => (
-                  <ThemeAwareSurface
-                    key={title}
-                    darkBackground="$backgroundDark900"
-                    lightBackground="$backgroundLight50"
-                    borderRadius="$md"
-                    p="$3"
-                  >
-                    <VStack space="xs">
-                      <ThemeAwareHeading size="sm">
-                        {t(title)}
-                      </ThemeAwareHeading>
-                      <ThemeAwareText>{t(description)}</ThemeAwareText>
-                    </VStack>
-                  </ThemeAwareSurface>
-                ))}
-              </VStack>
-            </ThemeAwareMenu>
-          ),
-        }}
-      />
+      <Stack.Screen />
       <ThemeAwareScreen>
         <VStack space="lg">
           <ThemeAwareHeading size="2xl">{t('app.title')}</ThemeAwareHeading>
@@ -167,11 +81,6 @@ export default function HomeScreen() {
                 {t('menu.showcaseTitle')}
               </ThemeAwareHeading>
               <ThemeAwareText>{t('menu.showcaseDescription')}</ThemeAwareText>
-              <HStack>
-                <ThemeAwareButton onPress={() => setIsMenuOpen(true)} size="sm">
-                  {t('menu.explore')}
-                </ThemeAwareButton>
-              </HStack>
             </VStack>
           </ThemeAwareSurface>
         </VStack>

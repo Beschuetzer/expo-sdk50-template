@@ -13,9 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.example.expo50sdktemplate",
@@ -37,9 +35,7 @@
               "mimeType": "text/plain"
             }
           ],
-          "category": [
-            "android.intent.category.DEFAULT"
-          ]
+          "category": ["android.intent.category.DEFAULT"]
         }
       ]
     },
@@ -57,6 +53,19 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow this app to use your location while you are using it."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildToolsVersion": "36.0.0",
+            "compileSdkVersion": 36,
+            "enableProguardInReleaseBuilds": true,
+            "extraProguardRules": "-keep public class com.horcrux.svg.** {*;}",
+            "minSdkVersion": 24,
+            "targetSdkVersion": 36
+          }
         }
       ]
     ],

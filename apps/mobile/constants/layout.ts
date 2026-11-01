@@ -1,0 +1,1 @@
+export const THEME_AWARE_CONTENT_HORIZONTAL_GUTTER = '$6';

@@ -74,6 +74,7 @@ const messages = {
       title: 'Welcome back',
     },
     common: {
+      backToTop: 'Back to top',
       loading: 'Loading...',
     },
     datePicker: {
@@ -83,6 +84,14 @@ const messages = {
       open: 'Open date picker',
       placeholder: 'Select date',
       title: 'Select date',
+    },
+    dateTimePicker: {
+      cancel: 'Cancel',
+      clear: 'Clear date and time',
+      confirm: 'Confirm',
+      open: 'Open date and time picker',
+      placeholder: 'Select date and time',
+      title: 'Select date and time',
     },
     errors: {
       apiRequestTimedOut:
@@ -135,6 +144,7 @@ const messages = {
         'Use quick actions for Account and Settings, or close the drawer with the close button or backdrop.',
       highlightsTitle: 'What this menu can do',
       moreActions: 'More menu actions',
+      navigation: 'Navigation',
       open: 'Open menu',
       quickActionsDescription:
         'Jump directly to Account or Settings from the quick actions.',
@@ -269,6 +279,7 @@ const messages = {
       title: 'Te damos la bienvenida',
     },
     common: {
+      backToTop: 'Volver arriba',
       loading: 'Cargando...',
     },
     datePicker: {
@@ -278,6 +289,14 @@ const messages = {
       open: 'Abrir selector de fecha',
       placeholder: 'Seleccionar fecha',
       title: 'Seleccionar fecha',
+    },
+    dateTimePicker: {
+      cancel: 'Cancelar',
+      clear: 'Borrar fecha y hora',
+      confirm: 'Confirmar',
+      open: 'Abrir selector de fecha y hora',
+      placeholder: 'Seleccionar fecha y hora',
+      title: 'Seleccionar fecha y hora',
     },
     errors: {
       apiRequestTimedOut:
@@ -339,6 +358,7 @@ const messages = {
         'Usa las acciones rápidas para ir a Cuenta o Configuración, o cierra el panel con el botón o tocando el fondo.',
       highlightsTitle: 'Qué puedes hacer con este menú',
       moreActions: 'Más acciones del menú',
+      navigation: 'Navegación',
       open: 'Abrir menú',
       quickActionsDescription:
         'Ve directamente a Cuenta o Configuración desde las acciones rápidas.',
@@ -427,6 +447,7 @@ export type TranslationKey =
   | `auth.${keyof typeof messages.en.auth}`
   | `common.${keyof typeof messages.en.common}`
   | `datePicker.${keyof typeof messages.en.datePicker}`
+  | `dateTimePicker.${keyof typeof messages.en.dateTimePicker}`
   | `errors.${keyof typeof messages.en.errors}`
   | `font.${keyof typeof messages.en.font}`
   | `language.${keyof typeof messages.en.language}`

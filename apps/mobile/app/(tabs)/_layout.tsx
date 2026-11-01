@@ -1,3 +1,4 @@
+import { HeaderBackButton } from '@react-navigation/elements';
 import { Image } from 'expo-image';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
@@ -11,6 +12,7 @@ import { Routes } from '@/constants/navigation';
 import { useOAuth2Auth } from '@/features/auth/OAuth2AuthProvider';
 import { getProfilePictureFromClaims } from '@/features/auth/client';
 import { useI18n } from '@/utils/i18n';
+import { stackPageTitleScreenOptions } from '@/utils/pageHeaderOptions';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof ThemeAwareIcon>['name'];
@@ -72,6 +74,22 @@ export default function TabLayout() {
             ) : (
               <TabBarIcon name="user" color={color} />
             ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          href: null,
+          title: t('settings.title'),
+          headerLeft: ({ tintColor }) => (
+            <HeaderBackButton
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace('/')
+              }
+              tintColor={tintColor}
+            />
+          ),
+          headerTitleAlign: 'center',
         }}
       />
     </Tabs>

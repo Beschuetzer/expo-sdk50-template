@@ -27,6 +27,7 @@ import { persistor, store } from '@/state/store';
 import { FontProvider } from '@/utils/font';
 import { I18nProvider, useI18n } from '@/utils/i18n';
 import { ThemeModeProvider, useThemeMode } from '@/utils/theme';
+import { stackPageTitleScreenOptions } from '@/utils/pageHeaderOptions';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -53,9 +54,7 @@ export default function RootLayout() {
     TypeLightSans: require('../assets/fonts/TypeLightSans.otf'),
     Zomboid: require('../assets/fonts/Zomboid.ttf'),
     // Expo SDK 50 needs this font registered through expo-font.
-    FontAwesome: require(
-      '@react-native-vector-icons/fontawesome/fonts/FontAwesome.ttf',
-    ),
+    FontAwesome: require('@react-native-vector-icons/fontawesome/fonts/FontAwesome.ttf'),
   });
 
   useEffect(() => {
@@ -109,7 +108,13 @@ function RootLayoutNav() {
                   <GestureHandlerRootView style={{ flex: 1 }}>
                     <MenuProvider>
                       <BottomSheetModalProvider>
-                        <Stack>
+                        <Stack
+                          screenOptions={{
+                            ...stackPageTitleScreenOptions,
+                            headerShown: true,
+                            headerTitleAlign: 'center',
+                          }}
+                        >
                           <Stack.Screen
                             name="(tabs)"
                             options={{

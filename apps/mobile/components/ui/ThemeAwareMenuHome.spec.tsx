@@ -1,29 +1,24 @@
 import React, { type ReactNode } from 'react';
-import renderer, { act } from 'react-test-renderer';
-
-import type { ThemeAwareMenuAction } from './ThemeAwareMenu';
+import renderer from 'react-test-renderer';
 
 import HomeScreen from '@/app/(tabs)/(home)/index';
-
-const mockRouterPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   Stack: {
     Screen: ({
       options,
     }: {
-      options: { headerRight?: () => ReactNode };
+      options?: { headerRight?: () => ReactNode };
     }) => {
       const React = jest.requireActual('react') as typeof import('react');
 
       return React.createElement(
         'StackScreen',
         { options },
-        options.headerRight?.(),
+        options?.headerRight?.(),
       );
     },
   },
-  useRouter: () => ({ push: mockRouterPush }),
 }));
 
 jest.mock('@gluestack-ui/themed', () => {
@@ -119,100 +114,27 @@ jest.mock('@/utils/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-describe('HomeScreen menu showcase', () => {
-  afterEach(() => {
-    mockRouterPush.mockClear();
-  });
-
-  it('shows unique highlights and sample content with quick navigation actions', () => {
+describe('HomeScreen landing page', () => {
+  it('renders the localized starter content without a menu', () => {
     const tree = renderer.create(<HomeScreen />);
-    const menu = tree.root.find(
-      (instance) => String(instance.type) === 'ThemeAwareMenu',
-    );
     const stackScreen = tree.root.find(
       (instance) => String(instance.type) === 'StackScreen',
     );
-    const screenOptions = stackScreen.props.options as {
-      headerRight?: () => ReactNode;
-    };
-    const quickActions = menu.props.quickActions as ThemeAwareMenuAction[];
     const headings = tree.root
       .findAll((instance) => String(instance.type) === 'ThemeAwareHeading')
       .map((instance) => instance.props.children);
 
-    expect(screenOptions.headerRight).toEqual(expect.any(Function));
+    expect(stackScreen.props.options).toBeUndefined();
+    expect(headings).toEqual(['app.title', 'menu.showcaseTitle']);
     expect(
-      stackScreen.findAll(
+      tree.root
+        .findAll((instance) => String(instance.type) === 'ThemeAwareText')
+        .map((instance) => instance.props.children),
+    ).toEqual(['app.description', 'menu.showcaseDescription']);
+    expect(
+      tree.root.findAll(
         (instance) => String(instance.type) === 'ThemeAwareMenu',
       ),
-    ).toHaveLength(1);
-    expect(menu.props.side).toBe('right');
-    expect(menu.props.width).toBe('85%');
-    expect(quickActions.map(({ id, label }) => ({ id, label }))).toEqual([
-      { id: 'account', label: 'menu.accountAction' },
-      { id: 'settings', label: 'menu.settingsAction' },
-    ]);
-    const expectedHighlightTitles = [
-      'menu.themeAwareTitle',
-      'menu.quickActionsTitle',
-      'menu.responsiveTitle',
-    ];
-    const expectedSampleTitles = [
-      'sampleContent.morningBriefTitle',
-      'sampleContent.readingListTitle',
-      'sampleContent.recentActivityTitle',
-      'sampleContent.weeklyPlanTitle',
-      'sampleContent.fieldNotesTitle',
-      'sampleContent.communityBoardTitle',
-      'sampleContent.photoJournalTitle',
-    ];
-    const highlightTitles = headings.filter((heading) =>
-      expectedHighlightTitles.includes(heading),
-    );
-    const sampleTitles = headings.filter((heading) =>
-      expectedSampleTitles.includes(heading),
-    );
-
-    expect(headings).toEqual(
-      expect.arrayContaining([
-        'menu.showcaseTitle',
-        'menu.highlightsTitle',
-        'sampleContent.sectionTitle',
-      ]),
-    );
-    expect(highlightTitles).toEqual(expectedHighlightTitles);
-    expect(new Set(highlightTitles).size).toBe(highlightTitles.length);
-    expect(sampleTitles).toEqual(expectedSampleTitles);
-    expect(new Set(sampleTitles).size).toBe(sampleTitles.length);
-  });
-
-  it('opens from the home call to action and closes before navigation', () => {
-    const tree = renderer.create(<HomeScreen />);
-    const getMenu = () =>
-      tree.root.find((instance) => String(instance.type) === 'ThemeAwareMenu');
-    const exploreButton = tree.root.find(
-      (instance) => String(instance.type) === 'ThemeAwareButton',
-    );
-
-    act(() => exploreButton.props.onPress({}));
-    expect(getMenu().props.open).toBe(true);
-
-    for (const [actionId, route] of [
-      ['account', '/AccountScreen'],
-      ['settings', '/settings'],
-    ]) {
-      act(() => getMenu().props.onOpenChange(true));
-      const quickActions = getMenu().props
-        .quickActions as ThemeAwareMenuAction[];
-      const action = quickActions.find(({ id }) => id === actionId);
-      if (!action) {
-        throw new Error(`Missing quick action: ${actionId}`);
-      }
-
-      act(() => action.onSelect());
-
-      expect(mockRouterPush).toHaveBeenLastCalledWith(route);
-      expect(getMenu().props.open).toBe(false);
-    }
+    ).toHaveLength(0);
   });
 });

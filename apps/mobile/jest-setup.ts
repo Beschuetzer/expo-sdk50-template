@@ -3,7 +3,9 @@ global.alert = jest.fn();
 const resetExpoEnv = () => {
   const nextEnv = { ...process.env };
   for (const key of [
+    'EXPO_PUBLIC_API_URL',
     'EXPO_PUBLIC_ENV',
+    'EXPO_PUBLIC_IDP_URL',
     'EXPO_PUBLIC_IP_ADDRESS',
     'EXPO_PUBLIC_PORT_NUMBER',
   ]) {
