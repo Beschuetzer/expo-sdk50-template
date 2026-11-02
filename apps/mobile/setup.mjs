@@ -103,16 +103,32 @@ async function addIpAddressToEnvFile() {
 }
 
 function getIPAddress() {
-  const networkInterfaces = os.networkInterfaces();
-  for (const interfaceName in networkInterfaces) {
-    for (const iface of networkInterfaces[interfaceName]) {
-      // Skip over internal IPv6 addresses and loopback addresses
-      if (iface.family === 'IPv4' && !iface.internal) {
+  const interfaces = Object.entries(os.networkInterfaces());
+  const isWifiInterface = (name) => /^(wi-?fi|wireless|wlan)/i.test(name);
+  const isVirtualInterface = (name) =>
+    /(virtual|vEthernet|wsl|hyper-v|docker|vmware|virtualbox|loopback|tailscale|zerotier|vpn|tun\d*|tap\d*|bridge)/i.test(
+      name,
+    );
+  const orderedInterfaces = [
+    ...interfaces.filter(([name]) => isWifiInterface(name)),
+    ...interfaces.filter(
+      ([name]) => !isWifiInterface(name) && !isVirtualInterface(name),
+    ),
+  ];
+
+  for (const [, addresses] of orderedInterfaces) {
+    for (const iface of addresses ?? []) {
+      if (
+        iface.family === 'IPv4' &&
+        !iface.internal &&
+        !iface.address.startsWith('169.254.')
+      ) {
         return iface.address;
       }
     }
   }
   throw new Error('IP address could not be determined');
 }
+
 
 addIpAddressToEnvFile();
