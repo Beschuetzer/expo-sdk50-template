@@ -39,20 +39,25 @@ if (!databaseName) {
 }
 
 const commands = [
-  { title: 'Expo mobile', script: 'mobile' },
-  { title: 'Node API', script: 'api' },
+  {
+    title: 'Expo mobile',
+    cwd: path.join(rootDir, 'apps', 'mobile'),
+    setup: 'node setup.mjs',
+    command: 'npx expo run:android --device',
+  },
+  { title: 'Node API', cwd: rootDir, command: 'npm run api' },
 ];
 
-function startWindowsTerminal({ title, script }) {
-  const escapedRootDir = rootDir.replaceAll("'", "''");
+function startWindowsTerminal({ title, cwd, setup, command }) {
+  const escapedCwd = cwd.replaceAll("'", "''");
   const environmentCommands = Object.entries(sharedEnvironment).map(
     ([key, value]) => `$env:${key} = '${value}'`,
   );
-  const command = [
+  const terminalCommand = [
     `$host.UI.RawUI.WindowTitle = '${title}'`,
     ...environmentCommands,
-    `Set-Location -LiteralPath '${escapedRootDir}'`,
-    `npm run ${script}`,
+    `Set-Location -LiteralPath '${escapedCwd}'`,
+    ...(setup ? [`${setup}; if ($?) { ${command} }`] : [command]),
   ].join('; ');
 
   const child = spawn(
@@ -67,7 +72,7 @@ function startWindowsTerminal({ title, script }) {
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      command,
+      terminalCommand,
     ],
     { detached: true, stdio: 'ignore', windowsHide: false },
   );
@@ -79,9 +84,10 @@ function startWindowsTerminal({ title, script }) {
   child.unref();
 }
 
-function startSharedTerminal({ script }) {
-  const child = spawn('npm', ['run', script], {
-    cwd: rootDir,
+function startSharedTerminal({ cwd, setup, command }) {
+  const shellCommand = setup ? `${setup} && ${command}` : command;
+  const child = spawn(shellCommand, {
+    cwd,
     env: { ...process.env, ...sharedEnvironment },
     stdio: 'inherit',
     shell: true,
@@ -216,12 +222,16 @@ if (process.platform === 'win32') {
   const children = commands.map(startSharedTerminal);
   await Promise.all(
     children.map(
-      (child) =>
+      (child, index) =>
         new Promise((resolve, reject) => {
           child.once('error', reject);
           child.once('exit', (code) => {
             if (code && code !== 0) {
-              reject(new Error(`npm run command exited with code ${code}`));
+              reject(
+                new Error(
+                  `${commands[index].command} exited with code ${code}`,
+                ),
+              );
               return;
             }
             resolve();
